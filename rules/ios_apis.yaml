@@ -1,0 +1,170 @@
+- id: QS-API-001
+  title: "Use of potentially dangerous C functions"
+  symbols:
+    - _fopen
+    - _memcpy
+    - _sscanf
+    - _stat
+    - _strcpy
+    - _strlen
+    - _strncpy
+    - _vsnprintf
+    - _wcslen
+    - _sprintf
+    - _gets
+    - _strcat
+    - _vsprintf
+    - _strncat
+  severity: warning
+  cwe: "CWE-676"
+  owasp_mobile: "M7"
+  owasp_masvs: "MSTG-CODE-8"
+  remediation: "Replace with bounds-checked alternatives (strlcpy, strlcat, snprintf, etc.)"
+
+- id: QS-API-002
+  title: "Use of NSLog for logging (may leak sensitive data)"
+  symbols:
+    - _NSLog
+  severity: info
+  cwe: "CWE-532"
+  owasp_masvs: "MSTG-STORAGE-3"
+  remediation: "Use os_log with appropriate privacy levels instead of NSLog in production builds"
+
+- id: QS-API-003
+  title: "Use of malloc without zero-initialization"
+  symbols:
+    - _malloc
+  severity: warning
+  cwe: "CWE-789"
+  owasp_mobile: "M7"
+  owasp_masvs: "MSTG-CODE-8"
+  remediation: "Use calloc instead of malloc to zero-initialize memory, or use RAII types"
+
+- id: QS-API-004
+  title: "Use of deprecated or weak cryptographic hash functions"
+  symbols:
+    - _CC_MD5
+    - _CC_MD5_Init
+    - _CC_MD5_Update
+    - _CC_MD5_Final
+    - _CC_SHA1
+    - _CC_SHA1_Init
+    - _CC_SHA1_Update
+    - _CC_SHA1_Final
+    - _MD5_Init
+    - _SHA1_Init
+  severity: high
+  cwe: "CWE-327"
+  owasp_mobile: "M5"
+  owasp_masvs: "MSTG-CRYPTO-4"
+  remediation: "Use SHA-256 or stronger hash functions (CC_SHA256, CC_SHA384, CC_SHA512)"
+
+- id: QS-API-005
+  title: "Use of ptrace (anti-debugging / tampering detection)"
+  symbols:
+    - _ptrace
+  severity: info
+  owasp_masvs: "MSTG-RESILIENCE-2"
+  remediation: "Document anti-tampering rationale; consider using Apple's DeviceCheck/App Attest APIs"
+
+- id: QS-API-006
+  title: "Dynamic library loading at runtime"
+  symbols:
+    - _dlopen
+    - _dlsym
+  severity: warning
+  cwe: "CWE-426"
+  owasp_masvs: "MSTG-PLATFORM-9"
+  remediation: "Avoid dynamic library loading; if required, validate library integrity before loading"
+
+- id: QS-API-007
+  title: "Insecure random number generation"
+  symbols:
+    - _rand
+    - _random
+    - _srand
+  severity: warning
+  cwe: "CWE-330"
+  owasp_mobile: "M5"
+  owasp_masvs: "MSTG-CRYPTO-6"
+  remediation: "Use SecRandomCopyBytes for cryptographically secure random number generation"
+
+- id: QS-API-008
+  title: "Use of UIPasteboard (clipboard access)"
+  symbols:
+    - _UIPasteboardNameGeneral
+  severity: info
+  cwe: "CWE-200"
+  owasp_masvs: "MSTG-PLATFORM-4"
+  remediation: "Avoid storing sensitive data in the clipboard; clear clipboard after use"
+
+- id: QS-API-009
+  title: "Use of SQLite without encryption"
+  symbols:
+    - _sqlite3_open
+    - _sqlite3_exec
+  severity: info
+  cwe: "CWE-312"
+  owasp_mobile: "M2"
+  owasp_masvs: "MSTG-STORAGE-1"
+  remediation: "Use SQLCipher or encrypted Core Data stores for sensitive data"
+
+- id: QS-API-010
+  title: "Use of Objective-C runtime introspection"
+  symbols:
+    - _objc_getClass
+    - _objc_msgSend
+    - _class_copyMethodList
+    - _method_getName
+  severity: info
+  owasp_masvs: "MSTG-PLATFORM-7"
+  remediation: "Limit use of runtime introspection; can be exploited for method swizzling attacks"
+
+- id: QS-API-011
+  title: "Jailbreak detection present"
+  symbols:
+    - _cydia_substrate
+    - _MSHookFunction
+    - _MSHookMessageEx
+  severity: info
+  owasp_masvs: "MSTG-RESILIENCE-1"
+  remediation: "Jailbreak detection is present. Ensure checks are robust and consider Apple DeviceCheck/App Attest for attestation"
+
+- id: QS-API-012
+  title: "sysctl-based anti-debugging or device inspection"
+  symbols:
+    - _sysctl
+    - _sysctlbyname
+  severity: info
+  owasp_masvs: "MSTG-RESILIENCE-2"
+  remediation: "sysctl is commonly used for anti-debugging (P_TRACED check). Document its purpose and consider Apple's App Attest"
+
+- id: QS-API-013
+  title: "fork/posix_spawn usage (unusual in iOS apps)"
+  symbols:
+    - _fork
+    - _posix_spawn
+  severity: warning
+  cwe: "CWE-78"
+  owasp_masvs: "MSTG-PLATFORM-9"
+  remediation: "fork/posix_spawn are prohibited in App Store binaries. Presence may indicate anti-debug bypass or a rejected submission"
+
+- id: QS-API-014
+  title: "NSUserDefaults used for data storage"
+  symbols:
+    - _NSUserDefaults
+  severity: info
+  cwe: "CWE-312"
+  owasp_mobile: "M2"
+  owasp_masvs: "MSTG-STORAGE-1"
+  remediation: "Never store sensitive data (tokens, passwords, PII) in NSUserDefaults; use the Keychain instead"
+
+- id: QS-API-015
+  title: "Use of UIWebView (deprecated, no JIT isolation)"
+  symbols:
+    - _UIWebView
+  severity: warning
+  cwe: "CWE-676"
+  owasp_mobile: "M1"
+  owasp_masvs: "MSTG-PLATFORM-5"
+  remediation: "Replace UIWebView with WKWebView. UIWebView was deprecated in iOS 12 and removed from App Store submissions in 2023"

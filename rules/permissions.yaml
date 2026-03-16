@@ -1,0 +1,195 @@
+# iOS Permission Classifications
+ios:
+  dangerous:
+    - key: NSCameraUsageDescription
+      reason: "App requests camera access. Verify it is necessary and does not capture images without user intent."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSMicrophoneUsageDescription
+      reason: "App requests microphone access. Verify it is necessary and does not record audio without user knowledge."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSPhotoLibraryUsageDescription
+      reason: "App requests photo library read access."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSPhotoLibraryAddUsageDescription
+      reason: "App requests permission to add photos to the library."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSLocationWhenInUseUsageDescription
+      reason: "App requests location access while in use."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSLocationAlwaysUsageDescription
+      reason: "App requests always-on background location access. High privacy risk."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSLocationAlwaysAndWhenInUseUsageDescription
+      reason: "App requests both foreground and background location access."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSContactsUsageDescription
+      reason: "App requests access to contacts. May expose sensitive personal data."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSHealthShareUsageDescription
+      reason: "App requests access to read HealthKit data. Extremely sensitive for medical apps."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSHealthUpdateUsageDescription
+      reason: "App requests write access to HealthKit data."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSCalendarsUsageDescription
+      reason: "App requests access to calendar data."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSRemindersUsageDescription
+      reason: "App requests access to reminders."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSMotionUsageDescription
+      reason: "App requests access to motion and fitness data."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSFaceIDUsageDescription
+      reason: "App requests Face ID biometric authentication."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSBluetoothAlwaysUsageDescription
+      reason: "App requests background Bluetooth access."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSBluetoothPeripheralUsageDescription
+      reason: "App requests Bluetooth peripheral access."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSSpeechRecognitionUsageDescription
+      reason: "App uses speech recognition. Audio may be sent to Apple servers."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSLocalNetworkUsageDescription
+      reason: "App requests local network access."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NFCReaderUsageDescription
+      reason: "App requests NFC reader access."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSHomeKitUsageDescription
+      reason: "App requests HomeKit smart home device access."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSUserTrackingUsageDescription
+      reason: "App requests permission to track user across apps (ATT framework)."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+  normal:
+    - key: NSAppleMusicUsageDescription
+      reason: "App requests access to Apple Music library."
+
+# Android Permission Classifications
+android:
+  dangerous:
+    - name: android.permission.READ_CONTACTS
+      reason: "Read access to device contacts."
+      protection_level: dangerous
+
+    - name: android.permission.WRITE_CONTACTS
+      reason: "Write access to device contacts."
+      protection_level: dangerous
+
+    - name: android.permission.ACCESS_FINE_LOCATION
+      reason: "GPS-level location access."
+      protection_level: dangerous
+
+    - name: android.permission.ACCESS_COARSE_LOCATION
+      reason: "Network-based location access."
+      protection_level: dangerous
+
+    - name: android.permission.ACCESS_BACKGROUND_LOCATION
+      reason: "Background location access (Android 10+)."
+      protection_level: dangerous
+
+    - name: android.permission.RECORD_AUDIO
+      reason: "Microphone access."
+      protection_level: dangerous
+
+    - name: android.permission.CAMERA
+      reason: "Camera access."
+      protection_level: dangerous
+
+    - name: android.permission.READ_EXTERNAL_STORAGE
+      reason: "Read external storage."
+      protection_level: dangerous
+
+    - name: android.permission.WRITE_EXTERNAL_STORAGE
+      reason: "Write external storage."
+      protection_level: dangerous
+
+    - name: android.permission.READ_SMS
+      reason: "Read SMS messages."
+      protection_level: dangerous
+
+    - name: android.permission.SEND_SMS
+      reason: "Send SMS messages."
+      protection_level: dangerous
+
+    - name: android.permission.CALL_PHONE
+      reason: "Make phone calls."
+      protection_level: dangerous
+
+    - name: android.permission.READ_CALL_LOG
+      reason: "Access call log."
+      protection_level: dangerous
+
+    - name: android.permission.PROCESS_OUTGOING_CALLS
+      reason: "Intercept outgoing calls."
+      protection_level: dangerous
+
+    - name: android.permission.BODY_SENSORS
+      reason: "Access body sensor data (heart rate, etc.)."
+      protection_level: dangerous
+
+    - name: android.permission.GET_ACCOUNTS
+      reason: "Access device account list."
+      protection_level: dangerous
+
+    - name: android.permission.USE_BIOMETRIC
+      reason: "Biometric authentication."
+      protection_level: dangerous
+
+    - name: android.permission.USE_FINGERPRINT
+      reason: "Fingerprint authentication."
+      protection_level: dangerous
+
+  system:
+    - name: android.permission.RECEIVE_BOOT_COMPLETED
+      reason: "App starts on device boot."
+      protection_level: normal
+
+    - name: android.permission.FOREGROUND_SERVICE
+      reason: "App runs foreground services."
+      protection_level: normal

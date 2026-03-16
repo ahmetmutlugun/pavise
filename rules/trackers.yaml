@@ -1,0 +1,256 @@
+- name: "Google Firebase"
+  categories:
+    - Analytics
+    - Backend
+  domains:
+    - firebaseinstallations.googleapis.com
+    - firebaseremoteconfig.googleapis.com
+    - firebase-settings.crashlytics.com
+    - app-measurement.com
+    - firebaseio.com
+    - firebaseapp.com
+  framework_names:
+    - FirebaseAnalytics
+    - Firebase
+    - FirebaseCore
+    - FirebaseFirestore
+    - FirebaseFirestoreInternal
+    - FirebaseAuth
+    - FirebaseStorage
+    - FirebaseMessaging
+    - FirebaseDatabase
+    - FirebaseRemoteConfig
+    - FirebasePerformance
+    - FirebaseDynamicLinks
+    - FirebaseInAppMessaging
+    - FirebaseFunctions
+    - FirebaseAppCheck
+    - GoogleUtilities
+    - GoogleDataTransport
+    - nanopb
+  framework_prefixes:
+    - Firebase
+    - Google
+
+- name: "Google Crashlytics"
+  categories:
+    - Crash Reporting
+  domains:
+    - reports.crashlytics.com
+    - firebase-settings.crashlytics.com
+    - e.crashlytics.com
+  framework_names:
+    - Crashlytics
+    - FirebaseCrashlytics
+    - FirebaseCrashlyticsSwift
+  framework_prefixes:
+    - FirebaseCrashlytics
+
+- name: "gRPC (Google)"
+  categories:
+    - Networking
+  domains: []
+  framework_names:
+    - grpc
+    - grpcpp
+    - absl
+    - openssl_grpc
+  framework_prefixes:
+    - grpc
+
+- name: "Google Analytics"
+  categories:
+    - Analytics
+  domains:
+    - google-analytics.com
+    - ssl.google-analytics.com
+    - www.google-analytics.com
+  framework_names:
+    - GoogleAnalytics
+
+- name: "Google Ads / AdMob"
+  categories:
+    - Advertising
+  domains:
+    - googleadservices.com
+    - googlesyndication.com
+    - admob.com
+    - ads.google.com
+    - pagead2.googlesyndication.com
+  framework_names:
+    - GoogleMobileAds
+    - AdMob
+
+- name: "Facebook SDK"
+  categories:
+    - Analytics
+    - Advertising
+    - Social
+  domains:
+    - graph.facebook.com
+    - graph.instagram.com
+    - connect.facebook.net
+  framework_names:
+    - FBSDKCoreKit
+    - FBSDKLoginKit
+    - FBSDKShareKit
+    - FacebookCore
+    - FacebookLogin
+
+- name: "Mixpanel"
+  categories:
+    - Analytics
+  domains:
+    - api.mixpanel.com
+    - cdn.mxpnl.com
+    - mixpanel.com
+  framework_names:
+    - Mixpanel
+
+- name: "Amplitude"
+  categories:
+    - Analytics
+  domains:
+    - api.amplitude.com
+    - api2.amplitude.com
+    - amplitude.com
+  framework_names:
+    - Amplitude
+
+- name: "Segment"
+  categories:
+    - Analytics
+  domains:
+    - api.segment.io
+    - cdn.segment.com
+    - segment.io
+  framework_names:
+    - Analytics
+    - Segment
+
+- name: "Intercom"
+  categories:
+    - Customer Support
+    - Analytics
+  domains:
+    - api.intercom.io
+    - nexus-websocket-b.intercom.io
+    - nexus-websocket-a.intercom.io
+    - intercom.io
+  framework_names:
+    - Intercom
+
+- name: "AppsFlyer"
+  categories:
+    - Attribution
+    - Analytics
+  domains:
+    - appsflyer.com
+    - t.appsflyer.com
+    - gcdsdk.appsflyer.com
+  framework_names:
+    - AppsFlyerLib
+    - AppsFlyer
+
+- name: "Braze"
+  categories:
+    - Marketing
+    - Analytics
+  domains:
+    - sdk.iad-01.braze.com
+    - sdk.iad-02.braze.com
+    - sdk.iad-03.braze.com
+    - sdk.iad-04.braze.com
+    - sdk.iad-05.braze.com
+    - sdk.iad-06.braze.com
+    - sdk.iad-07.braze.com
+    - braze.com
+    - appboy.com
+  framework_names:
+    - Appboy
+    - BrazeKit
+    - BrazeUI
+
+- name: "Sentry"
+  categories:
+    - Crash Reporting
+  domains:
+    - sentry.io
+    - o0.ingest.sentry.io
+  framework_names:
+    - Sentry
+
+- name: "Bugsnag"
+  categories:
+    - Crash Reporting
+  domains:
+    - notify.bugsnag.com
+    - sessions.bugsnag.com
+    - bugsnag.com
+  framework_names:
+    - Bugsnag
+
+- name: "New Relic"
+  categories:
+    - Performance Monitoring
+  domains:
+    - mobile-collector.newrelic.com
+    - newrelic.com
+  framework_names:
+    - NewRelic
+    - NewRelicAgent
+
+- name: "Datadog"
+  categories:
+    - Performance Monitoring
+    - Analytics
+  domains:
+    - browser-intake-datadoghq.com
+    - logs.browser-intake-datadoghq.com
+    - rum.browser-intake-datadoghq.com
+    - datadoghq.com
+  framework_names:
+    - DatadogCore
+    - DatadogRUM
+    - DatadogLogs
+
+- name: "Adjust"
+  categories:
+    - Attribution
+  domains:
+    - app.adjust.com
+    - adjust.com
+  framework_names:
+    - Adjust
+
+- name: "Branch.io"
+  categories:
+    - Attribution
+    - Deep Linking
+  domains:
+    - api2.branch.io
+    - api.branch.io
+    - branch.io
+  framework_names:
+    - Branch
+
+- name: "CleverTap"
+  categories:
+    - Marketing
+    - Analytics
+  domains:
+    - clevertap.com
+    - clevertap.com
+  framework_names:
+    - CleverTapSDK
+    - CleverTap
+
+- name: "Singular"
+  categories:
+    - Attribution
+  domains:
+    - sdk-api-v1.singular.net
+    - singular.net
+  framework_names:
+    - Singular
+    - SingularSDK

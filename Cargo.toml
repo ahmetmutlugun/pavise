@@ -1,0 +1,108 @@
+[package]
+name = "pavise"
+version = "0.1.0"
+edition = "2021"
+description = "Fast mobile app static analysis tool for iOS IPA and Android APK files"
+license = "MIT"
+
+[[bin]]
+name = "pavise"
+path = "src/main.rs"
+
+[[bin]]
+name = "pavise-server"
+path = "src/serve.rs"
+
+[lib]
+name = "pavise"
+path = "src/lib.rs"
+
+[dependencies]
+# Async runtime — only rt-multi-thread is needed; reqwest blocking uses it internally.
+# "full" would also compile timers, fs, process, signal, and net which are all unused.
+tokio = { version = "1", features = ["full"] }
+
+# Parallelism
+rayon = "1"
+
+# ZIP parsing — IPAs use DEFLATE or STORED only; disable unused backends (bzip2, zstd, etc.)
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+# Regex
+regex = "1"
+
+# Binary parsing — disable ELF, PE, and archive parsing; only Mach-O is used.
+# goblin 0.8 splits mach into mach32 (ARMv7/x86) and mach64 (ARM64/x86_64).
+# `std` must be explicit: it enables StdError on goblin::Error, required by anyhow::Context.
+goblin = { version = "0.8", default-features = false, features = ["std", "mach32", "mach64"] }
+
+# Plist parsing
+plist = "1"
+
+# XML parsing
+quick-xml = { version = "0.36", features = ["serialize"] }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# Hashing
+sha2 = "0.10"
+md-5 = "0.10"
+sha1 = "0.10"
+digest = "0.10"
+
+# HTML reports
+tera = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Colored output
+colored = "2"
+
+# Hex encoding
+hex = "0.4"
+
+# Semantic version comparison (used for CVE framework matching)
+semver = "1"
+
+# Error handling
+anyhow = "1"
+thiserror = "1"
+
+# HTTP server (used by pavise-server binary)
+axum = { version = "0.7", features = ["multipart"] }
+tower-http = { version = "0.5", features = ["cors"] }
+uuid = { version = "1", features = ["v4"] }
+
+# PDF reports via Typst
+typst = "0.12"
+typst-pdf = "0.12"
+typst-kit = "0.12"
+ureq = "2.10"
+tar = "0.4"
+zune-inflate = "0.2"
+time = "0.3"
+tempfile = "3"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[profile.release]
+opt-level = 3
+lto = "fat"          # full cross-crate inlining; thin LTO (lto=true) leaves some wins on the table
+codegen-units = 1
+strip = true
+panic = "abort"      # removes all unwinding machinery — saves ~5-10% binary size, small runtime win
+
+# Optimise all dependencies at level 3 even in debug builds.
+# This makes rayon, regex, goblin, zip, etc. run at near-release speed during `cargo run`.
+# Your own code stays unoptimised so incremental recompilation stays fast.
+[profile.dev.package."*"]
+opt-level = 3

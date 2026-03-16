@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pavise — iOS Security Analyzer</title>
+  <script src="https://unpkg.com/htmx.org@2.0.3/dist/htmx.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #1c2128;
+      --border:    #30363d;
+      --text:      #e6edf3;
+      --text-dim:  #8b949e;
+      --accent:    #58a6ff;
+      --high:      #f85149;
+      --warn:      #d29922;
+      --info:      #58a6ff;
+      --secure:    #3fb950;
+      --radius:    8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #58a6ff, #bc8cff);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+    }
+    .tagline {
+      margin-top: 0.4rem;
+      color: var(--text-dim);
+      font-size: 0.95rem;
+    }
+
+    /* ── Upload form ── */
+    .upload-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.05);
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .drop-icon { font-size: 2rem; margin-bottom: 0.6rem; }
+    .drop-label { font-size: 0.95rem; color: var(--text-dim); }
+    .drop-label strong { color: var(--accent); }
+    .file-name {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      color: var(--secure);
+      font-family: monospace;
+      min-height: 1.2em;
+    }
+
+    .submit-row {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.25rem;
+      align-items: center;
+    }
+    .btn-analyze {
+      background: var(--accent);
+      color: #0d1117;
+      border: none;
+      border-radius: var(--radius);
+      padding: 0.6rem 1.4rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .btn-analyze:hover { opacity: 0.85; }
+    .btn-analyze:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── HTMX loading indicator ── */
+    #loading {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-dim);
+      font-size: 0.9rem;
+    }
+    #loading.htmx-request { display: flex; }
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results (injected HTML) ── */
+    .result-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-top: 1.5rem;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1.25rem;
+    }
+    .app-name {
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+    .app-version {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      font-weight: 400;
+    }
+    .app-id {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      font-family: monospace;
+      margin-top: 0.25rem;
+    }
+
+    .score-block {
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .grade {
+      font-size: 2.25rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .grade-a { color: #3fb950; }
+    .grade-b { color: #56d364; }
+    .grade-c { color: #d29922; }
+    .grade-d { color: #f0883e; }
+    .grade-f { color: #f85149; }
+    .score-num {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-top: 0.15rem;
+    }
+    .score-denom { font-size: 0.75rem; }
+
+    .stats-row {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+    }
+    .stat {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      text-align: center;
+      flex: 1;
+      min-width: 60px;
+    }
+    .stat-num { font-size: 1.1rem; font-weight: 700; }
+    .stat-label { font-size: 0.7rem; color: var(--text-dim); margin-top: 0.1rem; }
+    .stat-high .stat-num { color: var(--high); }
+    .stat-warn .stat-num { color: var(--warn); }
+    .stat-info .stat-num { color: var(--info); }
+
+    .section-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      margin: 1.25rem 0 0.6rem;
+    }
+    .arch-badge {
+      font-size: 0.7rem;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.1rem 0.35rem;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 400;
+      color: var(--text-dim);
+      margin-left: 0.4rem;
+    }
+
+    .prot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 0.4rem;
+    }
+    .prot-row {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.85rem;
+      padding: 0.3rem 0.5rem;
+      border-radius: 5px;
+      background: var(--surface2);
+    }
+    .prot-icon { font-size: 0.85rem; }
+    .prot-ok .prot-icon { color: var(--secure); }
+    .prot-fail .prot-icon { color: var(--high); }
+
+    .findings-list { display: flex; flex-direction: column; gap: 0.4rem; }
+    .finding-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.6rem 0.75rem;
+      background: var(--surface2);
+      border-radius: 6px;
+      border-left: 3px solid transparent;
+    }
+    .sev-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-top: 0.1rem;
+    }
+    .sev-high   { background: rgba(248,81,73,0.15);  color: var(--high);   border: 1px solid rgba(248,81,73,0.3);  }
+    .sev-warn   { background: rgba(210,153,34,0.15); color: var(--warn);   border: 1px solid rgba(210,153,34,0.3); }
+    .sev-info   { background: rgba(88,166,255,0.12); color: var(--info);   border: 1px solid rgba(88,166,255,0.3); }
+    .sev-secure { background: rgba(63,185,80,0.12);  color: var(--secure); border: 1px solid rgba(63,185,80,0.3);  }
+
+    .finding-row.sev-high-row   { border-left-color: var(--high); }
+    .finding-row.sev-warn-row   { border-left-color: var(--warn); }
+
+    .finding-body { flex: 1; min-width: 0; }
+    .finding-title { font-size: 0.88rem; font-weight: 500; }
+    .finding-evidence {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: monospace;
+      margin-top: 0.2rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .finding-id {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      flex-shrink: 0;
+      opacity: 0.7;
+    }
+
+    .more-note {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 0.5rem;
+    }
+
+    .download-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+    .btn {
+      flex: 1;
+      text-align: center;
+      padding: 0.6rem 1rem;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      border: 1px solid var(--border);
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .btn:hover { opacity: 0.8; }
+    .btn-json {
+      background: var(--surface2);
+      color: var(--info);
+      border-color: rgba(88,166,255,0.3);
+    }
+    .btn-pdf {
+      background: var(--surface2);
+      color: #bc8cff;
+      border-color: rgba(188,140,255,0.3);
+    }
+
+    /* ── Error card ── */
+    .error-card {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(248,81,73,0.1);
+      border: 1px solid rgba(248,81,73,0.3);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-top: 1.5rem;
+      color: var(--high);
+      animation: fadeIn 0.2s ease;
+    }
+    .error-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .error-msg { font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <div class="logo">
+        <div class="logo-icon">&#x26A1;</div>
+        Pavise
+      </div>
+      <p class="tagline">Fast iOS IPA Static Security Analysis</p>
+    </header>
+
+    <div class="upload-card">
+      <form
+        hx-post="/api/scan"
+        hx-encoding="multipart/form-data"
+        hx-target="#results"
+        hx-swap="innerHTML"
+        hx-indicator="#loading"
+        id="scan-form"
+      >
+        <div class="drop-zone" id="drop-zone">
+          <input
+            type="file"
+            name="file"
+            accept=".ipa"
+            id="file-input"
+            required
+          >
+          <div class="drop-icon">&#x1F4E6;</div>
+          <div class="drop-label">
+            Drop an <strong>.ipa</strong> file here, or <strong>click to browse</strong>
+          </div>
+          <div class="file-name" id="file-name"></div>
+        </div>
+
+        <div class="submit-row">
+          <button class="btn-analyze" type="submit" id="submit-btn">Analyze</button>
+          <div id="loading">
+            <div class="spinner"></div>
+            Scanning&hellip;
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div id="results"></div>
+
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('file-input');
+    const fileName  = document.getElementById('file-name');
+    const dropZone  = document.getElementById('drop-zone');
+
+    fileInput.addEventListener('change', () => {
+      fileName.textContent = fileInput.files[0]?.name ?? '';
+    });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        fileName.textContent = e.dataTransfer.files[0].name;
+      }
+    });
+
+    // Disable submit while request is in flight
+    document.body.addEventListener('htmx:beforeRequest', () => {
+      document.getElementById('submit-btn').disabled = true;
+    });
+    document.body.addEventListener('htmx:afterRequest', () => {
+      document.getElementById('submit-btn').disabled = false;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pavise — {{ report.app_info.name }}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;font-size:14px;line-height:1.5}
+a{color:#58a6ff;text-decoration:none}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+
+/* Header */
+.header{background:linear-gradient(135deg,#161b22 0%,#0d1117 100%);border-bottom:1px solid #30363d;padding:32px 0}
+.header-inner{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+.app-name{font-size:28px;font-weight:700;color:#f0f6fc;margin-bottom:6px}
+.app-meta{color:#8b949e;font-size:13px;display:flex;flex-wrap:wrap;gap:12px}
+.app-meta span{display:flex;align-items:center;gap:4px}
+.pill{background:#21262d;border:1px solid #30363d;border-radius:12px;padding:2px 10px;font-size:12px;color:#8b949e}
+
+/* Score panel */
+.score-panel{display:flex;flex-direction:column;align-items:center;background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px 28px;min-width:160px;flex-shrink:0}
+.grade{font-size:56px;font-weight:800;line-height:1;margin-bottom:4px}
+.grade-a{color:#3fb950}
+.grade-b{color:#56d364}
+.grade-c{color:#d29922}
+.grade-d{color:#f85149}
+.grade-f{color:#b91c1c}
+.score-num{font-size:22px;font-weight:600;color:#f0f6fc}
+.score-num span{font-size:14px;color:#8b949e;font-weight:400}
+.score-bar{width:100%;height:6px;background:#21262d;border-radius:3px;margin-top:10px;overflow:hidden}
+.score-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#f85149,#d29922,#3fb950);background-size:200% 100%}
+
+/* Stats bar */
+.stats-bar{display:flex;gap:0;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin:24px 0;background:#161b22}
+.stat{flex:1;padding:16px 12px;text-align:center;border-right:1px solid #30363d}
+.stat:last-child{border-right:none}
+.stat-val{display:block;font-size:24px;font-weight:700;line-height:1.1}
+.stat-val.high{color:#f85149}
+.stat-val.warn{color:#d29922}
+.stat-val.info{color:#58a6ff}
+.stat-val.ok{color:#3fb950}
+.stat-label{display:block;font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+
+/* Sections */
+.section{margin-bottom:32px}
+.section-title{font-size:16px;font-weight:600;color:#f0f6fc;padding:12px 16px;background:#161b22;border:1px solid #30363d;border-bottom:none;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:8px}
+.section-title .count{background:#21262d;border:1px solid #30363d;border-radius:10px;padding:1px 8px;font-size:12px;color:#8b949e;font-weight:500}
+.section-body{border:1px solid #30363d;border-radius:0 0 8px 8px;overflow:hidden}
+
+/* App Info table */
+.info-table{width:100%;border-collapse:collapse}
+.info-table tr{border-bottom:1px solid #21262d}
+.info-table tr:last-child{border-bottom:none}
+.info-table th{width:200px;padding:10px 16px;text-align:left;font-weight:500;color:#8b949e;font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:#161b22}
+.info-table td{padding:10px 16px;color:#c9d1d9}
+
+/* Binary protections */
+.protections-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0;background:#0d1117}
+.protection-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #21262d;border-right:1px solid #21262d}
+.prot-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.prot-icon.ok{background:#0d4429;color:#3fb950}
+.prot-icon.bad{background:#3d0f0f;color:#f85149}
+.prot-icon.warn{background:#2d1f00;color:#d29922}
+.prot-name{font-size:13px;color:#c9d1d9}
+.prot-desc{font-size:11px;color:#8b949e;margin-top:2px}
+
+/* Findings */
+.finding{padding:16px;border-bottom:1px solid #21262d;background:#0d1117}
+.finding:last-child{border-bottom:none}
+.finding-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.finding-title{font-size:14px;font-weight:600;color:#f0f6fc}
+.finding-id{font-size:11px;color:#8b949e;font-family:'SF Mono',Consolas,monospace;white-space:nowrap}
+.sev-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.sev-high{background:#3d0f0f;color:#f85149;border:1px solid #6e1a1a}
+.sev-warning{background:#2d1f00;color:#d29922;border:1px solid #5a3e00}
+.sev-info{background:#0d2045;color:#58a6ff;border:1px solid #1f4080}
+.sev-secure{background:#0d2c1a;color:#3fb950;border:1px solid #1a5c34}
+.finding-desc{font-size:13px;color:#8b949e;margin-bottom:8px}
+.finding-evidence{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 12px;font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#79c0ff;word-break:break-all;margin-bottom:8px}
+.finding-remediation{display:flex;gap:8px;background:#0d2c1a;border:1px solid #1a5c34;border-radius:6px;padding:8px 12px}
+.finding-remediation-label{font-size:11px;font-weight:600;color:#3fb950;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;margin-top:1px}
+.finding-remediation-text{font-size:12px;color:#7ee787}
+.finding-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.meta-tag{background:#21262d;border:1px solid #30363d;border-radius:4px;padding:1px 7px;font-size:11px;color:#8b949e;font-family:'SF Mono',Consolas,monospace}
+
+/* Secrets */
+.secret-item{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid #21262d;background:#0d1117}
+.secret-item:last-child{border-bottom:none}
+.secret-title{font-size:13px;font-weight:600;color:#f0f6fc;margin-bottom:2px}
+.secret-path{font-size:11px;color:#8b949e;font-family:'SF Mono',Consolas,monospace;margin-bottom:4px}
+.secret-value{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:4px 10px;font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#f0883e;word-break:break-all}
+
+/* Trackers */
+.tracker-item{padding:12px 16px;border-bottom:1px solid #21262d;background:#0d1117;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.tracker-item:last-child{border-bottom:none}
+.tracker-name{font-size:13px;font-weight:600;color:#f0f6fc}
+.tracker-evidence{font-size:11px;color:#8b949e;font-family:'SF Mono',Consolas,monospace;margin-top:2px}
+.tracker-cats{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.tracker-cat{background:#21262d;border:1px solid #30363d;border-radius:10px;padding:1px 8px;font-size:11px;color:#8b949e}
+
+/* Domains */
+.domain-list{padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px;background:#0d1117}
+.domain-tag{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 10px;font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#79c0ff}
+.email-tag{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 10px;font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#c9d1d9}
+
+/* Firebase card */
+.firebase-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));background:#0d1117}
+.firebase-item{padding:10px 16px;border-bottom:1px solid #21262d;border-right:1px solid #21262d}
+.firebase-key{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.firebase-val{font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#79c0ff;word-break:break-all}
+
+/* Hashes */
+.hashes{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;padding:12px 16px;background:#0d1117}
+.hash-key{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;align-self:center}
+.hash-val{font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#8b949e;word-break:break-all}
+
+/* Footer */
+.footer{border-top:1px solid #30363d;padding:24px 0;margin-top:40px;color:#8b949e;font-size:12px;display:flex;justify-content:space-between;align-items:center}
+.footer-logo{font-weight:700;color:#f0f6fc}
+
+/* Empty states */
+.empty{padding:24px;text-align:center;color:#8b949e;font-size:13px;background:#0d1117}
+
+/* Collapsible framework section */
+details summary{cursor:pointer;padding:10px 16px;background:#161b22;border-bottom:1px solid #21262d;color:#8b949e;font-size:12px;user-select:none;list-style:none}
+details summary::-webkit-details-marker{display:none}
+details summary::before{content:"▶ ";font-size:10px}
+details[open] summary::before{content:"▼ "}
+
+/* OWASP grid */
+.owasp-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#30363d}
+.owasp-cell{padding:14px 12px;display:flex;flex-direction:column;gap:4px;background:#0d1117}
+.owasp-cell.ok{background:#0d1a12}
+.owasp-cell.bad{background:#1a0a0a}
+.owasp-code{font-size:15px;font-weight:700;font-family:'SF Mono',Consolas,monospace}
+.owasp-cell.ok .owasp-code{color:#3fb950}
+.owasp-cell.bad .owasp-code{color:#f85149}
+.owasp-label{font-size:11px;color:#8b949e;line-height:1.3}
+.owasp-count{font-size:12px;font-weight:600}
+.owasp-cell.ok .owasp-count{color:#3fb950}
+.owasp-cell.bad .owasp-count{color:#f85149}
+
+/* CVE table */
+.cve-row-high{background:#1a0a0a}
+.cve-row-warning{background:#1a1400}
+
+/* Baseline diff cards */
+.diff-cards{display:flex;gap:0;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:24px;background:#161b22}
+.diff-card{flex:1;padding:16px 12px;text-align:center;border-right:1px solid #30363d}
+.diff-card:last-child{border-right:none}
+.diff-val{display:block;font-size:22px;font-weight:700;line-height:1.1}
+.diff-label{display:block;font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+.diff-tags{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;background:#0d1117}
+.diff-tag-new{background:#0d2045;border:1px solid #1f4080;border-radius:4px;padding:2px 8px;font-size:11px;font-family:'SF Mono',Consolas,monospace;color:#58a6ff}
+.diff-tag-fixed{background:#0d2c1a;border:1px solid #1a5c34;border-radius:4px;padding:2px 8px;font-size:11px;font-family:'SF Mono',Consolas,monospace;color:#3fb950}
+</style>
+</head>
+<body>
+
+<div class="header">
+<div class="container">
+<div class="header-inner">
+  <div>
+    <div class="app-name">{{ report.app_info.name }}</div>
+    <div class="app-meta">
+      <span>{{ report.app_info.identifier }}</span>
+      <span class="pill">v{{ report.app_info.version }} ({{ report.app_info.build }})</span>
+      <span class="pill">iOS {{ report.app_info.min_os_version }}+</span>
+      <span class="pill">{{ report.app_info.app_type }}</span>
+      {% if report.app_info.supported_platforms %}
+      <span class="pill">{{ report.app_info.supported_platforms | join(sep=", ") }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="score-panel">
+    <div class="grade grade-{{ report.grade | lower }}">{{ report.grade }}</div>
+    <div class="score-num">{{ report.security_score }}<span>/100</span></div>
+    <div class="score-bar"><div class="score-fill" style="width:{{ report.security_score }}%"></div></div>
+  </div>
+</div>
+</div>
+</div>
+
+<div class="container" style="padding-top:24px">
+
+<!-- Stats bar -->
+<div class="stats-bar">
+  <div class="stat"><span class="stat-val high">{{ high_count }}</span><span class="stat-label">High</span></div>
+  <div class="stat"><span class="stat-val warn">{{ warn_count }}</span><span class="stat-label">Warning</span></div>
+  <div class="stat"><span class="stat-val info">{{ info_count }}</span><span class="stat-label">Info</span></div>
+  <div class="stat"><span class="stat-val ok">{{ report.trackers | length }}</span><span class="stat-label">Trackers</span></div>
+  <div class="stat"><span class="stat-val warn">{{ report.secrets | length }}</span><span class="stat-label">Secrets</span></div>
+  <div class="stat"><span class="stat-val info">{{ report.scan_duration_ms }}ms</span><span class="stat-label">Scan Time</span></div>
+</div>
+
+<!-- Baseline Diff (shown only when --baseline was used) -->
+{% if report.baseline_diff %}
+<div class="section">
+  <div class="section-title">Changes vs Baseline</div>
+  <div class="section-body">
+    <div class="diff-cards">
+      <div class="diff-card">
+        <span class="diff-val" style="color:{% if report.baseline_diff.score_delta > 0 %}#3fb950{% elif report.baseline_diff.score_delta < 0 %}#f85149{% else %}#8b949e{% endif %}">
+          {% if report.baseline_diff.score_delta > 0 %}+{% endif %}{{ report.baseline_diff.score_delta }}
+        </span>
+        <span class="diff-label">Score Delta</span>
+      </div>
+      <div class="diff-card">
+        <span class="diff-val" style="color:{% if report.baseline_diff.new_findings | length > 0 %}#f85149{% else %}#3fb950{% endif %}">{{ report.baseline_diff.new_findings | length }}</span>
+        <span class="diff-label">New Findings</span>
+      </div>
+      <div class="diff-card">
+        <span class="diff-val" style="color:#3fb950">{{ report.baseline_diff.fixed_findings | length }}</span>
+        <span class="diff-label">Fixed Findings</span>
+      </div>
+      <div class="diff-card">
+        <span class="diff-val" style="color:{% if report.baseline_diff.new_secrets > 0 %}#f85149{% else %}#3fb950{% endif %}">{{ report.baseline_diff.new_secrets }}</span>
+        <span class="diff-label">New Secrets</span>
+      </div>
+      <div class="diff-card">
+        <span class="diff-val" style="color:#3fb950">{{ report.baseline_diff.fixed_secrets }}</span>
+        <span class="diff-label">Fixed Secrets</span>
+      </div>
+    </div>
+    {% if report.baseline_diff.new_findings %}
+    <div style="padding:8px 16px;background:#161b22;border-top:1px solid #30363d;font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.04em">New Findings</div>
+    <div class="diff-tags">
+      {% for id in report.baseline_diff.new_findings %}<span class="diff-tag-new">{{ id }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    {% if report.baseline_diff.fixed_findings %}
+    <div style="padding:8px 16px;background:#161b22;border-top:1px solid #30363d;font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.04em">Fixed Findings</div>
+    <div class="diff-tags">
+      {% for id in report.baseline_diff.fixed_findings %}<span class="diff-tag-fixed">{{ id }}</span>{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- App Info -->
+<div class="section">
+  <div class="section-title">App Information</div>
+  <div class="section-body">
+    <table class="info-table">
+      <tr><th>Bundle Name</th><td>{{ report.app_info.name }}</td></tr>
+      <tr><th>Bundle ID</th><td>{{ report.app_info.identifier }}</td></tr>
+      <tr><th>Version</th><td>{{ report.app_info.version }} ({{ report.app_info.build }})</td></tr>
+      <tr><th>Platform</th><td>{{ report.app_info.platform }}</td></tr>
+      <tr><th>Min OS Version</th><td>{{ report.app_info.min_os_version }}</td></tr>
+      {% if report.app_info.sdk_name %}<tr><th>SDK</th><td>{{ report.app_info.sdk_name }}</td></tr>{% endif %}
+      <tr><th>App Type</th><td>{{ report.app_info.app_type }}</td></tr>
+      <tr><th>MD5</th><td style="font-family:monospace;font-size:12px">{{ report.file_hashes.md5 }}</td></tr>
+      <tr><th>SHA1</th><td style="font-family:monospace;font-size:12px">{{ report.file_hashes.sha1 }}</td></tr>
+      <tr><th>SHA256</th><td style="font-family:monospace;font-size:12px">{{ report.file_hashes.sha256 }}</td></tr>
+      <tr><th>File Size</th><td>{{ report.file_hashes.size_bytes }} bytes</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- OWASP Mobile Top 10 Summary -->
+<div class="section">
+  <div class="section-title">OWASP Mobile Top 10</div>
+  <div class="section-body">
+    <div class="owasp-grid">
+      {% for item in owasp_labels %}
+      {% set mkey = item[0] %}
+      {% set findings_list = report.owasp_summary | get(key=mkey) | default(value=[]) %}
+      {% set count = findings_list | length %}
+      <div class="owasp-cell {% if count > 0 %}bad{% else %}ok{% endif %}">
+        <div class="owasp-code">{{ item[0] }}</div>
+        <div class="owasp-label">{{ item[1] }}</div>
+        <div class="owasp-count">{{ count }} finding{% if count != 1 %}s{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Binary Protections -->
+{% if report.main_binary %}
+<div class="section">
+  <div class="section-title">Binary Protections — {{ report.main_binary.arch }}{% if report.main_binary.bits == 64 %}-64{% endif %}</div>
+  <div class="section-body">
+    <div class="protections-grid">
+      {% for p in report.main_binary.protections %}
+      <div class="protection-item">
+        {% if p.enabled %}
+        <div class="prot-icon ok">✓</div>
+        {% elif p.severity == "high" %}
+        <div class="prot-icon bad">✗</div>
+        {% else %}
+        <div class="prot-icon warn">!</div>
+        {% endif %}
+        <div>
+          <div class="prot-name">{{ p.name }}</div>
+          <div class="prot-desc">{{ p.description }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{% if report.framework_binaries %}
+<div class="section">
+  <div class="section-title">Framework Binaries <span class="count">{{ report.framework_binaries | length }}</span></div>
+  <div class="section-body">
+    {% for fw in report.framework_binaries %}
+    <details>
+      <summary>{{ fw.path }} ({{ fw.arch }})</summary>
+      <div class="protections-grid" style="border-top:1px solid #21262d">
+        {% for p in fw.protections %}
+        <div class="protection-item">
+          {% if p.enabled %}<div class="prot-icon ok">✓</div>
+          {% elif p.severity == "high" %}<div class="prot-icon bad">✗</div>
+          {% else %}<div class="prot-icon warn">!</div>{% endif %}
+          <div>
+            <div class="prot-name">{{ p.name }}</div>
+            <div class="prot-desc">{{ p.description }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Findings -->
+<div class="section">
+  <div class="section-title">Security Findings <span class="count">{{ report.findings | length }}</span></div>
+  <div class="section-body">
+    {% if report.findings %}
+    {% for f in report.findings %}
+    <div class="finding">
+      <div class="finding-header">
+        <div>
+          <div class="finding-title">{{ f.title }}</div>
+          <div style="margin-top:4px">
+            {% if f.severity == "high" %}<span class="sev-badge sev-high">High</span>
+            {% elif f.severity == "warning" %}<span class="sev-badge sev-warning">Warning</span>
+            {% elif f.severity == "info" %}<span class="sev-badge sev-info">Info</span>
+            {% else %}<span class="sev-badge sev-secure">Secure</span>{% endif %}
+            <span style="margin-left:8px;font-size:12px;color:#58a6ff">{{ f.category }}</span>
+          </div>
+        </div>
+        <div class="finding-id">{{ f.id }}</div>
+      </div>
+      <div class="finding-desc">{{ f.description }}</div>
+      {% if f.evidence %}
+      <div class="finding-evidence">{{ f.evidence | first }}</div>
+      {% endif %}
+      {% if f.remediation %}
+      <div class="finding-remediation">
+        <div class="finding-remediation-label">Fix</div>
+        <div class="finding-remediation-text">{{ f.remediation }}</div>
+      </div>
+      {% endif %}
+      <div class="finding-meta">
+        {% if f.cwe %}<span class="meta-tag">{{ f.cwe }}</span>{% endif %}
+        {% if f.owasp_mobile %}<span class="meta-tag">OWASP {{ f.owasp_mobile }}</span>{% endif %}
+        {% if f.owasp_masvs %}<span class="meta-tag">{{ f.owasp_masvs }}</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div class="empty">No findings at the configured severity threshold.</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Secrets -->
+{% if report.secrets %}
+<div class="section">
+  <div class="section-title">Detected Secrets <span class="count">{{ report.secrets | length }}</span></div>
+  <div class="section-body">
+    {% for s in report.secrets %}
+    <div class="secret-item">
+      <div>
+        {% if s.severity == "high" %}<div class="prot-icon bad" style="margin-top:2px">!</div>
+        {% else %}<div class="prot-icon warn" style="margin-top:2px">!</div>{% endif %}
+      </div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="secret-title">{{ s.title }}</div>
+          {% if s.severity == "high" %}<span class="sev-badge sev-high">High</span>
+          {% else %}<span class="sev-badge sev-warning">Warning</span>{% endif %}
+        </div>
+        {% if s.file_path %}<div class="secret-path">{{ s.file_path }}</div>{% endif %}
+        <div class="secret-value">{{ s.matched_value }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Trackers -->
+{% if report.trackers %}
+<div class="section">
+  <div class="section-title">Third-Party Trackers <span class="count">{{ report.trackers | length }}</span></div>
+  <div class="section-body">
+    {% for t in report.trackers %}
+    <div class="tracker-item">
+      <div>
+        <div class="tracker-name">{{ t.name }}</div>
+        <div class="tracker-evidence">{{ t.detection_evidence }}</div>
+        <div class="tracker-cats">
+          {% for cat in t.categories %}
+          <span class="tracker-cat">{{ cat }}</span>
+          {% endfor %}
+        </div>
+      </div>
+      {% if t.website %}<a href="{{ t.website }}" target="_blank" rel="noopener" style="font-size:11px;white-space:nowrap">Website ↗</a>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Permissions -->
+{% if report.app_info.permissions %}
+<div class="section">
+  <div class="section-title">Permissions <span class="count">{{ report.app_info.permissions | length }}</span></div>
+  <div class="section-body">
+    <table class="info-table">
+      {% for p in report.app_info.permissions %}
+      <tr>
+        <th style="font-family:monospace;font-size:11px;font-weight:400;width:280px">{{ p.key }}</th>
+        <td>
+          {% if p.status == "dangerous" %}<span class="sev-badge sev-warning" style="margin-right:8px">Sensitive</span>{% endif %}
+          <span style="color:#8b949e;font-size:12px">{{ p.description }}</span>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Domains -->
+{% if report.domains %}
+<div class="section">
+  <div class="section-title">Domains <span class="count">{{ report.domains | length }}</span></div>
+  <div class="section-body">
+    <div class="domain-list">
+      {% for d in report.domains %}
+      <span class="domain-tag" title="{{ d.context }}">{{ d.domain }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Emails -->
+{% if report.emails %}
+<div class="section">
+  <div class="section-title">Emails <span class="count">{{ report.emails | length }}</span></div>
+  <div class="section-body">
+    <div class="domain-list">
+      {% for email in report.emails %}
+      <span class="email-tag">{{ email }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Domain Intelligence -->
+{% if report.domain_intel %}
+<div class="section">
+  <div class="section-title">Domain Intelligence <span class="count">{{ report.domain_intel | length }}</span></div>
+  <div class="section-body">
+    <table class="info-table" style="background:#0d1117">
+      <thead>
+        <tr style="border-bottom:1px solid #30363d">
+          <th style="width:220px">Domain</th>
+          <th style="width:120px">IP</th>
+          <th style="width:160px">Location</th>
+          <th style="width:140px">Country</th>
+          <th>ISP</th>
+          <th style="width:80px">OFAC</th>
+        </tr>
+      </thead>
+      {% for d in report.domain_intel %}
+      <tr {% if d.is_ofac_sanctioned %}style="background:#3d0f0f"{% endif %}>
+        <td style="font-family:monospace;font-size:12px">{{ d.domain }}</td>
+        <td style="font-family:monospace;font-size:12px;color:#79c0ff">{{ d.ip | default(value="—") }}</td>
+        <td style="font-size:12px;color:#8b949e">{{ d.city | default(value="—") }}</td>
+        <td style="font-size:12px">
+          {% if d.country_code %}
+          <span class="pill">{{ d.country_code }}</span>
+          {{ d.country | default(value="") }}
+          {% else %}—{% endif %}
+        </td>
+        <td style="font-size:12px;color:#8b949e">{{ d.isp | default(value="—") }}</td>
+        <td style="text-align:center">
+          {% if d.is_ofac_sanctioned %}<span class="sev-badge sev-high">YES</span>
+          {% else %}<span style="color:#8b949e;font-size:11px">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Provisioning Profile -->
+{% if report.provisioning %}
+<div class="section">
+  <div class="section-title">Provisioning Profile</div>
+  <div class="section-body">
+    <table class="info-table">
+      {% if report.provisioning.name %}<tr><th>Profile Name</th><td>{{ report.provisioning.name }}</td></tr>{% endif %}
+      {% if report.provisioning.team_name %}<tr><th>Team</th><td>{{ report.provisioning.team_name }}{% if report.provisioning.team_id %} <span class="pill">{{ report.provisioning.team_id }}</span>{% endif %}</td></tr>{% endif %}
+      <tr><th>Profile Type</th><td>
+        {% if report.provisioning.profile_type == "development" or report.provisioning.profile_type == "ad-hoc" %}
+        <span class="sev-badge sev-warning">{{ report.provisioning.profile_type }}</span>
+        {% elif report.provisioning.profile_type == "enterprise" %}
+        <span class="sev-badge sev-high">enterprise</span>
+        {% else %}
+        <span class="sev-badge sev-secure">{{ report.provisioning.profile_type }}</span>
+        {% endif %}
+      </td></tr>
+      {% if report.provisioning.expiration_date %}<tr><th>Expiration</th><td style="font-family:monospace;font-size:12px">{{ report.provisioning.expiration_date }}</td></tr>{% endif %}
+      {% if report.provisioning.provisioned_device_count > 0 %}<tr><th>Provisioned Devices</th><td>{{ report.provisioning.provisioned_device_count }}</td></tr>{% endif %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Framework Components (SCA) -->
+{% if report.framework_components %}
+<div class="section">
+  <div class="section-title">Framework Components (SCA) <span class="count">{{ report.framework_components | length }}</span></div>
+  <div class="section-body">
+    <table class="info-table" style="background:#0d1117">
+      <thead>
+        <tr style="border-bottom:1px solid #30363d">
+          <th style="width:200px">Framework</th>
+          <th>Bundle ID</th>
+          <th style="width:120px">Version</th>
+        </tr>
+      </thead>
+      {% for c in report.framework_components %}
+      <tr>
+        <td style="font-weight:500;color:#f0f6fc">{{ c.name }}</td>
+        <td style="font-family:monospace;font-size:12px;color:#79c0ff">{{ c.bundle_id | default(value="—") }}</td>
+        <td style="font-family:monospace;font-size:12px">
+          {% if c.version %}<span class="pill">{{ c.version }}</span>{% else %}<span style="color:#8b949e">—</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- CVE Findings -->
+{% if cve_findings %}
+<div class="section">
+  <div class="section-title">Known Vulnerable Dependencies (CVE) <span class="count">{{ cve_findings | length }}</span></div>
+  <div class="section-body">
+    <table class="info-table" style="background:#0d1117">
+      <thead>
+        <tr style="border-bottom:1px solid #30363d">
+          <th style="width:200px">Framework</th>
+          <th style="width:120px">CVE</th>
+          <th style="width:80px">Severity</th>
+          <th>Title / Description</th>
+        </tr>
+      </thead>
+      {% for f in cve_findings %}
+      <tr class="{% if f.severity == 'high' %}cve-row-high{% else %}cve-row-warning{% endif %}">
+        <td style="font-family:monospace;font-size:12px;color:#79c0ff">{{ f.evidence | first | default(value="—") }}</td>
+        <td style="font-family:monospace;font-size:12px;white-space:nowrap">
+          {% set cve_id = f.id | replace(from="QS-CVE-", to="") %}
+          <a href="https://nvd.nist.gov/vuln/detail/{{ cve_id }}" target="_blank" rel="noopener">{{ cve_id }}</a>
+        </td>
+        <td>
+          {% if f.severity == "high" %}<span class="sev-badge sev-high">High</span>
+          {% else %}<span class="sev-badge sev-warning">Warning</span>{% endif %}
+        </td>
+        <td>
+          <div style="font-size:13px;font-weight:500;color:#f0f6fc;margin-bottom:3px">{{ f.title }}</div>
+          <div style="font-size:12px;color:#8b949e">{{ f.description }}</div>
+          {% if f.remediation %}<div style="font-size:11px;color:#3fb950;margin-top:4px">{{ f.remediation }}</div>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Firebase -->
+{% if report.firebase %}
+<div class="section">
+  <div class="section-title">Firebase Configuration</div>
+  <div class="section-body">
+    <div class="firebase-grid">
+      {% if report.firebase.project_id %}<div class="firebase-item"><div class="firebase-key">Project ID</div><div class="firebase-val">{{ report.firebase.project_id }}</div></div>{% endif %}
+      {% if report.firebase.database_url %}<div class="firebase-item"><div class="firebase-key">Database URL</div><div class="firebase-val">{{ report.firebase.database_url }}</div></div>{% endif %}
+      {% if report.firebase.api_key %}<div class="firebase-item"><div class="firebase-key">API Key</div><div class="firebase-val">{{ report.firebase.api_key }}</div></div>{% endif %}
+      {% if report.firebase.bundle_id %}<div class="firebase-item"><div class="firebase-key">Bundle ID</div><div class="firebase-val">{{ report.firebase.bundle_id }}</div></div>{% endif %}
+      {% if report.firebase.google_app_id %}<div class="firebase-item"><div class="firebase-key">Google App ID</div><div class="firebase-val">{{ report.firebase.google_app_id }}</div></div>{% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Audit Log -->
+{% if report.scan_log %}
+<div class="section">
+  <div class="section-title">Scan Audit Log <span class="count">{{ report.scan_log | length }} steps</span></div>
+  <div class="section-body" style="background:#0d1117;padding:12px 16px">
+    <table style="width:100%;border-collapse:collapse">
+      {% for entry in report.scan_log %}
+      <tr>
+        <td style="font-family:monospace;font-size:11px;color:#8b949e;white-space:nowrap;padding:2px 12px 2px 0;width:70px">{{ entry.elapsed_ms }}ms</td>
+        <td style="font-size:12px;color:#c9d1d9;padding:2px 0">{{ entry.step }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="footer">
+  <div><span class="footer-logo">Pavise</span> v{{ version }} — Fast Mobile App Static Analysis</div>
+  <div>Scan completed in {{ report.scan_duration_ms }}ms</div>
+</div>
+
+</div><!-- /container -->
+</body>
+</html>
