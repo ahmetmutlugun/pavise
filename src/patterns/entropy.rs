@@ -46,8 +46,7 @@ pub fn shannon_entropy(s: &str) -> f64 {
 
 // Symbol prefixes that appear in Mach-O string tables and are never secrets.
 const SYMBOL_PREFIXES: &[&str] = &[
-    "_T0", "_TFC", "_TtC", "_TtP", "_$s", "$S", "$s",
-    "_OBJC_", "__OBJC_", "_objc_", "__swift_",
+    "_T0", "_TFC", "_TtC", "_TtP", "_$s", "$S", "$s", "_OBJC_", "__OBJC_", "_objc_", "__swift_",
 ];
 
 /// Return true if `s` is likely a false-positive and should NOT be flagged.
@@ -97,10 +96,12 @@ fn is_false_positive(s: &str) -> bool {
     // at least 3 of the 4 classes (uppercase, lowercase, digit, special).
     // Pure-lowercase identifiers, camelCase method names, and base64 padding
     // strings fail this check.
-    let has_upper   = s.bytes().any(|b| b.is_ascii_uppercase());
-    let has_lower   = s.bytes().any(|b| b.is_ascii_lowercase());
-    let has_digit   = s.bytes().any(|b| b.is_ascii_digit());
-    let has_special = s.bytes().any(|b| !b.is_ascii_alphanumeric() && b.is_ascii_graphic());
+    let has_upper = s.bytes().any(|b| b.is_ascii_uppercase());
+    let has_lower = s.bytes().any(|b| b.is_ascii_lowercase());
+    let has_digit = s.bytes().any(|b| b.is_ascii_digit());
+    let has_special = s
+        .bytes()
+        .any(|b| !b.is_ascii_alphanumeric() && b.is_ascii_graphic());
     let class_count = [has_upper, has_lower, has_digit, has_special]
         .iter()
         .filter(|&&x| x)
@@ -124,7 +125,7 @@ pub fn scan_for_high_entropy(strings: &[&str], source_path: &str) -> Vec<SecretM
     for &s in strings {
         let trimmed = s.trim();
         let len = trimmed.len();
-        if len < 20 || len > 128 {
+        if !(20..=128).contains(&len) {
             continue;
         }
         if is_false_positive(trimmed) {
@@ -177,7 +178,11 @@ mod tests {
         // Has upper, lower, digit, special (+) → 4 character classes
         let token = "aB3cD4eF5gH6iJ7kL8mN9oP0qR1sT2uVwXyZ+AbCdEfGhIjKlMnOpQrStUvW";
         let results = scan_for_high_entropy(&[token], "test/file.json");
-        assert_eq!(results.len(), 1, "Expected exactly one High match, got: {results:?}");
+        assert_eq!(
+            results.len(),
+            1,
+            "Expected exactly one High match, got: {results:?}"
+        );
         assert_eq!(results[0].severity, Severity::High);
     }
 
@@ -187,7 +192,11 @@ mod tests {
         // Has upper, lower, digit → 3 character classes; no special chars
         let token = "aBcDeFgHiJkLmNoPqRsTuVwXyZ1234567890";
         let results = scan_for_high_entropy(&[token], "test/config.json");
-        assert_eq!(results.len(), 1, "Expected exactly one Warning match, got: {results:?}");
+        assert_eq!(
+            results.len(),
+            1,
+            "Expected exactly one Warning match, got: {results:?}"
+        );
         assert_eq!(results[0].severity, Severity::Warning);
     }
 
@@ -196,7 +205,10 @@ mod tests {
         // Standard UUID pattern — matched by uuid_re() and filtered out
         let uuid = "550e8400-e29b-41d4-a716-446655440000";
         let results = scan_for_high_entropy(&[uuid], "test");
-        assert!(results.is_empty(), "UUID should be filtered, got: {results:?}");
+        assert!(
+            results.is_empty(),
+            "UUID should be filtered, got: {results:?}"
+        );
     }
 
     #[test]
@@ -204,7 +216,10 @@ mod tests {
         // 32-char hex string (MD5 hash) — filtered by hex_re() length check
         let hex = "d41d8cd98f00b204e9800998ecf8427e";
         let results = scan_for_high_entropy(&[hex], "test");
-        assert!(results.is_empty(), "Hex hash should be filtered, got: {results:?}");
+        assert!(
+            results.is_empty(),
+            "Hex hash should be filtered, got: {results:?}"
+        );
     }
 
     #[test]
@@ -212,7 +227,10 @@ mod tests {
         // File path starting with '/' — filtered by path check
         let path = "/usr/lib/libsomething.dylib";
         let results = scan_for_high_entropy(&[path], "test");
-        assert!(results.is_empty(), "File path should be filtered, got: {results:?}");
+        assert!(
+            results.is_empty(),
+            "File path should be filtered, got: {results:?}"
+        );
     }
 
     #[test]
@@ -220,6 +238,9 @@ mod tests {
         // All-uppercase constant — filtered by const_re()
         let constant = "SOME_ALLCAPS_CONSTANT_NAME";
         let results = scan_for_high_entropy(&[constant], "test");
-        assert!(results.is_empty(), "ALLCAPS constant should be filtered, got: {results:?}");
+        assert!(
+            results.is_empty(),
+            "ALLCAPS constant should be filtered, got: {results:?}"
+        );
     }
 }

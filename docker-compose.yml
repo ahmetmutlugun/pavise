@@ -1,0 +1,24 @@
+services:
+  pavise:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - PAVISE_MAX_SCANS=4
+      - PAVISE_UPLOAD_DIR=/app/uploads
+      - PAVISE_CACHE_TTL_HOURS=24
+    volumes:
+      # Persistent volume for large uploads and temp scan files.
+      # Size this for: (max concurrent uploads * max file size) + unpacked headroom.
+      # e.g., 4 concurrent 10 GB uploads × 3x unpack expansion = ~120 GB.
+      - pavise-uploads:/app/uploads
+    deploy:
+      resources:
+        limits:
+          # Adjust based on expected concurrent scan load.
+          # Each scan uses ~2-3x the IPA size in memory for unpacking.
+          memory: 8g
+
+volumes:
+  pavise-uploads:

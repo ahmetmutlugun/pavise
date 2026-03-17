@@ -17,13 +17,23 @@ pub fn compare(current: &ScanReport, baseline: &ScanReport) -> DiffResult {
     let current_keys: HashSet<(String, String)> = current
         .findings
         .iter()
-        .map(|f| (f.id.clone(), f.evidence.first().cloned().unwrap_or_default()))
+        .map(|f| {
+            (
+                f.id.clone(),
+                f.evidence.first().cloned().unwrap_or_default(),
+            )
+        })
         .collect();
 
     let baseline_keys: HashSet<(String, String)> = baseline
         .findings
         .iter()
-        .map(|f| (f.id.clone(), f.evidence.first().cloned().unwrap_or_default()))
+        .map(|f| {
+            (
+                f.id.clone(),
+                f.evidence.first().cloned().unwrap_or_default(),
+            )
+        })
         .collect();
 
     // New: in current but not baseline
@@ -31,7 +41,10 @@ pub fn compare(current: &ScanReport, baseline: &ScanReport) -> DiffResult {
         .findings
         .iter()
         .filter(|f| {
-            let key = (f.id.clone(), f.evidence.first().cloned().unwrap_or_default());
+            let key = (
+                f.id.clone(),
+                f.evidence.first().cloned().unwrap_or_default(),
+            );
             !baseline_keys.contains(&key)
         })
         .map(|f| f.id.clone())
@@ -42,7 +55,10 @@ pub fn compare(current: &ScanReport, baseline: &ScanReport) -> DiffResult {
         .findings
         .iter()
         .filter(|f| {
-            let key = (f.id.clone(), f.evidence.first().cloned().unwrap_or_default());
+            let key = (
+                f.id.clone(),
+                f.evidence.first().cloned().unwrap_or_default(),
+            );
             !current_keys.contains(&key)
         })
         .map(|f| f.id.clone())
@@ -74,8 +90,7 @@ pub fn compare(current: &ScanReport, baseline: &ScanReport) -> DiffResult {
         .count();
 
     // --- Score delta ---
-    let score_delta =
-        current.security_score as i16 - baseline.security_score as i16;
+    let score_delta = current.security_score as i16 - baseline.security_score as i16;
 
     let grade_changed = current.grade != baseline.grade;
 
@@ -92,10 +107,8 @@ pub fn compare(current: &ScanReport, baseline: &ScanReport) -> DiffResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::{AppInfo, FileHashes, Finding, SecretMatch, Severity};
     use std::collections::HashMap;
-    use crate::types::{
-        AppInfo, FileHashes, Finding, SecretMatch, Severity,
-    };
 
     fn make_report(
         findings: Vec<Finding>,

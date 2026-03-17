@@ -91,7 +91,11 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
         protections.push(BinaryProtection {
             name: "Position Independent Executable (PIE)".to_string(),
             enabled: has_pie,
-            severity: if has_pie { Severity::Secure } else { Severity::High },
+            severity: if has_pie {
+                Severity::Secure
+            } else {
+                Severity::High
+            },
             description: if has_pie {
                 "Binary is compiled with PIE, enabling ASLR.".to_string()
             } else {
@@ -121,17 +125,22 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
 
     // --- Stack Canary ---
     let imports = collect_imports(macho);
-    let has_canary = imports.iter().any(|s| {
-        s.contains("___stack_chk_fail") || s.contains("___stack_chk_guard")
-    });
+    let has_canary = imports
+        .iter()
+        .any(|s| s.contains("___stack_chk_fail") || s.contains("___stack_chk_guard"));
     protections.push(BinaryProtection {
         name: "Stack Canary".to_string(),
         enabled: has_canary,
-        severity: if has_canary { Severity::Secure } else { Severity::High },
+        severity: if has_canary {
+            Severity::Secure
+        } else {
+            Severity::High
+        },
         description: if has_canary {
             "Stack canary protection is present (___stack_chk_fail imported).".to_string()
         } else {
-            "Stack canary protection is absent. Stack buffer overflows may not be detected.".to_string()
+            "Stack canary protection is absent. Stack buffer overflows may not be detected."
+                .to_string()
         },
     });
 
@@ -231,11 +240,16 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     protections.push(BinaryProtection {
         name: "Code Signature".to_string(),
         enabled: has_code_signature,
-        severity: if has_code_signature { Severity::Secure } else { Severity::High },
+        severity: if has_code_signature {
+            Severity::Secure
+        } else {
+            Severity::High
+        },
         description: if has_code_signature {
             "Binary has a code signature (LC_CODE_SIGNATURE present).".to_string()
         } else {
-            "Binary lacks a code signature. This may indicate tampering or a development build.".to_string()
+            "Binary lacks a code signature. This may indicate tampering or a development build."
+                .to_string()
         },
     });
 
@@ -262,11 +276,16 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     protections.push(BinaryProtection {
         name: "Binary Encryption".to_string(),
         enabled: is_encrypted,
-        severity: if is_encrypted { Severity::Secure } else { Severity::Warning },
+        severity: if is_encrypted {
+            Severity::Secure
+        } else {
+            Severity::Warning
+        },
         description: if is_encrypted {
             "Binary encryption is active (cryptid != 0).".to_string()
         } else if has_encryption {
-            "Encryption load command present but cryptid = 0 (not encrypted / decrypted).".to_string()
+            "Encryption load command present but cryptid = 0 (not encrypted / decrypted)."
+                .to_string()
         } else {
             "No encryption load command found.".to_string()
         },
@@ -306,7 +325,11 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     protections.push(BinaryProtection {
         name: "RPATH".to_string(),
         enabled: !has_rpath, // "enabled protection" = no dangerous rpaths
-        severity: if has_rpath { Severity::Warning } else { Severity::Secure },
+        severity: if has_rpath {
+            Severity::Warning
+        } else {
+            Severity::Secure
+        },
         description: if has_rpath {
             format!("LC_RPATH entries found: {}", rpath_commands.join(", "))
         } else {
@@ -439,15 +462,13 @@ fn collect_imports(macho: &MachO) -> Vec<String> {
     //
     // N_TYPE mask = 0x0e; N_UNDF = 0x00 (undefined); N_EXT = 0x01 (external/imported)
     if let Some(syms) = &macho.symbols {
-        for sym in syms.iter() {
-            if let Ok((name, nlist)) = sym {
-                let is_undefined = (nlist.n_type & 0x0e) == 0x00;
-                let is_external  = (nlist.n_type & 0x01) != 0;
-                if is_undefined && is_external && !name.is_empty() {
-                    let owned = name.to_string();
-                    if seen.insert(owned.clone()) {
-                        imports.push(owned);
-                    }
+        for (name, nlist) in syms.iter().flatten() {
+            let is_undefined = (nlist.n_type & 0x0e) == 0x00;
+            let is_external = (nlist.n_type & 0x01) != 0;
+            if is_undefined && is_external && !name.is_empty() {
+                let owned = name.to_string();
+                if seen.insert(owned.clone()) {
+                    imports.push(owned);
                 }
             }
         }
@@ -461,9 +482,9 @@ fn collect_imports(macho: &MachO) -> Vec<String> {
 /// These are either read-only system locations or standard bundle-relative paths
 /// that cannot be hijacked by an unprivileged user on a non-jailbroken device.
 const SAFE_RPATHS: &[&str] = &[
-    "/usr/lib/swift",         // Standard Swift runtime — set by Xcode automatically
+    "/usr/lib/swift", // Standard Swift runtime — set by Xcode automatically
     "/usr/lib/swift-5.0",
-    "@executable_path/Frameworks",  // App bundle — not user-writable
+    "@executable_path/Frameworks", // App bundle — not user-writable
     "@executable_path/../Frameworks",
     "@loader_path/Frameworks",
     "@loader_path/../Frameworks",

@@ -35,7 +35,11 @@ fn test_secret_in_plist_detected() {
     assert!(
         aws_secret.is_some(),
         "Expected QS-SEC-002 secret from Config.plist, secrets found: {:?}",
-        report.secrets.iter().map(|s| &s.rule_id).collect::<Vec<_>>()
+        report
+            .secrets
+            .iter()
+            .map(|s| &s.rule_id)
+            .collect::<Vec<_>>()
     );
 }
 

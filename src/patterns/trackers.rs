@@ -68,11 +68,7 @@ impl TrackerDetector {
     }
 
     /// Detect trackers from a list of domains and framework names.
-    pub fn detect(
-        &self,
-        domains: &[String],
-        framework_names: &[String],
-    ) -> Vec<TrackerMatch> {
+    pub fn detect(&self, domains: &[String], framework_names: &[String]) -> Vec<TrackerMatch> {
         let mut matched_indices: HashSet<usize> = HashSet::new();
         let mut evidence_map: HashMap<usize, String> = HashMap::new();
 
@@ -128,10 +124,7 @@ impl TrackerDetector {
                     name: rule.name.clone(),
                     website: rule.website.clone(),
                     categories: rule.categories.clone(),
-                    detection_evidence: evidence_map
-                        .get(&idx)
-                        .cloned()
-                        .unwrap_or_default(),
+                    detection_evidence: evidence_map.get(&idx).cloned().unwrap_or_default(),
                 }
             })
             .collect()

@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use colored::Colorize;
@@ -7,8 +9,7 @@ use tracing_subscriber::EnvFilter;
 use pavise::{
     baseline,
     report::{html, json, pdf, sarif},
-    resolve_rules_dir,
-    scan_ipa,
+    resolve_rules_dir, scan_ipa,
     types::{Finding, ScanReport, Severity},
     ScanOptions,
 };
@@ -147,7 +148,12 @@ fn main() -> Result<()> {
             }
         }
         Err(e) => {
-            eprintln!("{} Cannot access '{}': {}", "Error:".red(), cli.file.display(), e);
+            eprintln!(
+                "{} Cannot access '{}': {}",
+                "Error:".red(),
+                cli.file.display(),
+                e
+            );
             std::process::exit(2);
         }
     }
@@ -178,17 +184,19 @@ fn main() -> Result<()> {
     // Baseline diff (optional)
     if let Some(ref baseline_path) = cli.baseline {
         match std::fs::read_to_string(baseline_path) {
-            Ok(baseline_json) => {
-                match serde_json::from_str::<ScanReport>(&baseline_json) {
-                    Ok(baseline_report) => {
-                        let diff = baseline::compare(&report, &baseline_report);
-                        report.baseline_diff = Some(diff);
-                    }
-                    Err(e) => {
-                        eprintln!("{} Failed to parse baseline report: {}", "Warning:".yellow(), e);
-                    }
+            Ok(baseline_json) => match serde_json::from_str::<ScanReport>(&baseline_json) {
+                Ok(baseline_report) => {
+                    let diff = baseline::compare(&report, &baseline_report);
+                    report.baseline_diff = Some(diff);
                 }
-            }
+                Err(e) => {
+                    eprintln!(
+                        "{} Failed to parse baseline report: {}",
+                        "Warning:".yellow(),
+                        e
+                    );
+                }
+            },
             Err(e) => {
                 eprintln!(
                     "{} Could not read baseline file '{}': {}",
@@ -207,8 +215,16 @@ fn main() -> Result<()> {
             "{}/100 {} — {} high, {} warning findings",
             report.security_score,
             report.grade,
-            report.findings.iter().filter(|f| f.severity == Severity::High).count(),
-            report.findings.iter().filter(|f| f.severity == Severity::Warning).count(),
+            report
+                .findings
+                .iter()
+                .filter(|f| f.severity == Severity::High)
+                .count(),
+            report
+                .findings
+                .iter()
+                .filter(|f| f.severity == Severity::Warning)
+                .count(),
         );
     }
 
@@ -220,9 +236,8 @@ fn main() -> Result<()> {
         let pdf_bytes = pdf::to_bytes(&report).context("PDF generation failed")?;
         match &cli.output {
             Some(output_path) => {
-                std::fs::write(output_path, &pdf_bytes).with_context(|| {
-                    format!("Failed to write PDF to {}", output_path.display())
-                })?;
+                std::fs::write(output_path, &pdf_bytes)
+                    .with_context(|| format!("Failed to write PDF to {}", output_path.display()))?;
                 if !cli.quiet {
                     eprintln!(
                         "{} PDF report written to {}",
@@ -232,10 +247,7 @@ fn main() -> Result<()> {
                 }
             }
             None => {
-                eprintln!(
-                    "{} PDF format requires --output <FILE>",
-                    "Error:".red()
-                );
+                eprintln!("{} PDF format requires --output <FILE>", "Error:".red());
                 std::process::exit(2);
             }
         }
@@ -253,7 +265,11 @@ fn main() -> Result<()> {
         std::fs::write(output_path, &report_str)
             .with_context(|| format!("Failed to write report to {}", output_path.display()))?;
         if !cli.quiet {
-            eprintln!("{} Report written to {}", "✓".green(), output_path.display());
+            eprintln!(
+                "{} Report written to {}",
+                "✓".green(),
+                output_path.display()
+            );
         }
     } else if !cli.quiet {
         println!("{}", report_str);
@@ -435,7 +451,11 @@ fn print_summary(report: &ScanReport, min_severity: &SeverityArg, verbose: bool)
         eprintln!();
         eprintln!("  {} ({})", "Binary Protections:".bold(), bin.arch);
         for prot in &bin.protections {
-            let icon = if prot.enabled { "✓".green() } else { "✗".red() };
+            let icon = if prot.enabled {
+                "✓".green()
+            } else {
+                "✗".red()
+            };
             eprintln!("  {} {}", icon, prot.name);
         }
     }
@@ -454,7 +474,11 @@ fn print_summary(report: &ScanReport, min_severity: &SeverityArg, verbose: bool)
 
     // Domain intelligence (only shown when --network was used)
     if !report.domain_intel.is_empty() {
-        let ofac: Vec<_> = report.domain_intel.iter().filter(|d| d.is_ofac_sanctioned).collect();
+        let ofac: Vec<_> = report
+            .domain_intel
+            .iter()
+            .filter(|d| d.is_ofac_sanctioned)
+            .collect();
         if !ofac.is_empty() {
             eprintln!();
             eprintln!("  {}", "OFAC-Sanctioned Servers:".red().bold());

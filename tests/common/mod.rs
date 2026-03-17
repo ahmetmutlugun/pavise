@@ -44,7 +44,8 @@ impl IpaBuilder {
             // Mandatory: Info.plist at Payload/<App>.app/Info.plist
             let plist_path = format!("Payload/{}.app/Info.plist", self.app_name);
             zip.start_file(&plist_path, options).unwrap();
-            zip.write_all(minimal_info_plist(&self.app_name).as_bytes()).unwrap();
+            zip.write_all(minimal_info_plist(&self.app_name).as_bytes())
+                .unwrap();
 
             // Mandatory: 4-byte dummy binary (Mach-O analysis will fail gracefully)
             let bin_path = format!("Payload/{}.app/{}", self.app_name, self.app_name);

@@ -28,13 +28,11 @@ pub fn extract_components(
         };
 
         // Derive a display name from the binary filename
-        let name = {
-            bin_path
-                .split('/')
-                .last()
-                .unwrap_or(bin_path.as_str())
-                .to_string()
-        };
+        let name = bin_path
+            .split('/')
+            .next_back()
+            .unwrap_or(bin_path.as_str())
+            .to_string();
 
         let plist_file = match files.iter().find(|f| f.path == plist_path) {
             Some(f) => f,

@@ -89,9 +89,7 @@ pub fn analyze_domains(domains: &[String]) -> Result<Vec<DomainGeoInfo>> {
 
 /// Synchronous DNS resolution. Returns the first IPv4/IPv6 address as a string.
 fn resolve(domain: &str) -> Result<String> {
-    let addrs: Vec<_> = format!("{}:80", domain)
-        .to_socket_addrs()?
-        .collect();
+    let addrs: Vec<_> = format!("{}:80", domain).to_socket_addrs()?.collect();
     addrs
         .first()
         .map(|a| a.ip().to_string())

@@ -79,7 +79,13 @@ impl VulnDatabase {
                     let cve_id = entry
                         .cve
                         .chars()
-                        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' })
+                        .map(|c| {
+                            if c.is_alphanumeric() || c == '-' {
+                                c
+                            } else {
+                                '-'
+                            }
+                        })
                         .collect::<String>();
 
                     findings.push(Finding {

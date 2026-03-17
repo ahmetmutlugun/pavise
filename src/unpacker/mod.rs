@@ -1,5 +1,5 @@
-pub mod ipa;
 pub mod apk;
+pub mod ipa;
 
 /// Represents a file extracted from the archive, held in memory.
 #[derive(Debug)]
@@ -22,10 +22,14 @@ impl UnpackedArchive {
     }
 
     pub fn find_all<'a>(&'a self, path_suffix: &'a str) -> impl Iterator<Item = &'a ExtractedFile> {
-        self.files.iter().filter(move |f| f.path.ends_with(path_suffix))
+        self.files
+            .iter()
+            .filter(move |f| f.path.ends_with(path_suffix))
     }
 
     pub fn filter_prefix<'a>(&'a self, prefix: &'a str) -> impl Iterator<Item = &'a ExtractedFile> {
-        self.files.iter().filter(move |f| f.path.starts_with(prefix))
+        self.files
+            .iter()
+            .filter(move |f| f.path.starts_with(prefix))
     }
 }

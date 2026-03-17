@@ -28,7 +28,9 @@ jobs:
             ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo install cargo-audit --locked
       - run: cargo build --all-targets
       - run: cargo test --all-targets -- --nocapture
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo fmt --check
+      - run: cargo audit

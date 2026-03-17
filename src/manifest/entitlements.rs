@@ -63,11 +63,7 @@ pub fn analyze(plist_data: &[u8]) -> Vec<Finding> {
     // get-task-allow: true  →  HIGH
     // This enables Xcode debugging and should NEVER be in production builds.
     // ------------------------------------------------------------------ //
-    if dict
-        .get("get-task-allow")
-        .and_then(|v| v.as_boolean())
-        == Some(true)
-    {
+    if dict.get("get-task-allow").and_then(|v| v.as_boolean()) == Some(true) {
         findings.push(Finding {
             id: "QS-ENT-001".to_string(),
             title: "get-task-allow Entitlement Enabled".to_string(),
@@ -299,10 +295,7 @@ fn parse_entitlements_blob(data: &[u8], offset: usize) -> Option<Vec<u8>> {
 
         let ent_magic = u32::from_be_bytes(ent_blob[0..4].try_into().ok()?);
         if ent_magic != CS_MAGIC_ENTITLEMENTS {
-            debug!(
-                "Unexpected entitlements blob magic: {:#010x}",
-                ent_magic
-            );
+            debug!("Unexpected entitlements blob magic: {:#010x}", ent_magic);
             return None;
         }
 

@@ -5,8 +5,12 @@ use pavise::types::Severity;
 
 #[test]
 fn test_load_real_rules() {
-    let engine = PatternEngine::load(&common::rules_dir()).expect("PatternEngine::load should succeed");
-    assert!(engine.rule_count() > 0, "Expected > 0 rules loaded from secrets.yaml");
+    let engine =
+        PatternEngine::load(&common::rules_dir()).expect("PatternEngine::load should succeed");
+    assert!(
+        engine.rule_count() > 0,
+        "Expected > 0 rules loaded from secrets.yaml"
+    );
 }
 
 #[test]
@@ -16,7 +20,10 @@ fn test_aws_key_detected() {
     let text = "aws_key=AKIAIOSFODNN7EXAMPLE1234";
     let matches = engine.scan(text, "config.json");
     let aws_match = matches.iter().find(|m| m.rule_id == "QS-SEC-002");
-    assert!(aws_match.is_some(), "Expected QS-SEC-002 match for AWS key, got: {matches:?}");
+    assert!(
+        aws_match.is_some(),
+        "Expected QS-SEC-002 match for AWS key, got: {matches:?}"
+    );
     assert_eq!(aws_match.unwrap().severity, Severity::High);
 }
 
@@ -26,7 +33,10 @@ fn test_private_key_detected() {
     let text = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQ...\n-----END RSA PRIVATE KEY-----";
     let matches = engine.scan(text, "keys/server.pem");
     let key_match = matches.iter().find(|m| m.rule_id == "QS-SEC-004");
-    assert!(key_match.is_some(), "Expected QS-SEC-004 match for private key, got: {matches:?}");
+    assert!(
+        key_match.is_some(),
+        "Expected QS-SEC-004 match for private key, got: {matches:?}"
+    );
     assert_eq!(key_match.unwrap().severity, Severity::High);
 }
 
@@ -43,7 +53,16 @@ fn test_extract_printable_strings() {
     data.push(b'\x00');
 
     let result = extract_printable_strings(&data, 6);
-    assert!(result.contains("hello world"), "Expected 'hello world' in output");
-    assert!(result.contains("another string here"), "Expected 'another string here' in output");
-    assert!(!result.contains("short"), "'short' is < min_len and should be excluded");
+    assert!(
+        result.contains("hello world"),
+        "Expected 'hello world' in output"
+    );
+    assert!(
+        result.contains("another string here"),
+        "Expected 'another string here' in output"
+    );
+    assert!(
+        !result.contains("short"),
+        "'short' is < min_len and should be excluded"
+    );
 }

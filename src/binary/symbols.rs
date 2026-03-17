@@ -50,8 +50,7 @@ pub struct SymbolScanner {
 impl SymbolScanner {
     pub fn load(rules_dir: &Path) -> Result<Self> {
         let path = rules_dir.join("ios_apis.yaml");
-        let content = std::fs::read_to_string(&path)
-            .unwrap_or_default();
+        let content = std::fs::read_to_string(&path).unwrap_or_default();
 
         let rules: Vec<ApiRule> = if content.is_empty() {
             Vec::new()

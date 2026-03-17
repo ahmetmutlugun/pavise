@@ -1,20 +1,26 @@
 use anyhow::Result;
 use axum::{
-    body::Body,
+    body::{Body, Bytes},
     extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse, Response},
-    routing::{get, post},
-    Router,
+    routing::{get, post, put},
+    Json, Router,
 };
-use std::{collections::HashMap, sync::Arc, time::{Duration, Instant}};
+use sha2::{Digest, Sha256};
+use std::{
+    collections::HashMap,
+    io::Write,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tokio::sync::{RwLock, Semaphore};
 use uuid::Uuid;
 
 use pavise::{
     report::{json, pdf},
-    resolve_rules_dir,
-    scan_ipa,
+    resolve_rules_dir, scan_ipa,
     types::{ScanReport, Severity},
     ScanOptions,
 };
@@ -22,19 +28,72 @@ use pavise::{
 const INDEX_HTML: &str = include_str!("../templates/index.html");
 
 /// Maximum number of concurrent scans to prevent resource exhaustion.
-const MAX_CONCURRENT_SCANS: usize = 4;
+fn max_concurrent_scans() -> usize {
+    std::env::var("PAVISE_MAX_SCANS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(4)
+}
+
+/// Chunk size limit: 52 MB per request (50 MB chunk + overhead, fits under Cloudflare 100 MB).
+const CHUNK_LIMIT: usize = 52 * 1024 * 1024;
 
 /// Scan results are evicted after this duration.
 const RESULT_TTL: Duration = Duration::from_secs(60 * 60); // 1 hour
 
+/// Cache TTL — cached scan results live longer since they're keyed by content hash.
+fn cache_ttl() -> Duration {
+    let hours: u64 = std::env::var("PAVISE_CACHE_TTL_HOURS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(24);
+    Duration::from_secs(hours * 3600)
+}
+
 /// Timeout for PDF generation via Typst.
 const PDF_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// Abandoned uploads are cleaned up after this duration.
+const UPLOAD_TTL: Duration = Duration::from_secs(30 * 60); // 30 minutes
+
+/// Maximum total upload size (default 15 GB, override via PAVISE_MAX_UPLOAD_BYTES).
+fn max_upload_bytes() -> u64 {
+    std::env::var("PAVISE_MAX_UPLOAD_BYTES")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(15 * 1024 * 1024 * 1024) // 15 GB
+}
+
+/// Directory for chunked upload temp files.
+fn upload_dir() -> PathBuf {
+    let dir = std::env::var("PAVISE_UPLOAD_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| std::env::temp_dir().join("pavise-uploads"));
+    std::fs::create_dir_all(&dir).ok();
+    dir
+}
+
 type ScanStore = Arc<RwLock<HashMap<String, (ScanReport, Instant)>>>;
+
+/// In-progress chunked upload session.
+struct UploadSession {
+    path: PathBuf,
+    hasher: Sha256,
+    received: u64,
+    next_index: u32,
+    created_at: Instant,
+}
+
+type UploadStore = Arc<RwLock<HashMap<String, Arc<std::sync::Mutex<UploadSession>>>>>;
+
+/// Scan cache keyed by SHA-256 of the uploaded file.
+type CacheStore = Arc<RwLock<HashMap<String, (ScanReport, Instant)>>>;
 
 #[derive(Clone)]
 struct AppState {
     store: ScanStore,
+    uploads: UploadStore,
+    cache: CacheStore,
     semaphore: Arc<Semaphore>,
 }
 
@@ -46,34 +105,92 @@ async fn main() -> Result<()> {
         .init();
 
     let store: ScanStore = Arc::new(RwLock::new(HashMap::new()));
+    let uploads: UploadStore = Arc::new(RwLock::new(HashMap::new()));
+    let cache: CacheStore = Arc::new(RwLock::new(HashMap::new()));
 
-    // Background task: evict scan results older than RESULT_TTL.
-    let cleanup_store = Arc::clone(&store);
-    tokio::spawn(async move {
-        let mut interval = tokio::time::interval(Duration::from_secs(10 * 60));
-        loop {
-            interval.tick().await;
-            let mut map = cleanup_store.write().await;
-            let before = map.len();
-            map.retain(|_, (_, ts)| ts.elapsed() < RESULT_TTL);
-            let removed = before - map.len();
-            if removed > 0 {
-                tracing::info!("Evicted {} expired scan results", removed);
+    // Background task: evict expired scan results, uploads, and cache entries.
+    {
+        let store = Arc::clone(&store);
+        let uploads = Arc::clone(&uploads);
+        let cache = Arc::clone(&cache);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(10 * 60));
+            loop {
+                interval.tick().await;
+
+                // Evict expired scan results
+                {
+                    let mut map = store.write().await;
+                    let before = map.len();
+                    map.retain(|_, (_, ts)| ts.elapsed() < RESULT_TTL);
+                    let removed = before - map.len();
+                    if removed > 0 {
+                        tracing::info!("Evicted {} expired scan results", removed);
+                    }
+                }
+
+                // Evict abandoned uploads
+                {
+                    let mut map = uploads.write().await;
+                    let before = map.len();
+                    map.retain(|_, session| {
+                        let keep = session
+                            .lock()
+                            .map(|s| s.created_at.elapsed() < UPLOAD_TTL)
+                            .unwrap_or(false);
+                        if !keep {
+                            if let Ok(s) = session.lock() {
+                                std::fs::remove_file(&s.path).ok();
+                            }
+                        }
+                        keep
+                    });
+                    let removed = before - map.len();
+                    if removed > 0 {
+                        tracing::info!("Evicted {} abandoned uploads", removed);
+                    }
+                }
+
+                // Evict expired cache entries
+                {
+                    let ttl = cache_ttl();
+                    let mut map = cache.write().await;
+                    let before = map.len();
+                    map.retain(|_, (_, ts)| ts.elapsed() < ttl);
+                    let removed = before - map.len();
+                    if removed > 0 {
+                        tracing::info!("Evicted {} expired cache entries", removed);
+                    }
+                }
             }
-        }
-    });
+        });
+    }
 
     let state = AppState {
         store,
-        semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_SCANS)),
+        uploads,
+        cache,
+        semaphore: Arc::new(Semaphore::new(max_concurrent_scans())),
     };
+
+    // Routes with per-group body limits
+    let scan_routes = Router::new()
+        .route("/api/scan", post(scan_handler))
+        .layer(DefaultBodyLimit::max(512 * 1024 * 1024)); // 512 MB for direct upload
+
+    let upload_routes = Router::new()
+        .route("/api/upload", post(upload_init))
+        .route("/api/upload/:id/:index", put(upload_chunk))
+        .route("/api/upload/:id/scan", post(upload_scan))
+        .layer(DefaultBodyLimit::max(CHUNK_LIMIT));
 
     let app = Router::new()
         .route("/", get(index))
-        .route("/api/scan", post(scan_handler))
+        .merge(scan_routes)
+        .merge(upload_routes)
+        .route("/api/scan/:id", get(get_scan_fragment))
         .route("/api/scan/:id/json", get(download_json))
         .route("/api/scan/:id/pdf", get(download_pdf))
-        .layer(DefaultBodyLimit::max(512 * 1024 * 1024)) // 512 MB
         .with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
@@ -88,27 +205,53 @@ async fn index() -> Html<&'static str> {
     Html(INDEX_HTML)
 }
 
+// ── Direct multipart upload (streaming to disk) ─────────────────────────────
+
 async fn scan_handler(State(state): State<AppState>, mut multipart: Multipart) -> Response {
-    // Reject immediately if at capacity rather than queuing unboundedly.
-    let _permit = match state.semaphore.try_acquire() {
+    let sem = Arc::clone(&state.semaphore);
+    let _permit = match sem.try_acquire() {
         Ok(p) => p,
         Err(_) => {
             return error_fragment(&format!(
                 "Server busy: maximum {} concurrent scans in progress. Try again shortly.",
-                MAX_CONCURRENT_SCANS
+                max_concurrent_scans()
             ))
         }
     };
 
-    let mut ipa_bytes: Option<Vec<u8>> = None;
+    // Stream multipart to disk while computing SHA-256
+    let tmp = match tempfile::Builder::new()
+        .suffix(".ipa")
+        .tempfile_in(upload_dir())
+    {
+        Ok(f) => f,
+        Err(e) => return error_fragment(&format!("Failed to create temp file: {e}")),
+    };
+
+    let mut writer = std::io::BufWriter::new(tmp.as_file());
+    let mut hasher = Sha256::new();
+    let mut received = 0u64;
 
     loop {
         match multipart.next_field().await {
-            Ok(Some(field)) => {
+            Ok(Some(mut field)) => {
                 if field.name() == Some("file") {
-                    match field.bytes().await {
-                        Ok(bytes) => ipa_bytes = Some(bytes.to_vec()),
-                        Err(e) => return error_fragment(&format!("Failed to read upload: {e}")),
+                    loop {
+                        match field.chunk().await {
+                            Ok(Some(chunk)) => {
+                                if let Err(e) = writer.write_all(&chunk) {
+                                    return error_fragment(&format!(
+                                        "Failed to write upload: {e}"
+                                    ));
+                                }
+                                hasher.update(&chunk);
+                                received += chunk.len() as u64;
+                            }
+                            Ok(None) => break,
+                            Err(e) => {
+                                return error_fragment(&format!("Failed to read upload: {e}"))
+                            }
+                        }
                     }
                 }
             }
@@ -117,30 +260,229 @@ async fn scan_handler(State(state): State<AppState>, mut multipart: Multipart) -
         }
     }
 
-    let bytes = match ipa_bytes {
-        Some(b) if !b.is_empty() => b,
-        _ => return error_fragment("No IPA file received"),
-    };
-
-    let tmp = match tempfile::Builder::new().suffix(".ipa").tempfile() {
-        Ok(f) => f,
-        Err(e) => return error_fragment(&format!("Failed to create temp file: {e}")),
-    };
-
-    if let Err(e) = std::fs::write(tmp.path(), &bytes) {
-        return error_fragment(&format!("Failed to write temp file: {e}"));
+    if received == 0 {
+        return error_fragment("No IPA file received");
     }
 
+    if let Err(e) = writer.flush() {
+        return error_fragment(&format!("Failed to flush upload: {e}"));
+    }
+    drop(writer);
+
+    let hash = hex::encode(hasher.finalize());
+
+    // Check cache
+    if let Some(response) = try_cache_hit(&state, &hash).await {
+        return response;
+    }
+
+    // Run scan
     let path = tmp.path().to_path_buf();
-    let opts = ScanOptions {
-        rules_dir: resolve_rules_dir(None),
-        min_severity: Severity::Info,
-        network: false,
+    run_scan(state, path, hash, Some(tmp)).await
+}
+
+// ── Chunked upload endpoints ────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+struct UploadInitResponse {
+    upload_id: String,
+    chunk_size: usize,
+}
+
+async fn upload_init(State(state): State<AppState>) -> Response {
+    let upload_id = Uuid::new_v4().to_string();
+    let file_path = upload_dir().join(format!("{upload_id}.ipa"));
+
+    if let Err(e) = std::fs::File::create(&file_path) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create upload file: {e}"),
+        )
+            .into_response();
+    }
+
+    let session = UploadSession {
+        path: file_path,
+        hasher: Sha256::new(),
+        received: 0,
+        next_index: 0,
+        created_at: Instant::now(),
     };
 
+    state
+        .uploads
+        .write()
+        .await
+        .insert(upload_id.clone(), Arc::new(std::sync::Mutex::new(session)));
+
+    Json(UploadInitResponse {
+        upload_id,
+        chunk_size: 50 * 1024 * 1024,
+    })
+    .into_response()
+}
+
+async fn upload_chunk(
+    State(state): State<AppState>,
+    Path((id, index)): Path<(String, u32)>,
+    body: Bytes,
+) -> Response {
+    let session = {
+        let uploads = state.uploads.read().await;
+        match uploads.get(&id) {
+            Some(s) => Arc::clone(s),
+            None => return (StatusCode::NOT_FOUND, "Upload session not found").into_response(),
+        }
+    };
+
+    let mut session = match session.lock() {
+        Ok(s) => s,
+        Err(_) => {
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Session lock poisoned").into_response()
+        }
+    };
+
+    if index != session.next_index {
+        return (
+            StatusCode::BAD_REQUEST,
+            format!(
+                "Expected chunk index {}, got {}",
+                session.next_index, index
+            ),
+        )
+            .into_response();
+    }
+
+    let mut file = match std::fs::OpenOptions::new().append(true).open(&session.path) {
+        Ok(f) => f,
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to open upload file: {e}"),
+            )
+                .into_response()
+        }
+    };
+
+    // Enforce total upload size limit
+    let new_total = session.received + body.len() as u64;
+    if new_total > max_upload_bytes() {
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!(
+                "Upload exceeds maximum size of {} GB",
+                max_upload_bytes() / (1024 * 1024 * 1024)
+            ),
+        )
+            .into_response();
+    }
+
+    if let Err(e) = file.write_all(&body) {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to write chunk: {e}"),
+        )
+            .into_response();
+    }
+
+    session.hasher.update(&body);
+    session.received = new_total;
+    session.next_index += 1;
+
+    (StatusCode::OK, session.received.to_string()).into_response()
+}
+
+async fn upload_scan(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    // Remove the session (finalize)
+    let session = {
+        let mut uploads = state.uploads.write().await;
+        match uploads.remove(&id) {
+            Some(s) => s,
+            None => return error_fragment("Upload session not found or already completed"),
+        }
+    };
+
+    let (path, hash) = {
+        let session = match session.lock() {
+            Ok(s) => s,
+            Err(_) => return error_fragment("Session lock poisoned"),
+        };
+
+        if session.received == 0 {
+            std::fs::remove_file(&session.path).ok();
+            return error_fragment("No data was uploaded");
+        }
+
+        let hash = hex::encode(session.hasher.clone().finalize());
+        (session.path.clone(), hash)
+    };
+
+    // Acquire scan permit
+    let sem = Arc::clone(&state.semaphore);
+    let _permit = match sem.try_acquire() {
+        Ok(p) => p,
+        Err(_) => {
+            return error_fragment(&format!(
+                "Server busy: maximum {} concurrent scans in progress. Try again shortly.",
+                max_concurrent_scans()
+            ))
+        }
+    };
+
+    // Check cache
+    if let Some(response) = try_cache_hit(&state, &hash).await {
+        std::fs::remove_file(&path).ok();
+        return response;
+    }
+
+    run_scan(state, path, hash, None::<tempfile::NamedTempFile>).await
+}
+
+// ── Shared scan + cache logic ───────────────────────────────────────────────
+
+/// Check cache for a previous scan of the same file (by SHA-256).
+async fn try_cache_hit(state: &AppState, hash: &str) -> Option<Response> {
+    let cache = state.cache.read().await;
+    let (report, _) = cache.get(hash)?;
+    let report = report.clone();
+    drop(cache);
+
+    let id = Uuid::new_v4().to_string();
+    state
+        .store
+        .write()
+        .await
+        .insert(id.clone(), (report.clone(), Instant::now()));
+
+    tracing::info!("Cache hit for SHA-256 {}", &hash[..16]);
+    Some(Html(result_fragment(&id, &report, true)).into_response())
+}
+
+/// Run scan_ipa, store results, populate cache, return HTML fragment.
+async fn run_scan<T: Send + 'static>(
+    state: AppState,
+    path: PathBuf,
+    hash: String,
+    _keep_alive: Option<T>,
+) -> Response {
+    let scan_path = path.clone();
     let report = match tokio::task::spawn_blocking(move || {
-        let _keep = tmp; // keep temp file alive until scan is done
-        scan_ipa(&path, &opts)
+        let _keep = _keep_alive;
+        let opts = ScanOptions {
+            rules_dir: resolve_rules_dir(None),
+            min_severity: Severity::Info,
+            network: false,
+        };
+        let result = scan_ipa(&scan_path, &opts);
+        // Clean up chunked upload files (tempfile handles cleanup for NamedTempFile)
+        if scan_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map_or(false, |s| s.len() > 30 && s.ends_with(".ipa"))
+        {
+            std::fs::remove_file(&scan_path).ok();
+        }
+        result
     })
     .await
     {
@@ -150,9 +492,31 @@ async fn scan_handler(State(state): State<AppState>, mut multipart: Multipart) -
     };
 
     let id = Uuid::new_v4().to_string();
-    state.store.write().await.insert(id.clone(), (report.clone(), Instant::now()));
 
-    Html(result_fragment(&id, &report)).into_response()
+    state
+        .store
+        .write()
+        .await
+        .insert(id.clone(), (report.clone(), Instant::now()));
+
+    // Populate cache
+    state
+        .cache
+        .write()
+        .await
+        .insert(hash, (report.clone(), Instant::now()));
+
+    Html(result_fragment(&id, &report, false)).into_response()
+}
+
+// ── Existing result/download handlers ───────────────────────────────────────
+
+async fn get_scan_fragment(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+    let store = state.store.read().await;
+    match store.get(&id) {
+        Some((report, _)) => Html(result_fragment(&id, report, false)).into_response(),
+        None => error_fragment("Scan expired or not found"),
+    }
 }
 
 async fn download_json(State(state): State<AppState>, Path(id): Path<String>) -> Response {
@@ -171,9 +535,7 @@ async fn download_json(State(state): State<AppState>, Path(id): Path<String>) ->
                 format!("attachment; filename=\"pavise-{}.json\"", &id[..8]),
             )
             .body(Body::from(s))
-            .unwrap_or_else(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
-            }),
+            .unwrap_or_else(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
@@ -197,14 +559,14 @@ async fn download_pdf(State(state): State<AppState>, Path(id): Path<String>) -> 
                 format!("attachment; filename=\"pavise-{}.pdf\"", &id[..8]),
             )
             .body(Body::from(bytes))
-            .unwrap_or_else(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
-            }),
+            .unwrap_or_else(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()),
         Ok(Ok(Err(e))) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
         Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
         Err(_) => (StatusCode::GATEWAY_TIMEOUT, "PDF generation timed out").into_response(),
     }
 }
+
+// ── HTML helpers ────────────────────────────────────────────────────────────
 
 fn error_fragment(msg: &str) -> Response {
     Html(format!(
@@ -217,7 +579,7 @@ fn error_fragment(msg: &str) -> Response {
     .into_response()
 }
 
-fn result_fragment(id: &str, report: &ScanReport) -> String {
+fn result_fragment(id: &str, report: &ScanReport, cached: bool) -> String {
     let high = report
         .findings
         .iter()
@@ -252,6 +614,12 @@ fn result_fragment(id: &str, report: &ScanReport) -> String {
         _ => "grade-f",
     };
 
+    let cache_badge = if cached {
+        r#"<span class="cache-badge">cached</span>"#
+    } else {
+        ""
+    };
+
     let findings_html: String = report
         .findings
         .iter()
@@ -268,10 +636,7 @@ fn result_fragment(id: &str, report: &ScanReport) -> String {
                 .first()
                 .map(|e| {
                     let t = if e.len() > 90 { &e[..90] } else { e.as_str() };
-                    format!(
-                        r#"<div class="finding-evidence">{}</div>"#,
-                        html_escape(t)
-                    )
+                    format!(r#"<div class="finding-evidence">{}</div>"#, html_escape(t))
                 })
                 .unwrap_or_default();
             format!(
@@ -328,7 +693,7 @@ fn result_fragment(id: &str, report: &ScanReport) -> String {
         r#"<div class="result-card">
   <div class="result-header">
     <div class="app-info">
-      <div class="app-name">{name} <span class="app-version">v{version}</span></div>
+      <div class="app-name">{name} <span class="app-version">v{version}</span> {cache_badge}</div>
       <div class="app-id">{bundle_id}</div>
     </div>
     <div class="score-block">
@@ -346,22 +711,23 @@ fn result_fragment(id: &str, report: &ScanReport) -> String {
     <div class="stat"><div class="stat-num">{duration}ms</div><div class="stat-label">Scan Time</div></div>
   </div>
 
+  <div class="download-row">
+    <a href="/api/scan/{id}/json" class="btn btn-json" download>Download JSON</a>
+    <a href="/api/scan/{id}/pdf" class="btn btn-pdf" download>Download PDF</a>
+  </div>
+
   {protections_html}
 
   {findings_section}
 
   {more_note}
-
-  <div class="download-row">
-    <a href="/api/scan/{id}/json" class="btn btn-json" download>Download JSON</a>
-    <a href="/api/scan/{id}/pdf" class="btn btn-pdf" download>Download PDF</a>
-  </div>
 </div>"#,
         name = html_escape(&report.app_info.name),
         version = html_escape(&report.app_info.version),
         bundle_id = html_escape(&report.app_info.identifier),
         grade = html_escape(&report.grade),
         grade_class = grade_class,
+        cache_badge = cache_badge,
         score = report.security_score,
         high = high,
         warn = warn,

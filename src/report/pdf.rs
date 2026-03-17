@@ -23,8 +23,8 @@ const TEMPLATE: &str = include_str!("../../templates/report.typ");
 
 /// Compile a ScanReport to a PDF and return the raw bytes.
 pub fn to_bytes(report: &ScanReport) -> Result<Vec<u8>> {
-    let json_str = serde_json::to_string_pretty(report)
-        .context("Failed to serialize report to JSON")?;
+    let json_str =
+        serde_json::to_string_pretty(report).context("Failed to serialize report to JSON")?;
 
     // Write the JSON to a temp dir so Typst's json() function can read it.
     let tmp = tempfile::tempdir().context("Failed to create temp directory")?;
@@ -99,8 +99,7 @@ impl TypstWrapperWorld {
         }
         .ok_or(FileError::AccessDenied)?;
 
-        let content =
-            std::fs::read(&path).map_err(|e| FileError::from_io(e, &path))?;
+        let content = std::fs::read(&path).map_err(|e| FileError::from_io(e, &path))?;
         Ok(files
             .entry(id)
             .or_insert(FileEntry::new(content, None))
@@ -108,8 +107,7 @@ impl TypstWrapperWorld {
     }
 
     fn download_package(&self, package: &PackageSpec) -> PackageResult<PathBuf> {
-        let subdir =
-            format!("{}/{}/{}", package.namespace, package.name, package.version);
+        let subdir = format!("{}/{}/{}", package.namespace, package.name, package.version);
         let path = self.cache_directory.join(subdir);
         if path.exists() {
             return Ok(path);
@@ -121,11 +119,7 @@ impl TypstWrapperWorld {
         );
 
         let response = retry(|| {
-            let resp = self
-                .http
-                .get(&url)
-                .call()
-                .map_err(|e| eco_format!("{e}"))?;
+            let resp = self.http.get(&url).call().map_err(|e| eco_format!("{e}"))?;
             if resp.status() / 100 != 2 {
                 return Err(eco_format!("HTTP {}", resp.status()));
             }
@@ -196,15 +190,17 @@ struct FileEntry {
 
 impl FileEntry {
     fn new(bytes: Vec<u8>, source: Option<Source>) -> Self {
-        Self { bytes: bytes.into(), source }
+        Self {
+            bytes: bytes.into(),
+            source,
+        }
     }
 
     fn source(&mut self, id: FileId) -> FileResult<Source> {
         let source = if let Some(s) = &self.source {
             s
         } else {
-            let text = std::str::from_utf8(&self.bytes)
-                .map_err(|_| FileError::InvalidUtf8)?;
+            let text = std::str::from_utf8(&self.bytes).map_err(|_| FileError::InvalidUtf8)?;
             let text = text.trim_start_matches('\u{feff}');
             let s = Source::new(id, text.into());
             self.source.insert(s)

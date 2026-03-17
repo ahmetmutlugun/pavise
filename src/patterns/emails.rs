@@ -6,28 +6,40 @@ static EMAIL_RE: OnceLock<Regex> = OnceLock::new();
 
 fn email_re() -> &'static Regex {
     EMAIL_RE.get_or_init(|| {
-        Regex::new(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
-            .expect("email regex")
+        Regex::new(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}").expect("email regex")
     })
 }
 
 /// Common noise TLDs that are actually file extensions or paths, not real TLDs.
 const FAKE_TLDS: &[&str] = &[
-    "pb", "bin", "dat", "c", "h", "m", "mm", "cpp", "swift", "py", "js", "ts",
-    "json", "xml", "plist", "md", "txt", "log", "tmp", "o", "a", "so", "dylib",
+    "pb", "bin", "dat", "c", "h", "m", "mm", "cpp", "swift", "py", "js", "ts", "json", "xml",
+    "plist", "md", "txt", "log", "tmp", "o", "a", "so", "dylib",
 ];
 
 /// File extensions in paths that produce email false positives.
 const NOISE_FILE_EXTENSIONS: &[&str] = &[
-    ".bin", ".mlmodelc", ".tflite", ".weights", ".onnx", ".pt", ".pth",
-    ".npy", ".npz", ".caffemodel", ".model", ".pb",
+    ".bin",
+    ".mlmodelc",
+    ".tflite",
+    ".weights",
+    ".onnx",
+    ".pt",
+    ".pth",
+    ".npy",
+    ".npz",
+    ".caffemodel",
+    ".model",
+    ".pb",
 ];
 
 /// Extract high-confidence email addresses from text, filtering binary noise.
 pub fn extract_emails(text: &str, source_path: &str) -> Vec<String> {
     // Skip binary noise files entirely
     let lower_path = source_path.to_lowercase();
-    if NOISE_FILE_EXTENSIONS.iter().any(|ext| lower_path.ends_with(ext)) {
+    if NOISE_FILE_EXTENSIONS
+        .iter()
+        .any(|ext| lower_path.ends_with(ext))
+    {
         return Vec::new();
     }
 
@@ -66,7 +78,7 @@ fn is_valid_email(email: &str) -> bool {
     }
 
     // Domain must have a TLD
-    if let Some(tld) = domain.split('.').last() {
+    if let Some(tld) = domain.split('.').next_back() {
         // TLD must be alphabetic and at least 2 chars
         if tld.len() < 2 || !tld.chars().all(|c| c.is_ascii_alphabetic()) {
             return false;

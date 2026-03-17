@@ -2,6 +2,7 @@
 name = "pavise"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.75"
 description = "Fast mobile app static analysis tool for iOS IPA and Android APK files"
 license = "MIT"
 

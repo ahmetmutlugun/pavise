@@ -8,28 +8,27 @@ static URL_RE: OnceLock<Regex> = OnceLock::new();
 
 fn url_re() -> &'static Regex {
     URL_RE.get_or_init(|| {
-        Regex::new(r"https?://[a-zA-Z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+")
-            .expect("url regex")
+        Regex::new(r"https?://[a-zA-Z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+").expect("url regex")
     })
 }
 
 /// URL substrings (all lowercase) that indicate a reference/schema/test URL,
 /// not a real runtime network call. Matched against a lowercased URL.
 const NOISE_URL_PATTERNS: &[&str] = &[
-    "apple.com/dtds/",          // XML plist DOCTYPE declarations
-    "apple.com/xmlschemas/",    // Apple XML schemas
-    "www.w3.org/",              // XML schema declarations
-    "xmlpull.org/",             // XML pull parser schema
-    "schemas.android.com/",     // Android XML namespace
+    "apple.com/dtds/",       // XML plist DOCTYPE declarations
+    "apple.com/xmlschemas/", // Apple XML schemas
+    "www.w3.org/",           // XML schema declarations
+    "xmlpull.org/",          // XML pull parser schema
+    "schemas.android.com/",  // Android XML namespace
     "schemas.microsoft.com/",
-    "example.invalid",          // RFC 2606 — used in gRPC and other test code
-    "example.com",              // Generic test URLs in third-party libraries
+    "example.invalid", // RFC 2606 — used in gRPC and other test code
+    "example.com",     // Generic test URLs in third-party libraries
     "example.org",
-    "www.google.com/",          // gRPC test URLs
+    "www.google.com/", // gRPC test URLs
     "localhost",
     "127.0.0.1",
     "0.0.0.0",
-    "mozilla.org/mpl",          // License header URLs
+    "mozilla.org/mpl", // License header URLs
     "gnu.org/licenses",
     "opensource.org/licenses",
     "creativecommons.org/",
@@ -81,9 +80,11 @@ pub fn extract(text: &str, source_path: &str) -> UrlExtractResult {
         let url = m.as_str();
 
         // Flag HTTP (non-HTTPS) URLs, skipping noise
-        if url.starts_with("http://") && !is_noise_url(url) {
-            if seen_http_urls.insert(url.to_string()) {
-                findings.push(Finding {
+        if url.starts_with("http://")
+            && !is_noise_url(url)
+            && seen_http_urls.insert(url.to_string())
+        {
+            findings.push(Finding {
                     id: "QS-NET-001".to_string(),
                     title: "Insecure HTTP URL Found".to_string(),
                     description: format!(
@@ -98,7 +99,6 @@ pub fn extract(text: &str, source_path: &str) -> UrlExtractResult {
                     evidence: vec![url.to_string()],
                     remediation: Some("Replace HTTP with HTTPS and ensure the server has a valid TLS certificate.".to_string()),
                 });
-            }
         }
 
         // Collect the hostname from every URL (http and https)
@@ -113,6 +113,27 @@ pub fn extract(text: &str, source_path: &str) -> UrlExtractResult {
     }
 
     UrlExtractResult { domains, findings }
+}
+
+fn extract_domain_from_url(url: &str) -> Option<String> {
+    // Strip scheme
+    let without_scheme = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))?;
+
+    // Take up to first / ? # : [ ] or end.
+    // The URL regex allows [ ] for IPv6 literals, but that also lets the
+    // next token (e.g. `]1085117749045_`) bleed into the hostname when a
+    // closing bracket appears immediately after a domain in the source text.
+    let host = without_scheme
+        .split(['/', '?', '#', ':', '[', ']'])
+        .next()?;
+
+    if host.is_empty() || !host.contains('.') {
+        return None;
+    }
+
+    Some(host.to_lowercase())
 }
 
 #[cfg(test)]
@@ -131,8 +152,16 @@ mod tests {
     #[test]
     fn test_http_real_flagged() {
         let result = extract("endpoint: http://api.mycompany.net/v1", "config.json");
-        let net_findings: Vec<_> = result.findings.iter().filter(|f| f.id == "QS-NET-001").collect();
-        assert_eq!(net_findings.len(), 1, "Expected exactly one QS-NET-001 finding");
+        let net_findings: Vec<_> = result
+            .findings
+            .iter()
+            .filter(|f| f.id == "QS-NET-001")
+            .collect();
+        assert_eq!(
+            net_findings.len(),
+            1,
+            "Expected exactly one QS-NET-001 finding"
+        );
     }
 
     #[test]
@@ -160,7 +189,10 @@ mod tests {
     fn test_domain_collected() {
         let result = extract("base: https://api.mycompany.net/v1", "config.json");
         assert!(
-            result.domains.iter().any(|d| d.domain == "api.mycompany.net"),
+            result
+                .domains
+                .iter()
+                .any(|d| d.domain == "api.mycompany.net"),
             "Expected api.mycompany.net in domains, got: {:?}",
             result.domains.iter().map(|d| &d.domain).collect::<Vec<_>>()
         );
@@ -170,29 +202,14 @@ mod tests {
     fn test_duplicate_http_single_finding() {
         let text = "http://api.mycompany.net/v1 and http://api.mycompany.net/v1";
         let result = extract(text, "config.plist");
-        let count = result.findings.iter().filter(|f| f.id == "QS-NET-001").count();
-        assert_eq!(count, 1, "Duplicate HTTP URL should produce exactly 1 finding, got {count}");
+        let count = result
+            .findings
+            .iter()
+            .filter(|f| f.id == "QS-NET-001")
+            .count();
+        assert_eq!(
+            count, 1,
+            "Duplicate HTTP URL should produce exactly 1 finding, got {count}"
+        );
     }
 }
-
-fn extract_domain_from_url(url: &str) -> Option<String> {
-    // Strip scheme
-    let without_scheme = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))?;
-
-    // Take up to first / ? # : [ ] or end.
-    // The URL regex allows [ ] for IPv6 literals, but that also lets the
-    // next token (e.g. `]1085117749045_`) bleed into the hostname when a
-    // closing bracket appears immediately after a domain in the source text.
-    let host = without_scheme
-        .split(|c| c == '/' || c == '?' || c == '#' || c == ':' || c == '[' || c == ']')
-        .next()?;
-
-    if host.is_empty() || !host.contains('.') {
-        return None;
-    }
-
-    Some(host.to_lowercase())
-}
-

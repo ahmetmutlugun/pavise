@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 pub mod baseline;
 pub mod binary;
 pub mod manifest;
@@ -27,9 +29,11 @@ use crate::patterns::{
 };
 use crate::resources::{firebase, sca, vulns::VulnDatabase};
 use crate::scoring::owasp::compute_score;
-use crate::types::{AuditEntry, BinaryInfo, DomainGeoInfo, DomainInfo, Finding, ScanReport, SecretMatch, Severity};
-use std::collections::HashMap;
+use crate::types::{
+    AuditEntry, BinaryInfo, DomainGeoInfo, DomainInfo, Finding, ScanReport, SecretMatch, Severity,
+};
 use crate::unpacker::ipa::unpack as unpack_ipa;
+use std::collections::HashMap;
 
 /// Resolve the rules directory: use user-supplied path, or fall back to
 /// a `rules/` directory alongside the binary.
@@ -47,10 +51,9 @@ pub fn resolve_rules_dir(custom: Option<&Path>) -> PathBuf {
     }
 
     // Try relative to CWD (useful in development)
-    let cwd_rules = std::env::current_dir()
+    std::env::current_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
-        .join("rules");
-    cwd_rules
+        .join("rules")
 }
 
 /// Resolve the `data/` directory alongside the binary, then alongside CWD.
@@ -81,7 +84,10 @@ struct AuditLog {
 
 impl AuditLog {
     fn new(start: Instant) -> Self {
-        AuditLog { start, entries: Vec::new() }
+        AuditLog {
+            start,
+            entries: Vec::new(),
+        }
     }
 
     fn record(&mut self, step: impl Into<String>) {
@@ -129,9 +135,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                 // Fallback: first file at exactly depth Payload/<X>/Info.plist
                 unpacked.archive.files.iter().find(|f| {
                     let parts: Vec<&str> = f.path.split('/').collect();
-                    parts.len() == 3
-                        && parts[0] == "Payload"
-                        && parts[2] == "Info.plist"
+                    parts.len() == 3 && parts[0] == "Payload" && parts[2] == "Info.plist"
                 })
             })
             .context("Info.plist not found in IPA")?;
@@ -142,7 +146,10 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
 
     let app_info = plist_result.app_info;
     let mut all_findings: Vec<Finding> = plist_result.findings;
-    let ats_finding_count = all_findings.iter().filter(|f| f.id.starts_with("QS-ATS-")).count();
+    let ats_finding_count = all_findings
+        .iter()
+        .filter(|f| f.id.starts_with("QS-ATS-"))
+        .count();
     log.record(format!(
         "Parsed Info.plist: {} v{} ({}) — {} permissions, {} ATS findings",
         app_info.name,
@@ -162,31 +169,35 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     let tracker_detector = TrackerDetector::load(&opts.rules_dir)?;
 
     // 3a. Main binary analysis
-    let (main_binary_result, main_binary_findings) = if let Some(ref bin_path) = unpacked.main_binary_path {
-        if let Some(bin_file) = unpacked.archive.files.iter().find(|f| &f.path == bin_path) {
-            match macho::analyze(&bin_file.data, &bin_file.path) {
-                Ok(result) => {
-                    let sym_findings = symbol_scanner.scan(&result.imports);
-                    let mut findings = result.findings;
-                    findings.extend(sym_findings);
-                    (Some(result.binary_info), findings)
+    let (main_binary_result, main_binary_findings) =
+        if let Some(ref bin_path) = unpacked.main_binary_path {
+            if let Some(bin_file) = unpacked.archive.files.iter().find(|f| &f.path == bin_path) {
+                match macho::analyze(&bin_file.data, &bin_file.path) {
+                    Ok(result) => {
+                        let sym_findings = symbol_scanner.scan(&result.imports);
+                        let mut findings = result.findings;
+                        findings.extend(sym_findings);
+                        (Some(result.binary_info), findings)
+                    }
+                    Err(e) => {
+                        debug!("Failed to analyze main binary: {}", e);
+                        (None, Vec::new())
+                    }
                 }
-                Err(e) => {
-                    debug!("Failed to analyze main binary: {}", e);
-                    (None, Vec::new())
-                }
+            } else {
+                (None, Vec::new())
             }
         } else {
             (None, Vec::new())
-        }
-    } else {
-        (None, Vec::new())
-    };
+        };
 
     all_findings.extend(main_binary_findings);
     log.record(format!(
         "Main binary analysis: {} ({}) — {} findings",
-        main_binary_result.as_ref().map(|b| b.arch.as_str()).unwrap_or("unknown"),
+        main_binary_result
+            .as_ref()
+            .map(|b| b.arch.as_str())
+            .unwrap_or("unknown"),
         unpacked.main_binary_path.as_deref().unwrap_or("not found"),
         all_findings.len()
     ));
@@ -239,6 +250,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     ));
 
     // 3c. String scanning (parallel over all files)
+    #[allow(clippy::type_complexity)]
     let string_results: Vec<(Vec<SecretMatch>, Vec<String>, Vec<DomainInfo>, Vec<Finding>)> =
         unpacked
             .archive
@@ -255,7 +267,8 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                 // despite being completely harmless.
                 if is_text_like(&f.path) {
                     let lines: Vec<&str> = text.lines().collect();
-                    let entropy_hits = crate::patterns::entropy::scan_for_high_entropy(&lines, &f.path);
+                    let entropy_hits =
+                        crate::patterns::entropy::scan_for_high_entropy(&lines, &f.path);
                     secrets.extend(entropy_hits);
                 }
 
@@ -372,7 +385,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                     "Remove certificate and key files from the app bundle. \
                     Use the iOS Keychain or server-side PKI. If mutual TLS is required, \
                     provision certificates at runtime via MDM or a secure enrolment flow."
-                    .to_string(),
+                        .to_string(),
                 ),
             });
         }
@@ -402,15 +415,21 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                     "Audit the bundled database for sensitive content. \
                     Pre-populated databases are acceptable for reference data \
                     but must never contain credentials, PII, or internal infrastructure details."
-                    .to_string(),
+                        .to_string(),
                 ),
             });
         }
     }
     log.record(format!(
         "Archive scan: {} cert/key files flagged, {} database files detected",
-        all_findings.iter().filter(|f| f.id == "QS-CERT-001").count(),
-        all_findings.iter().filter(|f| f.id == "QS-STORE-001").count(),
+        all_findings
+            .iter()
+            .filter(|f| f.id == "QS-CERT-001")
+            .count(),
+        all_findings
+            .iter()
+            .filter(|f| f.id == "QS-STORE-001")
+            .count(),
     ));
 
     // 3e. Tracker detection — collect framework names from paths
@@ -434,11 +453,12 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     ));
 
     // 3f. Software Composition Analysis — extract framework versions
-    let framework_components = sca::extract_components(
-        &unpacked.framework_binary_paths,
-        &unpacked.archive.files,
-    );
-    let versioned_count = framework_components.iter().filter(|c| c.version.is_some()).count();
+    let framework_components =
+        sca::extract_components(&unpacked.framework_binary_paths, &unpacked.archive.files);
+    let versioned_count = framework_components
+        .iter()
+        .filter(|c| c.version.is_some())
+        .count();
     log.record(format!(
         "SCA: {} framework components identified ({} with version info)",
         framework_components.len(),
@@ -452,7 +472,10 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             let cve_findings = vuln_db.check(&framework_components);
             let cve_count = cve_findings.len();
             all_findings.extend(cve_findings);
-            log.record(format!("CVE scan: {} vulnerable framework versions found", cve_count));
+            log.record(format!(
+                "CVE scan: {} vulnerable framework versions found",
+                cve_count
+            ));
         }
         Err(e) => {
             debug!("CVE database unavailable: {}", e);
@@ -481,7 +504,10 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                     mobileprovision file.",
                     profile_type,
                     if prov.provisioned_device_count > 0 {
-                        format!("{} specific device UDIDs are provisioned. ", prov.provisioned_device_count)
+                        format!(
+                            "{} specific device UDIDs are provisioned. ",
+                            prov.provisioned_device_count
+                        )
                     } else {
                         String::new()
                     }
@@ -500,7 +526,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                 remediation: Some(
                     "Use App Store distribution signing for production releases. \
                     Development and ad-hoc builds should not be submitted to end users."
-                    .to_string(),
+                        .to_string(),
                 ),
             });
         }
@@ -536,9 +562,18 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         "Scoring: {}/100 ({}) — {} high, {} warning, {} info findings total",
         security_score,
         grade,
-        all_findings.iter().filter(|f| f.severity == Severity::High).count(),
-        all_findings.iter().filter(|f| f.severity == Severity::Warning).count(),
-        all_findings.iter().filter(|f| f.severity == Severity::Info).count(),
+        all_findings
+            .iter()
+            .filter(|f| f.severity == Severity::High)
+            .count(),
+        all_findings
+            .iter()
+            .filter(|f| f.severity == Severity::Warning)
+            .count(),
+        all_findings
+            .iter()
+            .filter(|f| f.severity == Severity::Info)
+            .count(),
     ));
 
     // ------------------------------------------------------------------ //
@@ -592,7 +627,9 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             }
         }
     } else {
-        log.record("Network intel: skipped (use --network to enable DNS/GeoIP lookups)".to_string());
+        log.record(
+            "Network intel: skipped (use --network to enable DNS/GeoIP lookups)".to_string(),
+        );
         Vec::new()
     };
 
@@ -606,7 +643,10 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
 
     let scan_duration_ms = start.elapsed().as_millis() as u64;
     log.record(format!("Scan complete: {}ms total", scan_duration_ms));
-    info!("Scan completed in {}ms — score: {}/100 ({})", scan_duration_ms, security_score, grade);
+    info!(
+        "Scan completed in {}ms — score: {}/100 ({})",
+        scan_duration_ms, security_score, grade
+    );
 
     Ok(ScanReport {
         app_info,
@@ -633,10 +673,11 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
 
 /// Build OWASP Mobile Top 10 summary: M1..M10 → list of finding IDs with that category.
 fn compute_owasp_summary(findings: &[Finding]) -> HashMap<String, Vec<String>> {
-    let mut summary: HashMap<String, Vec<String>> = ["M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10"]
-        .iter()
-        .map(|k| (k.to_string(), Vec::new()))
-        .collect();
+    let mut summary: HashMap<String, Vec<String>> =
+        ["M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10"]
+            .iter()
+            .map(|k| (k.to_string(), Vec::new()))
+            .collect();
     for f in findings {
         if let Some(m) = &f.owasp_mobile {
             if let Some(list) = summary.get_mut(m.as_str()) {
@@ -680,14 +721,48 @@ fn is_text_like(path: &str) -> bool {
     let lower = path.to_lowercase();
     // Include source, config, and script files; exclude known binary formats
     const TEXT_EXTENSIONS: &[&str] = &[
-        ".plist", ".json", ".xml", ".yaml", ".yml", ".txt", ".md",
-        ".swift", ".m", ".mm", ".h", ".c", ".cpp", ".js", ".ts",
-        ".py", ".sh", ".html", ".css", ".strings", ".stringsdict",
+        ".plist",
+        ".json",
+        ".xml",
+        ".yaml",
+        ".yml",
+        ".txt",
+        ".md",
+        ".swift",
+        ".m",
+        ".mm",
+        ".h",
+        ".c",
+        ".cpp",
+        ".js",
+        ".ts",
+        ".py",
+        ".sh",
+        ".html",
+        ".css",
+        ".strings",
+        ".stringsdict",
     ];
     const BINARY_EXTENSIONS: &[&str] = &[
-        ".bin", ".mlmodelc", ".nib", ".car", ".dylib", ".a", ".o",
-        ".png", ".jpg", ".jpeg", ".gif", ".pdf", ".mp4", ".mov",
-        ".tflite", ".pb", ".onnx", ".pt", ".weights",
+        ".bin",
+        ".mlmodelc",
+        ".nib",
+        ".car",
+        ".dylib",
+        ".a",
+        ".o",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".pdf",
+        ".mp4",
+        ".mov",
+        ".tflite",
+        ".pb",
+        ".onnx",
+        ".pt",
+        ".weights",
     ];
 
     if BINARY_EXTENSIONS.iter().any(|ext| lower.ends_with(ext)) {

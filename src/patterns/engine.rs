@@ -73,7 +73,11 @@ impl PatternEngine {
 
         debug!("PatternEngine loaded {} secret rules", rules.len());
 
-        Ok(PatternEngine { rules, set, compiled })
+        Ok(PatternEngine {
+            rules,
+            set,
+            compiled,
+        })
     }
 
     /// Scan a text buffer and return all secret matches.
@@ -146,7 +150,7 @@ pub fn extract_printable_strings(data: &[u8], min_len: usize) -> String {
     let mut current = Vec::new();
 
     for &byte in data {
-        if byte >= 0x20 && byte < 0x7f {
+        if (0x20..0x7f).contains(&byte) {
             current.push(byte);
         } else {
             if current.len() >= min_len {

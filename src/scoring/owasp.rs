@@ -24,7 +24,13 @@ pub fn compute_score(
                     n if n.contains("PIE") => 15,
                     n if n.contains("Stack Canary") => 8,
                     n if n.contains("ARC") => 10,
-                    n if n.contains("Encryption") => if is_dev_build { 0 } else { 5 },
+                    n if n.contains("Encryption") => {
+                        if is_dev_build {
+                            0
+                        } else {
+                            5
+                        }
+                    }
                     n if n.contains("Symbols") => 3,
                     n if n.contains("RPATH") => 0, // RPATH is flagged only when present
                     _ => 0,
@@ -90,19 +96,17 @@ pub fn compute_score(
             "QS-BIN-008" => {
                 score -= 3;
             }
-            id if id.starts_with("QS-CVE-") => {
-                match finding.severity {
-                    Severity::High if cve_high_deductions < 20 => {
-                        score -= 8;
-                        cve_high_deductions += 8;
-                    }
-                    Severity::Warning if cve_warn_deductions < 10 => {
-                        score -= 4;
-                        cve_warn_deductions += 4;
-                    }
-                    _ => {}
+            id if id.starts_with("QS-CVE-") => match finding.severity {
+                Severity::High if cve_high_deductions < 20 => {
+                    score -= 8;
+                    cve_high_deductions += 8;
                 }
-            }
+                Severity::Warning if cve_warn_deductions < 10 => {
+                    score -= 4;
+                    cve_warn_deductions += 4;
+                }
+                _ => {}
+            },
             "QS-ATS-002" if !ats_deducted => {
                 score -= 10;
                 ats_deducted = true;
@@ -127,7 +131,7 @@ pub fn compute_score(
         }
     }
 
-    let score = score.max(0).min(100) as u8;
+    let score = score.clamp(0, 100) as u8;
     let grade = grade_from_score(score);
     (score, grade)
 }
@@ -151,7 +155,11 @@ mod tests {
         BinaryProtection {
             name: name.to_string(),
             enabled,
-            severity: if enabled { Severity::Secure } else { Severity::High },
+            severity: if enabled {
+                Severity::Secure
+            } else {
+                Severity::High
+            },
             description: String::new(),
         }
     }
@@ -282,7 +290,8 @@ mod tests {
         assert_eq!(g, "C");
 
         // D: 40–59 → PIE + ARC + Canary + 2 High secrets → 100-15-10-8-20 = 47
-        let bin_three_missing = make_binary(&[("PIE", false), ("ARC", false), ("Stack Canary", false)]);
+        let bin_three_missing =
+            make_binary(&[("PIE", false), ("ARC", false), ("Stack Canary", false)]);
         let secrets = vec![make_secret(Severity::High), make_secret(Severity::High)];
         let (s, g) = compute_score(Some(&bin_three_missing), &[], &[], &secrets, false);
         assert_eq!(s, 47);
@@ -290,11 +299,16 @@ mod tests {
 
         // F: below 40
         let bin_all_off = make_binary(&[
-            ("PIE", false), ("ARC", false), ("Stack Canary", false),
-            ("Encryption", false), ("Symbols", false),
+            ("PIE", false),
+            ("ARC", false),
+            ("Stack Canary", false),
+            ("Encryption", false),
+            ("Symbols", false),
         ]);
         let secrets3 = vec![
-            make_secret(Severity::High), make_secret(Severity::High), make_secret(Severity::High),
+            make_secret(Severity::High),
+            make_secret(Severity::High),
+            make_secret(Severity::High),
         ];
         let findings = vec![make_finding("QS-ATS-002", Severity::High)];
         // 100-15-10-8-5-3-20-10 = 29
@@ -315,8 +329,11 @@ mod tests {
             ("RPATH", false),
         ]);
         let secrets = vec![
-            make_secret(Severity::High), make_secret(Severity::High), make_secret(Severity::High),
-            make_secret(Severity::Warning), make_secret(Severity::Warning),
+            make_secret(Severity::High),
+            make_secret(Severity::High),
+            make_secret(Severity::High),
+            make_secret(Severity::Warning),
+            make_secret(Severity::Warning),
         ];
         let findings = vec![
             make_finding("QS-ATS-002", Severity::High),

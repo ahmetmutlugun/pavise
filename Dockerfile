@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 WORKDIR /app
 COPY . .
 
-RUN cargo build --release --bin quickscan-server
+RUN cargo build --release --bin pavise-server
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
@@ -20,11 +20,15 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/quickscan-server /app/quickscan-server
+COPY --from=builder /app/target/release/pavise-server /app/pavise-server
 COPY rules/  /app/rules/
 COPY data/   /app/data/
 # templates/ is embedded at compile time via include_str! — no runtime copy needed
 
+# Upload/temp directory — mount a volume here for large file support
+RUN mkdir -p /app/uploads
+ENV PAVISE_UPLOAD_DIR=/app/uploads
+
 EXPOSE 3000
 
-CMD ["/app/quickscan-server"]
+CMD ["/app/pavise-server"]

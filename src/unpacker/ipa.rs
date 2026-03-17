@@ -11,9 +11,22 @@ use zip::ZipArchive;
 use super::{ExtractedFile, UnpackedArchive};
 use crate::types::FileHashes;
 
-/// Maximum file size to load fully into RAM (50 MB).
-/// Larger files get memory-mapped or skipped.
-const MAX_IN_MEMORY: usize = 50 * 1024 * 1024;
+/// Maximum single file size to load into RAM (512 MB).
+/// Modern app binaries (especially large Swift/ObjC apps) can exceed 200 MB.
+/// The total extracted size cap (MAX_TOTAL_EXTRACTED) provides zip bomb protection.
+const MAX_IN_MEMORY: usize = 512 * 1024 * 1024;
+
+/// Maximum total decompressed size across all extracted files (2 GB).
+/// Prevents zip bombs from exhausting memory.
+const MAX_TOTAL_EXTRACTED: usize = 2 * 1024 * 1024 * 1024;
+
+/// Maximum number of entries to extract. Prevents attacks using
+/// millions of tiny files to exhaust memory via per-entry overhead.
+const MAX_ENTRY_COUNT: usize = 50_000;
+
+/// Maximum compression ratio. A 1 KB compressed entry decompressing
+/// to 50 MB is a strong zip-bomb signal.
+const MAX_COMPRESSION_RATIO: u64 = 200;
 
 pub struct IpaUnpackResult {
     pub archive: UnpackedArchive,
@@ -28,8 +41,8 @@ pub struct IpaUnpackResult {
 
 pub fn unpack(path: &Path) -> Result<IpaUnpackResult> {
     // --- 1. Hash the file while reading it ---
-    let file_data = std::fs::read(path)
-        .with_context(|| format!("Failed to read IPA: {}", path.display()))?;
+    let file_data =
+        std::fs::read(path).with_context(|| format!("Failed to read IPA: {}", path.display()))?;
     let size_bytes = file_data.len() as u64;
 
     let md5_hash = hex::encode(Md5::digest(&file_data));
@@ -55,8 +68,18 @@ pub fn unpack(path: &Path) -> Result<IpaUnpackResult> {
 
     // --- 4. Extract all relevant files ---
     let mut files: Vec<ExtractedFile> = Vec::new();
+    let mut total_extracted: usize = 0;
 
-    for i in 0..zip.len() {
+    let entry_count = zip.len();
+    if entry_count > MAX_ENTRY_COUNT {
+        anyhow::bail!(
+            "ZIP contains {} entries (limit: {}). Possible zip bomb.",
+            entry_count,
+            MAX_ENTRY_COUNT
+        );
+    }
+
+    for i in 0..entry_count {
         let mut entry = zip.by_index(i).context("Failed to read ZIP entry")?;
         let name = entry.name().to_string();
 
@@ -65,18 +88,56 @@ pub fn unpack(path: &Path) -> Result<IpaUnpackResult> {
             continue;
         }
 
-        let size = entry.size() as usize;
-
-        // Only fully extract files within the app bundle and under the size limit
-        let should_extract = size <= MAX_IN_MEMORY;
-
-        if should_extract {
-            let mut data = Vec::with_capacity(size.min(1024 * 1024));
-            entry.read_to_end(&mut data)?;
-            files.push(ExtractedFile { path: name, data });
-        } else {
-            debug!("Skipping large file ({}MB): {}", size / 1024 / 1024, name);
+        // Defense-in-depth: reject path traversal attempts (ZIP slip)
+        if name.contains("..") || name.starts_with('/') {
+            debug!("Skipping suspicious ZIP entry (path traversal): {}", name);
+            continue;
         }
+
+        let uncompressed = entry.size();
+        let compressed = entry.compressed_size();
+
+        // Check compression ratio for bomb detection
+        if compressed > 0 && uncompressed / compressed > MAX_COMPRESSION_RATIO {
+            debug!(
+                "Skipping suspicious entry (ratio {}:1): {}",
+                uncompressed / compressed,
+                name
+            );
+            continue;
+        }
+
+        let size = uncompressed as usize;
+
+        // Only fully extract files under the per-file size limit
+        if size > MAX_IN_MEMORY {
+            debug!("Skipping large file ({}MB): {}", size / 1024 / 1024, name);
+            continue;
+        }
+
+        // Check total extracted size limit
+        if total_extracted + size > MAX_TOTAL_EXTRACTED {
+            anyhow::bail!(
+                "Total decompressed size exceeds {} MB limit. Possible zip bomb.",
+                MAX_TOTAL_EXTRACTED / (1024 * 1024)
+            );
+        }
+
+        let mut data = Vec::with_capacity(size.min(1024 * 1024));
+        entry.read_to_end(&mut data)?;
+
+        // Verify actual size matches claimed size (defense against lying headers)
+        if data.len() > MAX_IN_MEMORY {
+            debug!(
+                "Entry actual size ({}MB) exceeds limit, discarding: {}",
+                data.len() / 1024 / 1024,
+                name
+            );
+            continue;
+        }
+
+        total_extracted += data.len();
+        files.push(ExtractedFile { path: name, data });
     }
 
     // --- 5. Determine main binary path from Info.plist ---
@@ -113,7 +174,10 @@ fn find_bundle_prefix<R: Read + Seek>(zip: &ZipArchive<R>) -> Option<String> {
     None
 }
 
-fn resolve_main_binary_path(files: &[ExtractedFile], bundle_prefix: &Option<String>) -> Option<String> {
+fn resolve_main_binary_path(
+    files: &[ExtractedFile],
+    bundle_prefix: &Option<String>,
+) -> Option<String> {
     let prefix = bundle_prefix.as_deref()?;
     let plist_path = format!("{}/Info.plist", prefix);
 

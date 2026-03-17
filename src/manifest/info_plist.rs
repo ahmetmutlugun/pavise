@@ -46,10 +46,18 @@ pub fn analyze(data: &[u8], rules_dir: &std::path::Path) -> Result<PlistAnalysis
         .or_else(|| get_str(dict, "CFBundleDisplayName"))
         .unwrap_or_default()
         .to_string();
-    let identifier = get_str(dict, "CFBundleIdentifier").unwrap_or_default().to_string();
-    let version = get_str(dict, "CFBundleShortVersionString").unwrap_or_default().to_string();
-    let build = get_str(dict, "CFBundleVersion").unwrap_or_default().to_string();
-    let min_os_version = get_str(dict, "MinimumOSVersion").unwrap_or_default().to_string();
+    let identifier = get_str(dict, "CFBundleIdentifier")
+        .unwrap_or_default()
+        .to_string();
+    let version = get_str(dict, "CFBundleShortVersionString")
+        .unwrap_or_default()
+        .to_string();
+    let build = get_str(dict, "CFBundleVersion")
+        .unwrap_or_default()
+        .to_string();
+    let min_os_version = get_str(dict, "MinimumOSVersion")
+        .unwrap_or_default()
+        .to_string();
     let sdk_name = get_str(dict, "DTSDKName").unwrap_or_default().to_string();
 
     let supported_platforms = dict
@@ -234,10 +242,14 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
     }
 
     // Check exception domains
-    if let Some(exceptions) = ats_dict.get("NSExceptionDomains").and_then(|v| v.as_dictionary()) {
+    if let Some(exceptions) = ats_dict
+        .get("NSExceptionDomains")
+        .and_then(|v| v.as_dictionary())
+    {
         for (domain, config) in exceptions {
             if let Some(cfg_dict) = config.as_dictionary() {
-                if cfg_dict.get("NSExceptionAllowsInsecureHTTPLoads")
+                if cfg_dict
+                    .get("NSExceptionAllowsInsecureHTTPLoads")
                     .and_then(|v| v.as_boolean())
                     == Some(true)
                 {
@@ -287,8 +299,8 @@ fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
 
     // Schemes that look too generic and are prime hijacking targets
     const GENERIC_SCHEMES: &[&str] = &[
-        "app", "open", "launch", "view", "share", "pay", "auth", "login",
-        "oauth", "callback", "redirect", "link", "handle", "action",
+        "app", "open", "launch", "view", "share", "pay", "auth", "login", "oauth", "callback",
+        "redirect", "link", "handle", "action",
     ];
 
     for item in url_types {
@@ -297,7 +309,10 @@ fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
             None => continue,
         };
 
-        let schemes = match type_dict.get("CFBundleURLSchemes").and_then(|v| v.as_array()) {
+        let schemes = match type_dict
+            .get("CFBundleURLSchemes")
+            .and_then(|v| v.as_array())
+        {
             Some(s) => s,
             None => continue,
         };
@@ -313,8 +328,7 @@ fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
                 continue;
             }
 
-            let is_generic = GENERIC_SCHEMES.iter().any(|g| scheme == *g)
-                || scheme.len() <= 3;
+            let is_generic = GENERIC_SCHEMES.iter().any(|g| scheme == *g) || scheme.len() <= 3;
 
             let (severity, title, description) = if is_generic {
                 (
@@ -355,7 +369,7 @@ fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
                     "Validate all URL scheme parameters before use. Use Universal Links (HTTPS) \
                     for deep linking where possible. Never perform sensitive actions (payments, \
                     auth state changes) solely based on URL scheme invocation."
-                    .to_string(),
+                        .to_string(),
                 ),
             });
         }
