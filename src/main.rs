@@ -63,6 +63,11 @@ struct Cli {
     /// section to all output formats.
     #[arg(long, value_name = "FILE")]
     baseline: Option<PathBuf>,
+
+    /// Print full details and remediation for a specific finding ID (e.g. QS-BIN-001).
+    /// Runs the full scan first, then displays the finding.
+    #[arg(long, value_name = "ID")]
+    explain: Option<String>,
 }
 
 #[derive(ValueEnum, Clone, Debug)]
@@ -78,6 +83,8 @@ enum SeverityArg {
     High,
     Warning,
     Info,
+    /// Include passing security checks (PIE ✓, ARC ✓, etc.) as positive signals
+    Secure,
 }
 
 impl From<SeverityArg> for Severity {
@@ -86,6 +93,7 @@ impl From<SeverityArg> for Severity {
             SeverityArg::High => Severity::High,
             SeverityArg::Warning => Severity::Warning,
             SeverityArg::Info => Severity::Info,
+            SeverityArg::Secure => Severity::Secure,
         }
     }
 }
@@ -123,6 +131,7 @@ fn main() -> Result<()> {
         rules_dir,
         min_severity,
         network: cli.network,
+        show_progress: !cli.quiet && cli.explain.is_none(),
     };
 
     // Validate the file exists and is within a sane size limit before scanning.
@@ -206,6 +215,12 @@ fn main() -> Result<()> {
                 );
             }
         }
+    }
+
+    // --explain: print full detail for a specific finding, then exit.
+    if let Some(ref finding_id) = cli.explain {
+        print_finding_detail(&report, finding_id);
+        std::process::exit(0);
     }
 
     if !cli.quiet {
@@ -382,6 +397,9 @@ fn print_summary(report: &ScanReport, min_severity: &SeverityArg, verbose: bool)
         SeverityArg::High => vec![Severity::High],
         SeverityArg::Warning => vec![Severity::High, Severity::Warning],
         SeverityArg::Info => vec![Severity::High, Severity::Warning, Severity::Info],
+        SeverityArg::Secure => {
+            vec![Severity::High, Severity::Warning, Severity::Info, Severity::Secure]
+        }
     };
 
     let important: Vec<&Finding> = report
@@ -517,6 +535,90 @@ fn print_summary(report: &ScanReport, min_severity: &SeverityArg, verbose: bool)
     }
 
     eprintln!();
+}
+
+fn print_finding_detail(report: &ScanReport, id: &str) {
+    // Check findings
+    if let Some(f) = report.findings.iter().find(|f| f.id == id) {
+        let sev = match f.severity {
+            Severity::High => "HIGH".red().bold(),
+            Severity::Warning => "WARNING".yellow().bold(),
+            Severity::Info => "INFO".white().bold(),
+            Severity::Secure => "SECURE".green().bold(),
+        };
+        eprintln!();
+        eprintln!("  {} {}  {}", sev, f.id.dimmed(), f.title.bold());
+        eprintln!();
+        eprintln!("  {}", "Description".bold());
+        for line in textwrap_simple(&f.description, 72) {
+            eprintln!("    {}", line);
+        }
+        if !f.evidence.is_empty() {
+            eprintln!();
+            eprintln!("  {}", "Evidence".bold());
+            for ev in &f.evidence {
+                eprintln!("    • {}", ev.dimmed());
+            }
+        }
+        if let Some(ref cwe) = f.cwe {
+            eprintln!();
+            eprintln!("  {} {}  {} {}  {} {}",
+                "CWE:".bold(), cwe,
+                "OWASP Mobile:".bold(), f.owasp_mobile.as_deref().unwrap_or("—"),
+                "MASVS:".bold(), f.owasp_masvs.as_deref().unwrap_or("—"),
+            );
+        }
+        if let Some(ref rem) = f.remediation {
+            eprintln!();
+            eprintln!("  {}", "Remediation".bold());
+            for line in textwrap_simple(rem, 72) {
+                eprintln!("    {}", line);
+            }
+        }
+        eprintln!();
+        return;
+    }
+
+    // Check secrets
+    if let Some(s) = report.secrets.iter().find(|s| s.rule_id == id) {
+        let sev = match s.severity {
+            Severity::High => "HIGH".red().bold(),
+            Severity::Warning => "WARNING".yellow().bold(),
+            _ => "INFO".white().bold(),
+        };
+        eprintln!();
+        eprintln!("  {} {}  {}", sev, s.rule_id.dimmed(), s.title.bold());
+        eprintln!();
+        eprintln!("  {} {}", "Matched value:".bold(), s.matched_value.dimmed());
+        eprintln!("  {} {}", "File:".bold(), s.file_path.as_deref().unwrap_or("unknown").dimmed());
+        eprintln!();
+        return;
+    }
+
+    eprintln!("  No finding with ID '{}' found in this scan.", id);
+    eprintln!("  Run without --explain to see all findings, or check the ID spelling.");
+    eprintln!();
+}
+
+/// Naive word-wrap at `width` characters (no hyphenation).
+fn textwrap_simple(s: &str, width: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    for word in s.split_whitespace() {
+        if current.is_empty() {
+            current.push_str(word);
+        } else if current.len() + 1 + word.len() <= width {
+            current.push(' ');
+            current.push_str(word);
+        } else {
+            lines.push(current.clone());
+            current = word.to_string();
+        }
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    lines
 }
 
 fn score_bar(score: u8) -> String {

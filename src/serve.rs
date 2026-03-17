@@ -472,6 +472,7 @@ async fn run_scan<T: Send + 'static>(
             rules_dir: resolve_rules_dir(None),
             min_severity: Severity::Info,
             network: false,
+            show_progress: false,
         };
         let result = scan_ipa(&scan_path, &opts);
         // Clean up chunked upload files (tempfile handles cleanup for NamedTempFile)

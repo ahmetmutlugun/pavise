@@ -69,17 +69,21 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
 
     // --- NX (No-Execute) ---
     // MH_NO_HEAP_EXECUTION requests that the kernel map heap/stack as non-executable.
-    // On ARM64 iOS devices this is always enforced by hardware (XN bit), but we still
-    // report the flag for completeness — its absence is unusual in a production binary.
-    let has_nx = (header.flags & MH_NO_HEAP_EXECUTION) != 0;
+    // On ARM64 iOS devices NX is always enforced by hardware (XN bit) regardless of
+    // this flag, so we report it as secure on ARM64.
+    let has_nx_flag = (header.flags & MH_NO_HEAP_EXECUTION) != 0;
+    let is_arm64 = arch.contains("ARM64") || arch.contains("arm64");
+    let nx_enforced = has_nx_flag || is_arm64;
     protections.push(BinaryProtection {
         name: "NX (No-Execute)".to_string(),
-        enabled: has_nx,
-        severity: if has_nx { Severity::Secure } else { Severity::Info },
-        description: if has_nx {
+        enabled: nx_enforced,
+        severity: if nx_enforced { Severity::Secure } else { Severity::Info },
+        description: if has_nx_flag {
             "MH_NO_HEAP_EXECUTION flag set — heap/stack marked non-executable.".to_string()
+        } else if is_arm64 {
+            "NX enforced by ARM64 hardware (XN bit). MH_NO_HEAP_EXECUTION flag absent but not required.".to_string()
         } else {
-            "MH_NO_HEAP_EXECUTION flag absent. On ARM64 hardware NX is still enforced, but this flag should be set for defense-in-depth.".to_string()
+            "MH_NO_HEAP_EXECUTION flag absent. Heap/stack may be executable.".to_string()
         },
     });
 
@@ -119,6 +123,23 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
                 owasp_masvs: Some("MSTG-CODE-9".to_string()),
                 evidence: vec![format!("MH_PIE flag absent in {}", path)],
                 remediation: Some("Compile with -fPIE and link with -pie (Xcode: 'Generate Position-Dependent Code' = NO).".to_string()),
+            });
+        } else {
+            findings.push(Finding {
+                id: "QS-BIN-001".to_string(),
+                title: "PIE (ASLR) Enabled".to_string(),
+                description: format!(
+                    "The binary '{}' is compiled with PIE. ASLR is enabled and will randomize \
+                    the base address on each launch.",
+                    path
+                ),
+                severity: Severity::Secure,
+                category: "binary".to_string(),
+                cwe: Some("CWE-119".to_string()),
+                owasp_mobile: Some("M7".to_string()),
+                owasp_masvs: Some("MSTG-CODE-9".to_string()),
+                evidence: vec![format!("MH_PIE flag set in {}", path)],
+                remediation: None,
             });
         }
     }
@@ -160,6 +181,23 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
             owasp_masvs: Some("MSTG-CODE-9".to_string()),
             evidence: vec![format!("___stack_chk_fail absent in {}", path)],
             remediation: Some("Compile with stack protection enabled: -fstack-protector-all (Xcode default for release builds).".to_string()),
+        });
+    } else if is_executable {
+        findings.push(Finding {
+            id: "QS-BIN-002".to_string(),
+            title: "Stack Canary Protection Present".to_string(),
+            description: format!(
+                "The binary '{}' uses stack canaries (___stack_chk_fail present). Stack buffer \
+                overflows will be detected and the process will abort.",
+                path
+            ),
+            severity: Severity::Secure,
+            category: "binary".to_string(),
+            cwe: Some("CWE-121".to_string()),
+            owasp_mobile: Some("M7".to_string()),
+            owasp_masvs: Some("MSTG-CODE-9".to_string()),
+            evidence: vec![format!("___stack_chk_fail present in {}", path)],
+            remediation: None,
         });
     }
 
@@ -227,6 +265,23 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
                 evidence: vec![format!("_objc_release/_objc_retain absent despite _objc_msgSend in {}", path)],
                 remediation: Some("Enable ARC in Xcode build settings: 'Objective-C Automatic Reference Counting' = YES.".to_string()),
             });
+        } else if is_executable {
+            findings.push(Finding {
+                id: "QS-BIN-003".to_string(),
+                title: "ARC (Automatic Reference Counting) Enabled".to_string(),
+                description: format!(
+                    "The binary '{}' uses ARC for memory management. Retain/release calls are \
+                    compiler-managed, reducing the risk of use-after-free and double-free bugs.",
+                    path
+                ),
+                severity: Severity::Secure,
+                category: "binary".to_string(),
+                cwe: Some("CWE-416".to_string()),
+                owasp_mobile: Some("M7".to_string()),
+                owasp_masvs: Some("MSTG-CODE-9".to_string()),
+                evidence: vec![format!("ARC symbols present in {}", path)],
+                remediation: None,
+            });
         }
     }
 
@@ -268,6 +323,23 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
             owasp_masvs: Some("MSTG-CODE-1".to_string()),
             evidence: vec![format!("LC_CODE_SIGNATURE absent in {}", path)],
             remediation: Some("Sign the binary with a valid Apple developer certificate using codesign.".to_string()),
+        });
+    } else if is_executable {
+        findings.push(Finding {
+            id: "QS-BIN-004".to_string(),
+            title: "Code Signature Present".to_string(),
+            description: format!(
+                "The binary '{}' contains an LC_CODE_SIGNATURE load command. The binary is \
+                signed and iOS will verify its integrity before launch.",
+                path
+            ),
+            severity: Severity::Secure,
+            category: "binary".to_string(),
+            cwe: Some("CWE-494".to_string()),
+            owasp_mobile: Some("M8".to_string()),
+            owasp_masvs: Some("MSTG-CODE-1".to_string()),
+            evidence: vec![format!("LC_CODE_SIGNATURE present in {}", path)],
+            remediation: None,
         });
     }
 
@@ -318,26 +390,30 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     // would be a false positive on every Swift app.
     let all_rpaths: Vec<String> = collect_rpaths(macho, raw_data);
     let rpath_commands: Vec<String> = all_rpaths
-        .into_iter()
-        .filter(|r| !SAFE_RPATHS.iter().any(|safe| r == safe))
+        .iter()
+        .filter(|r| !SAFE_RPATHS.iter().any(|safe| r.as_str() == *safe))
+        .cloned()
         .collect();
-    let has_rpath = !rpath_commands.is_empty();
+    let has_dangerous_rpath = !rpath_commands.is_empty();
+    let has_any_rpath = !all_rpaths.is_empty();
     protections.push(BinaryProtection {
         name: "RPATH".to_string(),
-        enabled: !has_rpath, // "enabled protection" = no dangerous rpaths
-        severity: if has_rpath {
+        enabled: !has_dangerous_rpath,
+        severity: if has_dangerous_rpath {
             Severity::Warning
         } else {
             Severity::Secure
         },
-        description: if has_rpath {
-            format!("LC_RPATH entries found: {}", rpath_commands.join(", "))
+        description: if has_dangerous_rpath {
+            format!("Non-standard LC_RPATH entries found: {}", rpath_commands.join(", "))
+        } else if has_any_rpath {
+            "All LC_RPATH entries are standard Xcode paths (safe).".to_string()
         } else {
-            "No LC_RPATH load commands found.".to_string()
+            "No LC_RPATH entries (N/A).".to_string()
         },
     });
 
-    if has_rpath {
+    if has_dangerous_rpath {
         findings.push(Finding {
             id: "QS-BIN-006".to_string(),
             title: "RPATH Set in Binary".to_string(),
@@ -572,12 +648,16 @@ fn extract_dwarf_source_paths(macho: &MachO) -> Vec<String> {
 }
 
 fn check_debug_symbols(macho: &MachO) -> bool {
-    // Check for DWARF sections
+    // Check for __DWARF segment (present when dSYM is embedded in the binary)
+    // and __debug_* sections (DWARF debug info in individual sections).
     for seg in &macho.segments {
+        if seg.name().ok() == Some("__DWARF") {
+            return true;
+        }
         if let Ok(sections) = seg.sections() {
             for (sec, _) in sections {
                 let name = sec.name().unwrap_or("");
-                if name.starts_with("__debug_") || name.starts_with("__DWARF") {
+                if name.starts_with("__debug_") {
                     return true;
                 }
             }

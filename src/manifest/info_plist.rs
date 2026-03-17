@@ -103,19 +103,19 @@ pub fn analyze(data: &[u8], rules_dir: &std::path::Path) -> Result<PlistAnalysis
             if let Some(rule) = dangerous_keys.get(key.as_str()) {
                 permissions.push(Permission {
                     key: key.clone(),
-                    status: "dangerous".to_string(),
+                    status: "sensitive".to_string(),
                     description: desc.clone(),
                     reason: rule.reason.clone(),
                 });
 
                 findings.push(Finding {
                     id: format!("QS-PERM-{}", sanitize_id(key)),
-                    title: format!("Dangerous Permission: {}", key),
+                    title: format!("Sensitive Permission: {}", key),
                     description: format!(
                         "App requests '{}' permission. Usage description: \"{}\"",
                         key, desc
                     ),
-                    severity: Severity::Warning,
+                    severity: Severity::Info,
                     category: "permissions".to_string(),
                     cwe: rule.cwe.clone(),
                     owasp_mobile: rule.owasp_mobile.clone(),
@@ -141,6 +141,9 @@ pub fn analyze(data: &[u8], rules_dir: &std::path::Path) -> Result<PlistAnalysis
 
     // --- Custom URL Schemes ---
     findings.extend(analyze_url_schemes(dict));
+
+    // --- Sandbox / File Sharing ---
+    findings.extend(analyze_sandbox(dict));
 
     let app_info = AppInfo {
         name,
@@ -274,6 +277,71 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
     }
 
     Some(findings)
+}
+
+fn analyze_sandbox(dict: &plist::Dictionary) -> Vec<Finding> {
+    let mut findings = Vec::new();
+
+    // UIFileSharingEnabled: true → Documents folder accessible via Files app / iTunes
+    if dict
+        .get("UIFileSharingEnabled")
+        .and_then(|v| v.as_boolean())
+        == Some(true)
+    {
+        findings.push(Finding {
+            id: "QS-SANDBOX-001".to_string(),
+            title: "File Sharing Enabled (UIFileSharingEnabled)".to_string(),
+            description: "UIFileSharingEnabled is set to true. The app's Documents folder is \
+                accessible through the Files app and iTunes File Sharing. Any sensitive files \
+                stored there — credentials, exports, cached user data — can be read or replaced \
+                by anyone with physical access to the device."
+                .to_string(),
+            severity: Severity::Warning,
+            category: "storage".to_string(),
+            cwe: Some("CWE-312".to_string()),
+            owasp_mobile: Some("M2".to_string()),
+            owasp_masvs: Some("MSTG-STORAGE-1".to_string()),
+            evidence: vec!["UIFileSharingEnabled: true".to_string()],
+            remediation: Some(
+                "Set UIFileSharingEnabled to false unless users genuinely need to transfer files \
+                via Files/iTunes. For user-facing document sharing, prefer UIDocumentPickerViewController \
+                with scoped access rather than broad Documents folder exposure."
+                    .to_string(),
+            ),
+        });
+    }
+
+    // LSSupportsOpeningDocumentsInPlace: true → cloud apps can edit files in-place
+    if dict
+        .get("LSSupportsOpeningDocumentsInPlace")
+        .and_then(|v| v.as_boolean())
+        == Some(true)
+    {
+        findings.push(Finding {
+            id: "QS-SANDBOX-002".to_string(),
+            title: "In-Place Document Editing Enabled (LSSupportsOpeningDocumentsInPlace)".to_string(),
+            description: "LSSupportsOpeningDocumentsInPlace is set to true. Cloud storage providers \
+                (iCloud Drive, Dropbox, Google Drive, etc.) can open and modify the app's documents \
+                directly in their original location rather than copying them first. If the app's \
+                documents contain sensitive data, the originals may be uploaded to cloud storage \
+                without additional user confirmation."
+                .to_string(),
+            severity: Severity::Info,
+            category: "storage".to_string(),
+            cwe: Some("CWE-312".to_string()),
+            owasp_mobile: Some("M2".to_string()),
+            owasp_masvs: Some("MSTG-STORAGE-1".to_string()),
+            evidence: vec!["LSSupportsOpeningDocumentsInPlace: true".to_string()],
+            remediation: Some(
+                "Only enable in-place editing if the app is designed as a document editor. \
+                Sensitive files should be stored in the Application Support directory (not Documents) \
+                and protected with NSFileProtectionComplete."
+                    .to_string(),
+            ),
+        });
+    }
+
+    findings
 }
 
 fn load_permission_rules(rules_dir: &std::path::Path) -> Result<PermissionRules> {

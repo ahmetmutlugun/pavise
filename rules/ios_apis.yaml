@@ -1,20 +1,11 @@
 - id: QS-API-001
-  title: "Use of potentially dangerous C functions"
+  title: "Use of dangerous C functions (unbounded write)"
   symbols:
-    - _fopen
-    - _memcpy
-    - _sscanf
-    - _stat
     - _strcpy
-    - _strlen
-    - _strncpy
-    - _vsnprintf
-    - _wcslen
+    - _strcat
     - _sprintf
     - _gets
-    - _strcat
     - _vsprintf
-    - _strncat
   severity: warning
   cwe: "CWE-676"
   owasp_mobile: "M7"
@@ -34,9 +25,8 @@
   title: "Use of malloc without zero-initialization"
   symbols:
     - _malloc
-  severity: warning
+  severity: info
   cwe: "CWE-789"
-  owasp_mobile: "M7"
   owasp_masvs: "MSTG-CODE-8"
   remediation: "Use calloc instead of malloc to zero-initialize memory, or use RAII types"
 
@@ -71,7 +61,6 @@
   title: "Dynamic library loading at runtime"
   symbols:
     - _dlopen
-    - _dlsym
   severity: warning
   cwe: "CWE-426"
   owasp_masvs: "MSTG-PLATFORM-9"
@@ -110,15 +99,17 @@
   remediation: "Use SQLCipher or encrypted Core Data stores for sensitive data"
 
 - id: QS-API-010
-  title: "Use of Objective-C runtime introspection"
+  title: "Use of Objective-C runtime manipulation"
   symbols:
-    - _objc_getClass
-    - _objc_msgSend
     - _class_copyMethodList
     - _method_getName
+    - _method_exchangeImplementations
+    - _class_replaceMethod
+    - _object_setClass
+    - _class_addMethod
   severity: info
   owasp_masvs: "MSTG-PLATFORM-7"
-  remediation: "Limit use of runtime introspection; can be exploited for method swizzling attacks"
+  remediation: "Runtime manipulation APIs enable method swizzling attacks; document their purpose and restrict use"
 
 - id: QS-API-011
   title: "Jailbreak detection present"
@@ -168,3 +159,90 @@
   owasp_mobile: "M1"
   owasp_masvs: "MSTG-PLATFORM-5"
   remediation: "Replace UIWebView with WKWebView. UIWebView was deprecated in iOS 12 and removed from App Store submissions in 2023"
+
+- id: QS-API-016
+  title: "Use of DES or 3DES encryption (weak cipher)"
+  symbols:
+    - _kCCAlgorithmDES
+    - _kCCAlgorithm3DES
+    - _CCCryptorCreateWithMode
+  severity: high
+  cwe: "CWE-327"
+  owasp_mobile: "M5"
+  owasp_masvs: "MSTG-CRYPTO-4"
+  remediation: "Replace DES/3DES with AES-256 (kCCAlgorithmAES). DES has a 56-bit key and 3DES is deprecated by NIST as of 2023"
+
+- id: QS-API-017
+  title: "ECB mode encryption (insecure block cipher mode)"
+  symbols:
+    - _kCCOptionECBMode
+  severity: high
+  cwe: "CWE-327"
+  owasp_mobile: "M5"
+  owasp_masvs: "MSTG-CRYPTO-3"
+  remediation: "Use AES in GCM or CBC mode with a random IV. ECB mode encrypts identical plaintext blocks to identical ciphertext, leaking data patterns"
+
+- id: QS-API-018
+  title: "CoreData persistent store (verify encryption)"
+  symbols:
+    - _NSPersistentStoreCoordinator
+    - _NSPersistentContainer
+  severity: info
+  cwe: "CWE-312"
+  owasp_mobile: "M2"
+  owasp_masvs: "MSTG-STORAGE-1"
+  remediation: "Ensure the CoreData store is created with NSFileProtectionComplete or uses SQLCipher. Never store sensitive data in an unencrypted persistent store"
+
+- id: QS-API-019
+  title: "Realm database usage (verify encryption)"
+  symbols:
+    - _RLMRealm
+    - _RLMRealmConfiguration
+  severity: info
+  cwe: "CWE-312"
+  owasp_mobile: "M2"
+  owasp_masvs: "MSTG-STORAGE-1"
+  remediation: "Set an encryption key on RLMRealmConfiguration.encryptionKey. Unencrypted Realm databases are readable by anyone who extracts the device storage"
+
+- id: QS-API-020
+  title: "SSL/TLS certificate validation bypass"
+  symbols:
+    - _SecTrustSetExceptions
+    - _SecTrustSetVerifyDate
+  severity: high
+  cwe: "CWE-295"
+  owasp_mobile: "M3"
+  owasp_masvs: "MSTG-NETWORK-3"
+  remediation: "Never call SecTrustSetExceptions or override URLSession challenge handlers to accept invalid certificates. Use proper certificate pinning via TrustKit instead"
+
+- id: QS-API-021
+  title: "WKWebView with JavaScript (verify content trust)"
+  symbols:
+    - _WKWebViewConfiguration
+    - _WKPreferences
+  severity: info
+  cwe: "CWE-79"
+  owasp_mobile: "M1"
+  owasp_masvs: "MSTG-PLATFORM-5"
+  remediation: "Ensure WKWebView only loads trusted HTTPS content. Set WKPreferences.javaScriptEnabled to false for views that do not require it, and never inject untrusted user data into JS"
+
+- id: QS-API-022
+  title: "Plist written to file path (verify protection class)"
+  symbols:
+    - _writeToFile
+    - _writeToURL
+  severity: info
+  cwe: "CWE-312"
+  owasp_mobile: "M2"
+  owasp_masvs: "MSTG-STORAGE-1"
+  remediation: "Write sensitive plist files with NSFileProtectionComplete. Avoid writing credentials or tokens to plist files at all; use the Keychain instead"
+
+- id: QS-API-023
+  title: "SSL certificate pinning implementation detected"
+  symbols:
+    - _SecTrustSetAnchorCertificates
+    - _SecCertificateCreateWithData
+    - _SecTrustCopyPublicKey
+  severity: info
+  owasp_masvs: "MSTG-NETWORK-4"
+  remediation: "Certificate pinning is present. Ensure pins are updated before certificate expiry and that a backup pin or fallback mechanism exists to prevent a bricked app"

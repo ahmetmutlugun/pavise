@@ -8,6 +8,7 @@ fn default_opts() -> ScanOptions {
         rules_dir: common::rules_dir(),
         min_severity: Severity::Info,
         network: false,
+        show_progress: false,
     }
 }
 

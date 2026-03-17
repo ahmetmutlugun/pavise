@@ -110,6 +110,23 @@ fn is_false_positive(s: &str) -> bool {
         return true;
     }
 
+    // Sequential ASCII runs: character encoding tables, charset strings, and
+    // printable-ASCII ranges produce high entropy but are never secrets.
+    // If >40% of adjacent characters differ by exactly 1 codepoint, skip.
+    if s.len() >= 20 {
+        let bytes = s.as_bytes();
+        let sequential_count = bytes
+            .windows(2)
+            .filter(|w| {
+                let diff = (w[0] as i16 - w[1] as i16).unsigned_abs();
+                diff == 1
+            })
+            .count();
+        if sequential_count * 100 / (bytes.len() - 1) > 40 {
+            return true;
+        }
+    }
+
     false
 }
 
@@ -241,6 +258,17 @@ mod tests {
         assert!(
             results.is_empty(),
             "ALLCAPS constant should be filtered, got: {results:?}"
+        );
+    }
+
+    #[test]
+    fn test_sequential_ascii_charset_filtered() {
+        // Character set / encoding table with sequential ASCII runs — not a secret
+        let charset = r##"!"#$%&'()*+,-/015689ABOPS8[\^8`acfh^i0jk`lp{Q|}"##;
+        let results = scan_for_high_entropy(&[charset], "Info.plist");
+        assert!(
+            results.is_empty(),
+            "Sequential ASCII charset should be filtered, got: {results:?}"
         );
     }
 }

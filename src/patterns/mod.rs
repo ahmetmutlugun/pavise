@@ -1,3 +1,4 @@
+pub mod ciphers;
 pub mod emails;
 pub mod engine;
 pub mod entropy;

@@ -37,6 +37,13 @@ const NOISE_URL_PATTERNS: &[&str] = &[
     "crl.apple.com/",
     "certs.apple.com/",
     "pki.apple.com/",
+    // XML namespace identifiers (not network endpoints, just namespace URIs)
+    "ns.adobe.com/",      // XMP, TIFF, EXIF metadata namespace
+    "www.iec.ch",         // ICC color profile standards
+    "www.color.org",      // ICC color profile standards
+    "purl.org/",          // Dublin Core / persistent URL namespace
+    "ogp.me/",            // Open Graph protocol namespace
+    "rdfs.org/",          // RDF schema namespace
 ];
 
 fn is_noise_url(url: &str) -> bool {

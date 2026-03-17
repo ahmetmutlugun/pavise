@@ -236,6 +236,115 @@ pub fn analyze(plist_data: &[u8]) -> Vec<Finding> {
         });
     }
 
+    // ------------------------------------------------------------------ //
+    // com.apple.security.cs.allow-jit  →  WARNING
+    // Enables the dynamic-codesigning page permission; required for JIT
+    // engines (JavaScript VMs) but widens the attack surface significantly.
+    // ------------------------------------------------------------------ //
+    if dict
+        .get("com.apple.security.cs.allow-jit")
+        .and_then(|v| v.as_boolean())
+        == Some(true)
+    {
+        findings.push(Finding {
+            id: "QS-ENT-008".to_string(),
+            title: "JIT Compilation Entitlement Enabled".to_string(),
+            description: "The 'com.apple.security.cs.allow-jit' entitlement is enabled. This grants the app permission to map pages as simultaneously writable and executable, which is required for JIT engines. An attacker who achieves code execution can use this to execute arbitrary unsigned code without bypassing the JIT compiler.".to_string(),
+            severity: Severity::Warning,
+            category: "entitlements".to_string(),
+            cwe: Some("CWE-119".to_string()),
+            owasp_mobile: Some("M8".to_string()),
+            owasp_masvs: Some("MSTG-CODE-2".to_string()),
+            evidence: vec!["com.apple.security.cs.allow-jit: true".to_string()],
+            remediation: Some("Only enable this entitlement if the app includes a JIT-based runtime (e.g. JavaScriptCore, LuaJIT). Audit all code paths that generate executable code at runtime.".to_string()),
+        });
+    }
+
+    // ------------------------------------------------------------------ //
+    // com.apple.security.cs.allow-unsigned-executable-memory  →  HIGH
+    // Allows mapping memory as executable without a code signature.
+    // This is essentially opting out of code signing enforcement.
+    // ------------------------------------------------------------------ //
+    if dict
+        .get("com.apple.security.cs.allow-unsigned-executable-memory")
+        .and_then(|v| v.as_boolean())
+        == Some(true)
+    {
+        findings.push(Finding {
+            id: "QS-ENT-009".to_string(),
+            title: "Unsigned Executable Memory Permitted".to_string(),
+            description: "The 'com.apple.security.cs.allow-unsigned-executable-memory' entitlement is enabled. This allows the app to map memory as executable without a valid code signature, effectively disabling code signing enforcement for dynamically generated code. This is rarely necessary and significantly increases the risk of code-injection attacks.".to_string(),
+            severity: Severity::High,
+            category: "entitlements".to_string(),
+            cwe: Some("CWE-284".to_string()),
+            owasp_mobile: Some("M8".to_string()),
+            owasp_masvs: Some("MSTG-CODE-2".to_string()),
+            evidence: vec!["com.apple.security.cs.allow-unsigned-executable-memory: true".to_string()],
+            remediation: Some("Remove this entitlement unless strictly required. If a scripting engine needs to execute dynamic code, use the allow-jit entitlement instead, which still enforces code signing constraints.".to_string()),
+        });
+    }
+
+    // ------------------------------------------------------------------ //
+    // com.apple.security.cs.disable-library-validation  →  WARNING
+    // Allows loading dylibs that are not signed by Apple or the app's team.
+    // ------------------------------------------------------------------ //
+    if dict
+        .get("com.apple.security.cs.disable-library-validation")
+        .and_then(|v| v.as_boolean())
+        == Some(true)
+    {
+        findings.push(Finding {
+            id: "QS-ENT-010".to_string(),
+            title: "Library Validation Disabled".to_string(),
+            description: "The 'com.apple.security.cs.disable-library-validation' entitlement is enabled. Normally the OS verifies that all dynamically linked libraries are signed by Apple or by the same team as the app. Disabling this check allows the app to load unsigned or third-party-signed dylibs, which is a vector for dylib injection attacks.".to_string(),
+            severity: Severity::Warning,
+            category: "entitlements".to_string(),
+            cwe: Some("CWE-426".to_string()),
+            owasp_mobile: Some("M8".to_string()),
+            owasp_masvs: Some("MSTG-CODE-2".to_string()),
+            evidence: vec!["com.apple.security.cs.disable-library-validation: true".to_string()],
+            remediation: Some("Remove this entitlement. Enable library validation to prevent dylib injection. If plug-in loading is required, use the hardened runtime plug-in host entitlement instead.".to_string()),
+        });
+    }
+
+    // ------------------------------------------------------------------ //
+    // com.apple.developer.icloud-container-identifiers  →  INFO
+    // iCloud containers are accessible across the user's devices; storing
+    // sensitive data here without encryption is a privacy risk.
+    // ------------------------------------------------------------------ //
+    if let Some(containers) = dict
+        .get("com.apple.developer.icloud-container-identifiers")
+        .and_then(|v| v.as_array())
+    {
+        let container_list: Vec<String> = containers
+            .iter()
+            .filter_map(|v| v.as_string())
+            .map(|s| s.to_string())
+            .collect();
+
+        if !container_list.is_empty() {
+            findings.push(Finding {
+                id: "QS-ENT-011".to_string(),
+                title: "iCloud Container Access".to_string(),
+                description: format!(
+                    "The app has access to {} iCloud container(s): {}. \
+                    iCloud containers are synced across all of the user's devices and are \
+                    accessible via iCloud.com. Any sensitive data stored here must be encrypted \
+                    at the application layer before upload.",
+                    container_list.len(),
+                    container_list.join(", ")
+                ),
+                severity: Severity::Info,
+                category: "entitlements".to_string(),
+                cwe: Some("CWE-312".to_string()),
+                owasp_mobile: Some("M2".to_string()),
+                owasp_masvs: Some("MSTG-STORAGE-1".to_string()),
+                evidence: container_list,
+                remediation: Some("Encrypt sensitive data before writing it to iCloud containers. Do not store credentials, health data, or financial information in iCloud without application-layer encryption.".to_string()),
+            });
+        }
+    }
+
     findings
 }
 
