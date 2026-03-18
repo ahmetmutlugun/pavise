@@ -1,7 +1,7 @@
 use anyhow::Result;
 use axum::{
     body::{Body, Bytes},
-    extract::{DefaultBodyLimit, Multipart, Path, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Multipart, Path, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse, Response},
     routing::{get, post, put},
@@ -11,6 +11,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     io::Write,
+    net::SocketAddr,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -89,12 +90,32 @@ type UploadStore = Arc<RwLock<HashMap<String, Arc<std::sync::Mutex<UploadSession
 /// Scan cache keyed by SHA-256 of the uploaded file.
 type CacheStore = Arc<RwLock<HashMap<String, (ScanReport, Instant)>>>;
 
+/// Per-IP request rate limiter using a sliding window.
+/// Maximum requests per IP within the configured window (default: 20 requests per minute).
+fn rate_limit_max() -> u32 {
+    std::env::var("PAVISE_RATE_LIMIT")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(20)
+}
+
+const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
+
+/// Tracks per-IP request timestamps for rate limiting.
+struct RateLimitEntry {
+    count: u32,
+    window_start: Instant,
+}
+
+type RateLimitStore = Arc<RwLock<HashMap<std::net::IpAddr, RateLimitEntry>>>;
+
 #[derive(Clone)]
 struct AppState {
     store: ScanStore,
     uploads: UploadStore,
     cache: CacheStore,
     semaphore: Arc<Semaphore>,
+    rate_limits: RateLimitStore,
 }
 
 #[tokio::main]
@@ -107,12 +128,14 @@ async fn main() -> Result<()> {
     let store: ScanStore = Arc::new(RwLock::new(HashMap::new()));
     let uploads: UploadStore = Arc::new(RwLock::new(HashMap::new()));
     let cache: CacheStore = Arc::new(RwLock::new(HashMap::new()));
+    let rate_limits: RateLimitStore = Arc::new(RwLock::new(HashMap::new()));
 
-    // Background task: evict expired scan results, uploads, and cache entries.
+    // Background task: evict expired scan results, uploads, cache, and rate limit entries.
     {
         let store = Arc::clone(&store);
         let uploads = Arc::clone(&uploads);
         let cache = Arc::clone(&cache);
+        let rate_limits = Arc::clone(&rate_limits);
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(10 * 60));
             loop {
@@ -162,6 +185,12 @@ async fn main() -> Result<()> {
                         tracing::info!("Evicted {} expired cache entries", removed);
                     }
                 }
+
+                // Evict expired rate limit entries
+                {
+                    let mut map = rate_limits.write().await;
+                    map.retain(|_, entry| entry.window_start.elapsed() < RATE_LIMIT_WINDOW);
+                }
             }
         });
     }
@@ -171,6 +200,7 @@ async fn main() -> Result<()> {
         uploads,
         cache,
         semaphore: Arc::new(Semaphore::new(max_concurrent_scans())),
+        rate_limits,
     };
 
     // Routes with per-group body limits
@@ -197,7 +227,11 @@ async fn main() -> Result<()> {
     let addr = format!("0.0.0.0:{}", port);
     eprintln!("Pavise server listening on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }
 
@@ -205,9 +239,50 @@ async fn index() -> Html<&'static str> {
     Html(INDEX_HTML)
 }
 
+/// Check per-IP rate limit. Returns an error response if the limit is exceeded.
+async fn check_rate_limit(state: &AppState, addr: SocketAddr) -> Option<Response> {
+    let ip = addr.ip();
+    let max = rate_limit_max();
+    let mut limits = state.rate_limits.write().await;
+    let entry = limits.entry(ip).or_insert(RateLimitEntry {
+        count: 0,
+        window_start: Instant::now(),
+    });
+
+    // Reset window if expired
+    if entry.window_start.elapsed() >= RATE_LIMIT_WINDOW {
+        entry.count = 0;
+        entry.window_start = Instant::now();
+    }
+
+    entry.count += 1;
+    if entry.count > max {
+        Some(
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                format!(
+                    "Rate limit exceeded: maximum {} requests per minute. Try again shortly.",
+                    max
+                ),
+            )
+                .into_response(),
+        )
+    } else {
+        None
+    }
+}
+
 // ── Direct multipart upload (streaming to disk) ─────────────────────────────
 
-async fn scan_handler(State(state): State<AppState>, mut multipart: Multipart) -> Response {
+async fn scan_handler(
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    mut multipart: Multipart,
+) -> Response {
+    if let Some(resp) = check_rate_limit(&state, addr).await {
+        return resp;
+    }
+
     let sem = Arc::clone(&state.semaphore);
     let _permit = match sem.try_acquire() {
         Ok(p) => p,
@@ -240,9 +315,7 @@ async fn scan_handler(State(state): State<AppState>, mut multipart: Multipart) -
                         match field.chunk().await {
                             Ok(Some(chunk)) => {
                                 if let Err(e) = writer.write_all(&chunk) {
-                                    return error_fragment(&format!(
-                                        "Failed to write upload: {e}"
-                                    ));
+                                    return error_fragment(&format!("Failed to write upload: {e}"));
                                 }
                                 hasher.update(&chunk);
                                 received += chunk.len() as u64;
@@ -289,7 +362,14 @@ struct UploadInitResponse {
     chunk_size: usize,
 }
 
-async fn upload_init(State(state): State<AppState>) -> Response {
+async fn upload_init(
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> Response {
+    if let Some(resp) = check_rate_limit(&state, addr).await {
+        return resp;
+    }
+
     let upload_id = Uuid::new_v4().to_string();
     let file_path = upload_dir().join(format!("{upload_id}.ipa"));
 
@@ -345,10 +425,7 @@ async fn upload_chunk(
     if index != session.next_index {
         return (
             StatusCode::BAD_REQUEST,
-            format!(
-                "Expected chunk index {}, got {}",
-                session.next_index, index
-            ),
+            format!("Expected chunk index {}, got {}", session.next_index, index),
         )
             .into_response();
     }
@@ -392,7 +469,15 @@ async fn upload_chunk(
     (StatusCode::OK, session.received.to_string()).into_response()
 }
 
-async fn upload_scan(State(state): State<AppState>, Path(id): Path<String>) -> Response {
+async fn upload_scan(
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Path(id): Path<String>,
+) -> Response {
+    if let Some(resp) = check_rate_limit(&state, addr).await {
+        return resp;
+    }
+
     // Remove the session (finalize)
     let session = {
         let mut uploads = state.uploads.write().await;
@@ -479,7 +564,7 @@ async fn run_scan<T: Send + 'static>(
         if scan_path
             .file_name()
             .and_then(|n| n.to_str())
-            .map_or(false, |s| s.len() > 30 && s.ends_with(".ipa"))
+            .is_some_and(|s| s.len() > 30 && s.ends_with(".ipa"))
         {
             std::fs::remove_file(&scan_path).ok();
         }

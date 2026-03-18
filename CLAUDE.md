@@ -1,92 +1,38 @@
 # Pavise Development Guide
 
 ## Overview
-Pavise is a fast iOS IPA static security analyzer (target: <3s scan time). Phase 1 MVP complete; Phase 2 (Android APK, ELF) and Phase 3 (expanded reporting) are stubs.
+Fast iOS IPA static security analyzer (target: <3s scan time). Phase 1 MVP complete; Phase 2 (Android APK, ELF) and Phase 3 are stubs.
 
 ## Project Structure
 - **src/main.rs**: CLI (clap) with IPA/APK dispatch
-- **src/lib.rs**: Orchestrator (`scan_ipa()` entry point)
-- **src/unpacker/**: ZIP extraction (IPA), binary location, hashing
+- **src/lib.rs**: Orchestrator; `scan_ipa()` entry point
+- **src/unpacker/**: ZIP extraction, binary location, hashing
 - **src/manifest/**: Info.plist, entitlements, provisioning profile parsing
 - **src/binary/**: Mach-O/ELF parsing (goblin 0.8), symbol extraction
-- **src/patterns/**: Regex-based scanning (secrets, trackers, URLs, emails)
-- **src/resources/**: Firebase config, ATS/network security, SCA (framework analysis)
+- **src/patterns/**: Regex scanning (secrets, trackers, URLs, emails)
+- **src/resources/**: Firebase config, ATS/network security, SCA
 - **src/scoring/**: OWASP-based 0-100 scoring with A-F grading
 - **src/report/**: JSON, SARIF 2.1.0, HTML Tera template output
-- **src/network/**: DNS/geolocation via ip-api.com (optional --network flag)
-- **src/types.rs**: Serializable domain model (ScanReport, Finding, SecretMatch, etc.)
-- **rules/**: YAML rule files (secrets.yaml, ios_apis.yaml, permissions.yaml, trackers.yaml)
+- **src/network/**: DNS/geolocation via ip-api.com (--network flag only)
+- **rules/**: YAML rule files (secrets, ios_apis, permissions, trackers)
 
 ## Key goblin 0.8 Quirks
-- Fat binaries: `Mach::Fat(fat)` → `fat.get(i)?` returns `SingleArch`, not direct `MachO`
-- `macho.data` is private — pass raw `&[u8]` separately for string extraction
+- Fat binaries: `Mach::Fat(fat)` → `fat.get(i)?` returns `SingleArch`
+- `macho.data` is private — pass raw `&[u8]` separately
 - Encryption: `CommandVariant::EncryptionInfo32` (not 64)
-- RPATH strings: compute offset as `lc.offset + rpath.path as usize`
+- RPATH: offset = `lc.offset + rpath.path as usize`
 - `seg.sections()` yields `(Section, &[u8])` tuples directly
 
 ## Development Patterns
-1. **Parallel analysis**: Use `rayon` for independent checks (binary, manifests, patterns)
-2. **Error handling**: Return `Result<T>` with context; CLI exits with code 1 on high findings
-3. **Tracing**: Use `tracing::info!`, `debug!` for audit log entries; `--verbose` for timing
-4. **Rules**: Load YAML via serde_yaml; RegexSet for efficient multi-pattern scanning
-5. **Secrets**: Deduplicate matches; high severity for known patterns (AWS, GCP, Azure, etc.)
+1. **Parallel**: Use `rayon` for independent checks
+2. **Error handling**: Return `Result<T>` with context; exit code 1 on high findings, 2 on error
+3. **Tracing**: `tracing::info!`, `debug!` for audit logs; `--verbose` shows timing
+4. **Rules**: Load YAML via serde_yaml; RegexSet for multi-pattern scanning
+5. **Secrets**: Deduplicate; high severity for AWS, GCP, Azure patterns
 
 ## Important Notes
-- Minimum severity filter (--min-severity) in main.rs, not lib.rs
-- HTML reports embed Tera template at compile-time via `include_str!`
-- Network domain intel only runs with `--network` flag (no default DNS/geolocation)
-- Audit log tracks scan phases; visible with `--verbose`
-- Exit code: 0 (all secure), 1 (high findings), 2 (scan error)
-
-## Testing
-- Use `tempfile` for IPA/APK fixtures in tests
-- Criterion benchmarks in benches/ (not yet added)
-- Manual testing: `cargo run -- path/to/app.ipa --format json -v`
-
-## Design Context
-
-### Users
-- **Security engineers** performing app security audits and penetration testing — need fast, scannable results with clear severity indicators and actionable findings
-- **Mobile developers** checking their own apps pre-release — need clear pass/fail signals without requiring deep security expertise
-- Both audiences are technical, comfortable with terminal output and data-dense interfaces, but value clarity over complexity
-
-### Brand Personality
-**Fast, precise, minimal** — Pavise is an engineering tool that gets out of the way. No decorative fluff, no marketing polish. Every element serves a purpose. The name evokes a shield (pavise = medieval shield), reinforcing protection and defense.
-
-### Aesthetic Direction
-- **Dark theme only** — refined GitHub-dark foundation elevated to premium quality
-- **Reference**: Snyk/Semgrep security dashboards — clear findings hierarchy, severity-driven color coding, professional density
-- **Polished/premium feel**: subtle gradients (like the existing logo gradient `#58a6ff → #bc8cff`), refined typography, considered spacing, smooth transitions
-- **Anti-reference**: avoid cluttered enterprise dashboards, avoid playful/startup aesthetics, avoid excessive color or decoration
-
-### Color System
-- **Background**: `#0d1117` (primary), `#161b22` (surface), `#1c2128` (nested)
-- **Text**: `#e6edf3` (primary), `#8b949e` (muted)
-- **Accent**: `#58a6ff` (interactive blue)
-- **Severity semantic colors** (consistent across all surfaces):
-  - Critical/High: `#f85149` (red)
-  - Warning/Medium: `#d29922` (amber)
-  - Info/Low: `#58a6ff` (blue)
-  - Secure/Pass: `#3fb950` (green)
-- **Grade scale**: A `#3fb950` → B `#56d364` → C `#d29922` → D `#f0883e` → F `#f85149`
-- **PDF reports**: Light theme with professional print colors (separate from web)
-
-### Typography
-- **Primary**: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif`
-- **Monospace**: `'SF Mono', Consolas, monospace` — used for hashes, evidence, technical data
-- **Hierarchy**: Bold weights for headers, normal for body, semi-bold for labels and badges
-
-### Design Principles
-1. **Severity drives attention** — Color, position, and size should guide the eye to what matters most. Critical findings demand immediate visual weight; passing checks recede.
-2. **Scannable at a glance** — Users should understand the security posture in under 2 seconds. Score, grade, and finding counts must be the first things seen.
-3. **Dense but not cluttered** — Respect the technical audience with information density, but use whitespace, grouping, and hierarchy to prevent cognitive overload.
-4. **Consistent semantic language** — The same colors, icons, and patterns mean the same thing everywhere: web UI, HTML reports, and PDF reports.
-5. **Speed reflects in design** — Transitions should be snappy, layouts should load instantly, interactions should feel immediate. The UI should feel as fast as the <3s scan time.
-
-### Accessibility
-- **Target**: WCAG 2.1 AA compliance
-- Minimum 4.5:1 contrast ratio for normal text, 3:1 for large text
-- Keyboard navigable interactive elements
-- Semantic HTML structure
-- Visible focus indicators
-- Reduced motion support via `prefers-reduced-motion`
+- Min severity filter (--min-severity) in main.rs, not lib.rs
+- HTML reports embed Tera template at compile-time
+- Network intel only with --network flag
+- Exit codes: 0 (secure), 1 (high findings), 2 (error)
+- Testing: Use `tempfile` for fixtures; manual: `cargo run -- app.ipa --format json -v`

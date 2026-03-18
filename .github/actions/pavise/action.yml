@@ -1,0 +1,98 @@
+name: "Pavise IPA Scanner"
+description: "Static security analysis for iOS IPA files"
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  ipa-path:
+    description: "Path to the IPA file to scan"
+    required: true
+  format:
+    description: "Output format: json, sarif, or html"
+    default: "sarif"
+  min-severity:
+    description: "Minimum severity to report: info, low, medium, high, critical"
+    default: "info"
+  fail-on:
+    description: "Fail if findings at this severity or above exist: info, low, medium, high, critical"
+    default: "high"
+  version:
+    description: "Pavise version to use (e.g. v0.1.0). Defaults to latest."
+    default: "latest"
+
+outputs:
+  score:
+    description: "Security score (0-100)"
+    value: ${{ steps.scan.outputs.score }}
+  grade:
+    description: "Security grade (A-F)"
+    value: ${{ steps.scan.outputs.grade }}
+  findings-count:
+    description: "Total number of findings"
+    value: ${{ steps.scan.outputs.findings_count }}
+  report-path:
+    description: "Path to the generated report"
+    value: ${{ steps.scan.outputs.report_path }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Download Pavise
+      shell: bash
+      run: |
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          TAG=$(gh api repos/${{ github.repository_owner }}/pavise/releases/latest --jq .tag_name 2>/dev/null || echo "latest")
+        else
+          TAG="${{ inputs.version }}"
+        fi
+
+        ARCH=$(uname -m)
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        case "${OS}-${ARCH}" in
+          linux-x86_64)  TARGET="x86_64-unknown-linux-gnu" ;;
+          darwin-arm64)  TARGET="aarch64-apple-darwin" ;;
+          darwin-x86_64) TARGET="x86_64-apple-darwin" ;;
+          *) echo "Unsupported platform: ${OS}-${ARCH}"; exit 1 ;;
+        esac
+
+        URL="https://github.com/${{ github.repository_owner }}/pavise/releases/download/${TAG}/pavise-${TAG}-${TARGET}.tar.gz"
+        curl -fsSL "$URL" | tar xz
+        mv pavise-*/pavise /usr/local/bin/pavise || mv pavise /usr/local/bin/pavise
+        chmod +x /usr/local/bin/pavise
+
+    - name: Run scan
+      id: scan
+      shell: bash
+      run: |
+        REPORT_PATH="pavise-report.${{ inputs.format }}"
+
+        pavise "${{ inputs.ipa-path }}" \
+          --format "${{ inputs.format }}" \
+          --min-severity "${{ inputs.min-severity }}" \
+          --output "$REPORT_PATH" \
+          --json-summary /tmp/pavise-summary.json \
+          || true
+
+        if [ -f /tmp/pavise-summary.json ]; then
+          echo "score=$(jq -r '.score' /tmp/pavise-summary.json)" >> "$GITHUB_OUTPUT"
+          echo "grade=$(jq -r '.grade' /tmp/pavise-summary.json)" >> "$GITHUB_OUTPUT"
+          echo "findings_count=$(jq -r '.findings_count' /tmp/pavise-summary.json)" >> "$GITHUB_OUTPUT"
+        fi
+        echo "report_path=${REPORT_PATH}" >> "$GITHUB_OUTPUT"
+
+    - name: Enforce fail-on threshold
+      shell: bash
+      run: |
+        SEVERITY_ORDER="info low medium high critical"
+        FAIL_ON="${{ inputs.fail-on }}"
+
+        if [ -f /tmp/pavise-summary.json ]; then
+          MAX_SEV=$(jq -r '.max_severity // "none"' /tmp/pavise-summary.json)
+          fail_idx=$(echo "$SEVERITY_ORDER" | tr ' ' '\n' | grep -n "^${FAIL_ON}$" | cut -d: -f1)
+          max_idx=$(echo "$SEVERITY_ORDER" | tr ' ' '\n' | grep -n "^${MAX_SEV}$" | cut -d: -f1)
+          if [ -n "$max_idx" ] && [ -n "$fail_idx" ] && [ "$max_idx" -ge "$fail_idx" ]; then
+            echo "::error::Pavise found findings at severity '${MAX_SEV}' which meets or exceeds fail-on threshold '${FAIL_ON}'"
+            exit 1
+          fi
+        fi

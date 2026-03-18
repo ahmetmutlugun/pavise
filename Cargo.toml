@@ -5,6 +5,12 @@ edition = "2021"
 rust-version = "1.75"
 description = "Fast mobile app static analysis tool for iOS IPA and Android APK files"
 license = "MIT"
+repository = "https://github.com/ahmetmutlugun/pavise"
+homepage = "https://github.com/ahmetmutlugun/pavise"
+readme = "README.md"
+keywords = ["ios", "ipa", "security", "static-analysis", "mobile"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = ["tests/", "*.ipa", "*.apk", ".github/"]
 
 [[bin]]
 name = "pavise"

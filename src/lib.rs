@@ -118,8 +118,11 @@ pub fn resolve_data_dir() -> PathBuf {
         .join("data")
 }
 
+/// Configuration for a single IPA scan invocation.
 pub struct ScanOptions {
+    /// Path to the directory containing YAML rule files.
     pub rules_dir: PathBuf,
+    /// Minimum severity threshold — findings below this level are excluded from results.
     pub min_severity: Severity,
     /// Perform DNS resolution and IP geolocation lookups (requires network access).
     pub network: bool,
@@ -339,7 +342,12 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                 title: first.title.clone(),
                 description: format!(
                     "{} — affects {} of {} framework binaries.",
-                    first.description.split('\'').next().unwrap_or(&first.description).trim(),
+                    first
+                        .description
+                        .split('\'')
+                        .next()
+                        .unwrap_or(&first.description)
+                        .trim(),
                     group.len(),
                     fw_count
                 ),
@@ -382,8 +390,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             // despite being completely harmless.
             if is_text_like(&f.path) {
                 let lines: Vec<&str> = text.lines().collect();
-                let entropy_hits =
-                    crate::patterns::entropy::scan_for_high_entropy(&lines, &f.path);
+                let entropy_hits = crate::patterns::entropy::scan_for_high_entropy(&lines, &f.path);
                 secrets.extend(entropy_hits);
             }
 
@@ -694,7 +701,11 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         }
         log.record(format!(
             "Pinning check: {} (signal={}, external_domains={})",
-            if has_pinning_signal { "detected" } else { "not detected" },
+            if has_pinning_signal {
+                "detected"
+            } else {
+                "not detected"
+            },
             has_pinning_signal,
             external_domain_count
         ));

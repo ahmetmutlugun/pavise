@@ -398,7 +398,12 @@ fn print_summary(report: &ScanReport, min_severity: &SeverityArg, verbose: bool)
         SeverityArg::Warning => vec![Severity::High, Severity::Warning],
         SeverityArg::Info => vec![Severity::High, Severity::Warning, Severity::Info],
         SeverityArg::Secure => {
-            vec![Severity::High, Severity::Warning, Severity::Info, Severity::Secure]
+            vec![
+                Severity::High,
+                Severity::Warning,
+                Severity::Info,
+                Severity::Secure,
+            ]
         }
     };
 
@@ -562,10 +567,14 @@ fn print_finding_detail(report: &ScanReport, id: &str) {
         }
         if let Some(ref cwe) = f.cwe {
             eprintln!();
-            eprintln!("  {} {}  {} {}  {} {}",
-                "CWE:".bold(), cwe,
-                "OWASP Mobile:".bold(), f.owasp_mobile.as_deref().unwrap_or("—"),
-                "MASVS:".bold(), f.owasp_masvs.as_deref().unwrap_or("—"),
+            eprintln!(
+                "  {} {}  {} {}  {} {}",
+                "CWE:".bold(),
+                cwe,
+                "OWASP Mobile:".bold(),
+                f.owasp_mobile.as_deref().unwrap_or("—"),
+                "MASVS:".bold(),
+                f.owasp_masvs.as_deref().unwrap_or("—"),
             );
         }
         if let Some(ref rem) = f.remediation {
@@ -590,7 +599,11 @@ fn print_finding_detail(report: &ScanReport, id: &str) {
         eprintln!("  {} {}  {}", sev, s.rule_id.dimmed(), s.title.bold());
         eprintln!();
         eprintln!("  {} {}", "Matched value:".bold(), s.matched_value.dimmed());
-        eprintln!("  {} {}", "File:".bold(), s.file_path.as_deref().unwrap_or("unknown").dimmed());
+        eprintln!(
+            "  {} {}",
+            "File:".bold(),
+            s.file_path.as_deref().unwrap_or("unknown").dimmed()
+        );
         eprintln!();
         return;
     }

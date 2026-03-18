@@ -1,5 +1,5 @@
 # ── Build stage ──────────────────────────────────────────────────────────────
-FROM rust:1.84-slim AS builder
+FROM rust:1.88-slim AS builder
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
@@ -10,6 +10,10 @@ RUN cargo build --release --bin pavise-server
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
+
+LABEL org.opencontainers.image.source="https://github.com/ahmetmutlugun/pavise"
+LABEL org.opencontainers.image.description="Fast iOS IPA static security analyzer"
+LABEL org.opencontainers.image.licenses="MIT"
 
 # ca-certs for outbound HTTPS (ip-api.com geolocation); fonts for Typst PDF
 RUN apt-get update && apt-get install -y \

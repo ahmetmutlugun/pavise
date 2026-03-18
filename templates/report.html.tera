@@ -6,157 +6,203 @@
 <title>Pavise — {{ report.app_info.name }}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0d1117;color:#c9d1d9;font-size:14px;line-height:1.5}
-a{color:#58a6ff;text-decoration:none}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1c2128;
+  --border:#30363d;--border-inner:#21262d;
+  --text-heading:#f0f6fc;--text-body:#c9d1d9;--text-dim:#8b949e;
+  --accent:#58a6ff;
+  --high:#f85149;--high-bg:#3d0f0f;--high-border:#6e1a1a;--high-subtle:#1a0a0a;
+  --warn:#d29922;--warn-bg:#2d1f00;--warn-border:#5a3e00;--warn-subtle:#1a1400;
+  --info:#58a6ff;--info-bg:#0d2045;--info-border:#1f4080;
+  --secure:#3fb950;--secure-bg:#0d2c1a;--secure-border:#1a5c34;--secure-text:#7ee787;--secure-subtle:#0d1a12;
+  --code-blue:#79c0ff;--code-orange:#f0883e;
+  --mono:'SF Mono',Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+body{font-family:var(--sans);background:var(--bg);color:var(--text-body);font-size:14px;line-height:1.5}
+a{color:var(--accent);text-decoration:none}
 .container{max-width:1100px;margin:0 auto;padding:0 24px}
 
 /* Header */
-.header{background:linear-gradient(135deg,#161b22 0%,#0d1117 100%);border-bottom:1px solid #30363d;padding:32px 0}
+.header{background:linear-gradient(135deg,var(--surface) 0%,var(--bg) 100%);border-bottom:1px solid var(--border);padding:32px 0}
 .header-inner{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
-.app-name{font-size:28px;font-weight:700;color:#f0f6fc;margin-bottom:6px}
-.app-meta{color:#8b949e;font-size:13px;display:flex;flex-wrap:wrap;gap:12px}
+.app-name{font-size:28px;font-weight:700;color:var(--text-heading);margin-bottom:6px}
+.app-meta{color:var(--text-dim);font-size:13px;display:flex;flex-wrap:wrap;gap:12px}
 .app-meta span{display:flex;align-items:center;gap:4px}
-.pill{background:#21262d;border:1px solid #30363d;border-radius:12px;padding:2px 10px;font-size:12px;color:#8b949e}
+.pill{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:2px 10px;font-size:12px;color:var(--text-dim)}
 
 /* Score panel */
-.score-panel{display:flex;flex-direction:column;align-items:center;background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px 28px;min-width:160px;flex-shrink:0}
+.score-panel{display:flex;flex-direction:column;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 28px;min-width:160px;flex-shrink:0}
 .grade{font-size:56px;font-weight:800;line-height:1;margin-bottom:4px}
 .grade-a{color:#3fb950}
 .grade-b{color:#56d364}
 .grade-c{color:#d29922}
-.grade-d{color:#f85149}
-.grade-f{color:#b91c1c}
-.score-num{font-size:22px;font-weight:600;color:#f0f6fc}
-.score-num span{font-size:14px;color:#8b949e;font-weight:400}
-.score-bar{width:100%;height:6px;background:#21262d;border-radius:3px;margin-top:10px;overflow:hidden}
-.score-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#f85149,#d29922,#3fb950);background-size:200% 100%}
+.grade-d{color:#f0883e}
+.grade-f{color:#dc2626}
+.score-num{font-size:22px;font-weight:600;color:var(--text-heading)}
+.score-num span{font-size:14px;color:var(--text-dim);font-weight:400}
+.score-bar{width:100%;height:6px;background:var(--surface2);border-radius:3px;margin-top:10px;overflow:hidden}
+.score-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--high),var(--warn),var(--secure))}
 
 /* Stats bar */
-.stats-bar{display:flex;gap:0;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin:24px 0;background:#161b22}
-.stat{flex:1;padding:16px 12px;text-align:center;border-right:1px solid #30363d}
+.stats-bar{display:flex;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:24px 0;background:var(--surface)}
+.stat{flex:1;padding:16px 12px;text-align:center;border-right:1px solid var(--border)}
 .stat:last-child{border-right:none}
 .stat-val{display:block;font-size:24px;font-weight:700;line-height:1.1}
-.stat-val.high{color:#f85149}
-.stat-val.warn{color:#d29922}
-.stat-val.info{color:#58a6ff}
-.stat-val.ok{color:#3fb950}
-.stat-label{display:block;font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+.stat-val.high{color:var(--high)}
+.stat-val.warn{color:var(--warn)}
+.stat-val.info{color:var(--info)}
+.stat-val.ok{color:var(--secure)}
+.stat-label{display:block;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
 
 /* Sections */
 .section{margin-bottom:32px}
-.section-title{font-size:16px;font-weight:600;color:#f0f6fc;padding:12px 16px;background:#161b22;border:1px solid #30363d;border-bottom:none;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:8px}
-.section-title .count{background:#21262d;border:1px solid #30363d;border-radius:10px;padding:1px 8px;font-size:12px;color:#8b949e;font-weight:500}
-.section-body{border:1px solid #30363d;border-radius:0 0 8px 8px;overflow:hidden}
+.section-title{font-size:16px;font-weight:600;color:var(--text-heading);padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-bottom:none;border-radius:8px 8px 0 0;display:flex;align-items:center;gap:8px}
+.section-title .count{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1px 8px;font-size:12px;color:var(--text-dim);font-weight:500}
+.section-body{border:1px solid var(--border);border-radius:0 0 8px 8px;overflow:hidden}
 
 /* App Info table */
 .info-table{width:100%;border-collapse:collapse}
-.info-table tr{border-bottom:1px solid #21262d}
+.info-table tr{border-bottom:1px solid var(--border-inner)}
 .info-table tr:last-child{border-bottom:none}
-.info-table th{width:200px;padding:10px 16px;text-align:left;font-weight:500;color:#8b949e;font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:#161b22}
-.info-table td{padding:10px 16px;color:#c9d1d9}
+.info-table th{width:200px;padding:10px 16px;text-align:left;font-weight:500;color:var(--text-dim);font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:var(--surface)}
+.info-table td{padding:10px 16px;color:var(--text-body)}
 
 /* Binary protections */
-.protections-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0;background:#0d1117}
-.protection-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #21262d;border-right:1px solid #21262d}
+.protections-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:0;background:var(--bg)}
+.protection-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border-inner);border-right:1px solid var(--border-inner)}
 .prot-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
-.prot-icon.ok{background:#0d4429;color:#3fb950}
-.prot-icon.bad{background:#3d0f0f;color:#f85149}
-.prot-icon.warn{background:#2d1f00;color:#d29922}
-.prot-name{font-size:13px;color:#c9d1d9}
-.prot-desc{font-size:11px;color:#8b949e;margin-top:2px}
+.prot-icon.ok{background:#0d4429;color:var(--secure)}
+.prot-icon.bad{background:var(--high-bg);color:var(--high)}
+.prot-icon.warn{background:var(--warn-bg);color:var(--warn)}
+.prot-name{font-size:13px;color:var(--text-body)}
+.prot-desc{font-size:11px;color:var(--text-dim);margin-top:2px}
 
 /* Findings */
-.finding{padding:16px;border-bottom:1px solid #21262d;background:#0d1117}
+.finding{padding:16px;border-bottom:1px solid var(--border-inner);background:var(--bg)}
 .finding:last-child{border-bottom:none}
 .finding-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
-.finding-title{font-size:14px;font-weight:600;color:#f0f6fc}
-.finding-id{font-size:11px;color:#8b949e;font-family:'SF Mono',Consolas,monospace;white-space:nowrap}
+.finding-title{font-size:14px;font-weight:600;color:var(--text-heading)}
+.finding-id{font-size:11px;color:var(--text-dim);font-family:var(--mono);white-space:nowrap}
 .sev-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
-.sev-high{background:#3d0f0f;color:#f85149;border:1px solid #6e1a1a}
-.sev-warning{background:#2d1f00;color:#d29922;border:1px solid #5a3e00}
-.sev-info{background:#0d2045;color:#58a6ff;border:1px solid #1f4080}
-.sev-secure{background:#0d2c1a;color:#3fb950;border:1px solid #1a5c34}
-.finding-desc{font-size:13px;color:#8b949e;margin-bottom:8px}
-.finding-evidence{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:8px 12px;font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#79c0ff;word-break:break-all;margin-bottom:8px}
-.finding-remediation{display:flex;gap:8px;background:#0d2c1a;border:1px solid #1a5c34;border-radius:6px;padding:8px 12px}
-.finding-remediation-label{font-size:11px;font-weight:600;color:#3fb950;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;margin-top:1px}
-.finding-remediation-text{font-size:12px;color:#7ee787}
+.sev-high{background:var(--high-bg);color:var(--high);border:1px solid var(--high-border)}
+.sev-warn{background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-border)}
+.sev-info{background:var(--info-bg);color:var(--info);border:1px solid var(--info-border)}
+.sev-secure{background:var(--secure-bg);color:var(--secure);border:1px solid var(--secure-border)}
+.finding-desc{font-size:13px;color:var(--text-dim);margin-bottom:8px}
+.finding-evidence{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--mono);font-size:12px;color:var(--code-blue);word-break:break-all;margin-bottom:8px}
+.finding-remediation{display:flex;gap:8px;background:var(--secure-bg);border:1px solid var(--secure-border);border-radius:6px;padding:8px 12px}
+.finding-remediation-label{font-size:11px;font-weight:600;color:var(--secure);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;margin-top:1px}
+.finding-remediation-text{font-size:12px;color:var(--secure-text)}
 .finding-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.meta-tag{background:#21262d;border:1px solid #30363d;border-radius:4px;padding:1px 7px;font-size:11px;color:#8b949e;font-family:'SF Mono',Consolas,monospace}
+.meta-tag{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:1px 7px;font-size:11px;color:var(--text-dim);font-family:var(--mono)}
 
 /* Secrets */
-.secret-item{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid #21262d;background:#0d1117}
+.secret-item{display:flex;align-items:flex-start;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border-inner);background:var(--bg)}
 .secret-item:last-child{border-bottom:none}
-.secret-title{font-size:13px;font-weight:600;color:#f0f6fc;margin-bottom:2px}
-.secret-path{font-size:11px;color:#8b949e;font-family:'SF Mono',Consolas,monospace;margin-bottom:4px}
-.secret-value{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:4px 10px;font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#f0883e;word-break:break-all}
+.secret-title{font-size:13px;font-weight:600;color:var(--text-heading);margin-bottom:2px}
+.secret-path{font-size:11px;color:var(--text-dim);font-family:var(--mono);margin-bottom:4px}
+.secret-value{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:4px 10px;font-family:var(--mono);font-size:12px;color:var(--code-orange);word-break:break-all}
 
 /* Trackers */
-.tracker-item{padding:12px 16px;border-bottom:1px solid #21262d;background:#0d1117;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.tracker-item{padding:12px 16px;border-bottom:1px solid var(--border-inner);background:var(--bg);display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .tracker-item:last-child{border-bottom:none}
-.tracker-name{font-size:13px;font-weight:600;color:#f0f6fc}
-.tracker-evidence{font-size:11px;color:#8b949e;font-family:'SF Mono',Consolas,monospace;margin-top:2px}
+.tracker-name{font-size:13px;font-weight:600;color:var(--text-heading)}
+.tracker-evidence{font-size:11px;color:var(--text-dim);font-family:var(--mono);margin-top:2px}
 .tracker-cats{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-.tracker-cat{background:#21262d;border:1px solid #30363d;border-radius:10px;padding:1px 8px;font-size:11px;color:#8b949e}
+.tracker-cat{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:1px 8px;font-size:11px;color:var(--text-dim)}
 
 /* Domains */
-.domain-list{padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px;background:#0d1117}
-.domain-tag{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 10px;font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#79c0ff}
-.email-tag{background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 10px;font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#c9d1d9}
+.domain-list{padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px;background:var(--bg)}
+.domain-tag{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-family:var(--mono);font-size:12px;color:var(--code-blue)}
+.email-tag{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-family:var(--mono);font-size:12px;color:var(--text-body)}
 
 /* Firebase card */
-.firebase-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));background:#0d1117}
-.firebase-item{padding:10px 16px;border-bottom:1px solid #21262d;border-right:1px solid #21262d}
-.firebase-key{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
-.firebase-val{font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#79c0ff;word-break:break-all}
+.firebase-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));background:var(--bg)}
+.firebase-item{padding:10px 16px;border-bottom:1px solid var(--border-inner);border-right:1px solid var(--border-inner)}
+.firebase-key{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.firebase-val{font-family:var(--mono);font-size:12px;color:var(--code-blue);word-break:break-all}
 
 /* Hashes */
-.hashes{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;padding:12px 16px;background:#0d1117}
-.hash-key{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.04em;align-self:center}
-.hash-val{font-family:'SF Mono',Consolas,monospace;font-size:12px;color:#8b949e;word-break:break-all}
+.hashes{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;padding:12px 16px;background:var(--bg)}
+.hash-key{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;align-self:center}
+.hash-val{font-family:var(--mono);font-size:12px;color:var(--text-dim);word-break:break-all}
 
 /* Footer */
-.footer{border-top:1px solid #30363d;padding:24px 0;margin-top:40px;color:#8b949e;font-size:12px;display:flex;justify-content:space-between;align-items:center}
-.footer-logo{font-weight:700;color:#f0f6fc}
+.footer{border-top:1px solid var(--border);padding:24px 0;margin-top:40px;color:var(--text-dim);font-size:12px;display:flex;justify-content:space-between;align-items:center}
+.footer-logo{font-weight:700;color:var(--text-heading)}
 
 /* Empty states */
-.empty{padding:24px;text-align:center;color:#8b949e;font-size:13px;background:#0d1117}
+.empty{padding:24px;text-align:center;color:var(--text-dim);font-size:13px;background:var(--bg)}
 
 /* Collapsible framework section */
-details summary{cursor:pointer;padding:10px 16px;background:#161b22;border-bottom:1px solid #21262d;color:#8b949e;font-size:12px;user-select:none;list-style:none}
+details summary{cursor:pointer;padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border-inner);color:var(--text-dim);font-size:12px;user-select:none;list-style:none}
 details summary::-webkit-details-marker{display:none}
 details summary::before{content:"▶ ";font-size:10px}
 details[open] summary::before{content:"▼ "}
 
 /* OWASP grid */
-.owasp-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:#30363d}
-.owasp-cell{padding:14px 12px;display:flex;flex-direction:column;gap:4px;background:#0d1117}
-.owasp-cell.ok{background:#0d1a12}
-.owasp-cell.bad{background:#1a0a0a}
-.owasp-code{font-size:15px;font-weight:700;font-family:'SF Mono',Consolas,monospace}
-.owasp-cell.ok .owasp-code{color:#3fb950}
-.owasp-cell.bad .owasp-code{color:#f85149}
-.owasp-label{font-size:11px;color:#8b949e;line-height:1.3}
+.owasp-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border)}
+.owasp-cell{padding:14px 12px;display:flex;flex-direction:column;gap:4px;background:var(--bg)}
+.owasp-cell.ok{background:var(--secure-subtle)}
+.owasp-cell.bad{background:var(--high-subtle)}
+.owasp-code{font-size:15px;font-weight:700;font-family:var(--mono)}
+.owasp-cell.ok .owasp-code{color:var(--secure)}
+.owasp-cell.bad .owasp-code{color:var(--high)}
+.owasp-label{font-size:11px;color:var(--text-dim);line-height:1.3}
 .owasp-count{font-size:12px;font-weight:600}
-.owasp-cell.ok .owasp-count{color:#3fb950}
-.owasp-cell.bad .owasp-count{color:#f85149}
+.owasp-cell.ok .owasp-count{color:var(--secure)}
+.owasp-cell.bad .owasp-count{color:var(--high)}
 
 /* CVE table */
-.cve-row-high{background:#1a0a0a}
-.cve-row-warning{background:#1a1400}
+.cve-row-high{background:var(--high-subtle)}
+.cve-row-warning{background:var(--warn-subtle)}
 
 /* Baseline diff cards */
-.diff-cards{display:flex;gap:0;border:1px solid #30363d;border-radius:10px;overflow:hidden;margin-bottom:24px;background:#161b22}
-.diff-card{flex:1;padding:16px 12px;text-align:center;border-right:1px solid #30363d}
+.diff-cards{display:flex;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:24px;background:var(--surface)}
+.diff-card{flex:1;padding:16px 12px;text-align:center;border-right:1px solid var(--border)}
 .diff-card:last-child{border-right:none}
 .diff-val{display:block;font-size:22px;font-weight:700;line-height:1.1}
-.diff-label{display:block;font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
-.diff-tags{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;background:#0d1117}
-.diff-tag-new{background:#0d2045;border:1px solid #1f4080;border-radius:4px;padding:2px 8px;font-size:11px;font-family:'SF Mono',Consolas,monospace;color:#58a6ff}
-.diff-tag-fixed{background:#0d2c1a;border:1px solid #1a5c34;border-radius:4px;padding:2px 8px;font-size:11px;font-family:'SF Mono',Consolas,monospace;color:#3fb950}
+.diff-label{display:block;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-top:3px}
+.diff-tags{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;background:var(--bg)}
+.diff-tag-new{background:var(--info-bg);border:1px solid var(--info-border);border-radius:4px;padding:2px 8px;font-size:11px;font-family:var(--mono);color:var(--info)}
+.diff-tag-fixed{background:var(--secure-bg);border:1px solid var(--secure-border);border-radius:4px;padding:2px 8px;font-size:11px;font-family:var(--mono);color:var(--secure)}
+
+/* Skip link */
+.skip-link{position:absolute;top:-100%;left:0;background:var(--accent);color:var(--bg);padding:8px 16px;z-index:100;font-size:13px;font-weight:600;text-decoration:none;border-radius:0 0 4px 0}
+.skip-link:focus{top:0;outline:none}
+
+/* Utility colors */
+.clr-ok{color:var(--secure)}
+.clr-bad{color:var(--high)}
+.clr-dim{color:var(--text-dim)}
+
+/* Responsive */
+@media(max-width:768px){
+  .header-inner{flex-direction:column}
+  .score-panel{flex-direction:row;justify-content:space-between;align-items:center;min-width:unset;width:100%;padding:16px}
+  .owasp-grid{grid-template-columns:repeat(2,1fr)}
+  .stats-bar{flex-wrap:wrap}
+  .stat{min-width:calc(33.33% - 2px)}
+  .section-body{overflow-x:auto}
+  .info-table th{width:140px}
+  .diff-cards{flex-wrap:wrap}
+  .diff-card{flex:1 1 45%;min-width:100px}
+  .protections-grid{grid-template-columns:1fr}
+  .firebase-grid{grid-template-columns:1fr}
+  .container{padding:0 16px}
+}
+@media(max-width:480px){
+  .owasp-grid{grid-template-columns:1fr 1fr}
+  .grade{font-size:40px}
+  .score-num{font-size:16px}
+  .stats-bar .stat{min-width:calc(50% - 2px)}
+  .score-panel{flex-direction:column;align-items:flex-start}
+}
 </style>
 </head>
 <body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
 
 <div class="header">
 <div class="container">
@@ -182,14 +228,14 @@ details[open] summary::before{content:"▼ "}
 </div>
 </div>
 
-<div class="container" style="padding-top:24px">
+<div class="container" id="main-content" style="padding-top:24px">
 
 <!-- Stats bar -->
 <div class="stats-bar">
   <div class="stat"><span class="stat-val high">{{ high_count }}</span><span class="stat-label">High</span></div>
   <div class="stat"><span class="stat-val warn">{{ warn_count }}</span><span class="stat-label">Warning</span></div>
   <div class="stat"><span class="stat-val info">{{ info_count }}</span><span class="stat-label">Info</span></div>
-  <div class="stat"><span class="stat-val ok">{{ report.trackers | length }}</span><span class="stat-label">Trackers</span></div>
+  <div class="stat"><span class="stat-val {% if report.trackers | length > 0 %}warn{% else %}ok{% endif %}">{{ report.trackers | length }}</span><span class="stat-label">Trackers</span></div>
   <div class="stat"><span class="stat-val warn">{{ report.secrets | length }}</span><span class="stat-label">Secrets</span></div>
   <div class="stat"><span class="stat-val info">{{ report.scan_duration_ms }}ms</span><span class="stat-label">Scan Time</span></div>
 </div>
@@ -201,36 +247,36 @@ details[open] summary::before{content:"▼ "}
   <div class="section-body">
     <div class="diff-cards">
       <div class="diff-card">
-        <span class="diff-val" style="color:{% if report.baseline_diff.score_delta > 0 %}#3fb950{% elif report.baseline_diff.score_delta < 0 %}#f85149{% else %}#8b949e{% endif %}">
+        <span class="diff-val {% if report.baseline_diff.score_delta > 0 %}clr-ok{% elif report.baseline_diff.score_delta < 0 %}clr-bad{% else %}clr-dim{% endif %}">
           {% if report.baseline_diff.score_delta > 0 %}+{% endif %}{{ report.baseline_diff.score_delta }}
         </span>
         <span class="diff-label">Score Delta</span>
       </div>
       <div class="diff-card">
-        <span class="diff-val" style="color:{% if report.baseline_diff.new_findings | length > 0 %}#f85149{% else %}#3fb950{% endif %}">{{ report.baseline_diff.new_findings | length }}</span>
+        <span class="diff-val {% if report.baseline_diff.new_findings | length > 0 %}clr-bad{% else %}clr-ok{% endif %}">{{ report.baseline_diff.new_findings | length }}</span>
         <span class="diff-label">New Findings</span>
       </div>
       <div class="diff-card">
-        <span class="diff-val" style="color:#3fb950">{{ report.baseline_diff.fixed_findings | length }}</span>
+        <span class="diff-val clr-ok">{{ report.baseline_diff.fixed_findings | length }}</span>
         <span class="diff-label">Fixed Findings</span>
       </div>
       <div class="diff-card">
-        <span class="diff-val" style="color:{% if report.baseline_diff.new_secrets > 0 %}#f85149{% else %}#3fb950{% endif %}">{{ report.baseline_diff.new_secrets }}</span>
+        <span class="diff-val {% if report.baseline_diff.new_secrets > 0 %}clr-bad{% else %}clr-ok{% endif %}">{{ report.baseline_diff.new_secrets }}</span>
         <span class="diff-label">New Secrets</span>
       </div>
       <div class="diff-card">
-        <span class="diff-val" style="color:#3fb950">{{ report.baseline_diff.fixed_secrets }}</span>
+        <span class="diff-val clr-ok">{{ report.baseline_diff.fixed_secrets }}</span>
         <span class="diff-label">Fixed Secrets</span>
       </div>
     </div>
     {% if report.baseline_diff.new_findings %}
-    <div style="padding:8px 16px;background:#161b22;border-top:1px solid #30363d;font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.04em">New Findings</div>
+    <div style="padding:8px 16px;background:var(--surface);border-top:1px solid var(--border);font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em">New Findings</div>
     <div class="diff-tags">
       {% for id in report.baseline_diff.new_findings %}<span class="diff-tag-new">{{ id }}</span>{% endfor %}
     </div>
     {% endif %}
     {% if report.baseline_diff.fixed_findings %}
-    <div style="padding:8px 16px;background:#161b22;border-top:1px solid #30363d;font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:.04em">Fixed Findings</div>
+    <div style="padding:8px 16px;background:var(--surface);border-top:1px solid var(--border);font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em">Fixed Findings</div>
     <div class="diff-tags">
       {% for id in report.baseline_diff.fixed_findings %}<span class="diff-tag-fixed">{{ id }}</span>{% endfor %}
     </div>
@@ -244,17 +290,17 @@ details[open] summary::before{content:"▼ "}
   <div class="section-title">App Information</div>
   <div class="section-body">
     <table class="info-table">
-      <tr><th>Bundle Name</th><td>{{ report.app_info.name }}</td></tr>
-      <tr><th>Bundle ID</th><td>{{ report.app_info.identifier }}</td></tr>
-      <tr><th>Version</th><td>{{ report.app_info.version }} ({{ report.app_info.build }})</td></tr>
-      <tr><th>Platform</th><td>{{ report.app_info.platform }}</td></tr>
-      <tr><th>Min OS Version</th><td>{{ report.app_info.min_os_version }}</td></tr>
-      {% if report.app_info.sdk_name %}<tr><th>SDK</th><td>{{ report.app_info.sdk_name }}</td></tr>{% endif %}
-      <tr><th>App Type</th><td>{{ report.app_info.app_type }}</td></tr>
-      <tr><th>MD5</th><td style="font-family:monospace;font-size:12px">{{ report.file_hashes.md5 }}</td></tr>
-      <tr><th>SHA1</th><td style="font-family:monospace;font-size:12px">{{ report.file_hashes.sha1 }}</td></tr>
-      <tr><th>SHA256</th><td style="font-family:monospace;font-size:12px">{{ report.file_hashes.sha256 }}</td></tr>
-      <tr><th>File Size</th><td>{{ report.file_hashes.size_bytes }} bytes</td></tr>
+      <tr><th scope="row">Bundle Name</th><td>{{ report.app_info.name }}</td></tr>
+      <tr><th scope="row">Bundle ID</th><td>{{ report.app_info.identifier }}</td></tr>
+      <tr><th scope="row">Version</th><td>{{ report.app_info.version }} ({{ report.app_info.build }})</td></tr>
+      <tr><th scope="row">Platform</th><td>{{ report.app_info.platform }}</td></tr>
+      <tr><th scope="row">Min OS Version</th><td>{{ report.app_info.min_os_version }}</td></tr>
+      {% if report.app_info.sdk_name %}<tr><th scope="row">SDK</th><td>{{ report.app_info.sdk_name }}</td></tr>{% endif %}
+      <tr><th scope="row">App Type</th><td>{{ report.app_info.app_type }}</td></tr>
+      <tr><th scope="row">MD5</th><td style="font-family:var(--mono);font-size:12px">{{ report.file_hashes.md5 }}</td></tr>
+      <tr><th scope="row">SHA1</th><td style="font-family:var(--mono);font-size:12px">{{ report.file_hashes.sha1 }}</td></tr>
+      <tr><th scope="row">SHA256</th><td style="font-family:var(--mono);font-size:12px">{{ report.file_hashes.sha256 }}</td></tr>
+      <tr><th scope="row">File Size</th><td>{{ report.file_hashes.size_bytes }} bytes</td></tr>
     </table>
   </div>
 </div>
@@ -309,8 +355,8 @@ details[open] summary::before{content:"▼ "}
   <div class="section-body">
     {% for fw in report.framework_binaries %}
     <details>
-      <summary>{{ fw.path }} ({{ fw.arch }})</summary>
-      <div class="protections-grid" style="border-top:1px solid #21262d">
+      <summary>Binary protections — {{ fw.path }} ({{ fw.arch }})</summary>
+      <div class="protections-grid" style="border-top:1px solid var(--border-inner)">
         {% for p in fw.protections %}
         <div class="protection-item">
           {% if p.enabled %}<div class="prot-icon ok">✓</div>
@@ -342,10 +388,10 @@ details[open] summary::before{content:"▼ "}
           <div class="finding-title">{{ f.title }}</div>
           <div style="margin-top:4px">
             {% if f.severity == "high" %}<span class="sev-badge sev-high">High</span>
-            {% elif f.severity == "warning" %}<span class="sev-badge sev-warning">Warning</span>
+            {% elif f.severity == "warning" %}<span class="sev-badge sev-warn">Warning</span>
             {% elif f.severity == "info" %}<span class="sev-badge sev-info">Info</span>
             {% else %}<span class="sev-badge sev-secure">Secure</span>{% endif %}
-            <span style="margin-left:8px;font-size:12px;color:#58a6ff">{{ f.category }}</span>
+            <span style="margin-left:8px;font-size:12px;color:var(--accent)">{{ f.category }}</span>
           </div>
         </div>
         <div class="finding-id">{{ f.id }}</div>
@@ -388,10 +434,10 @@ details[open] summary::before{content:"▼ "}
         <div style="display:flex;align-items:center;justify-content:space-between">
           <div class="secret-title">{{ s.title }}</div>
           {% if s.severity == "high" %}<span class="sev-badge sev-high">High</span>
-          {% else %}<span class="sev-badge sev-warning">Warning</span>{% endif %}
+          {% else %}<span class="sev-badge sev-warn">Warning</span>{% endif %}
         </div>
         {% if s.file_path %}<div class="secret-path">{{ s.file_path }}</div>{% endif %}
-        <div class="secret-value">{{ s.matched_value }}</div>
+        <div class="secret-value">{{ s.matched_value | truncate(length=60) }}</div>
       </div>
     </div>
     {% endfor %}
@@ -430,10 +476,10 @@ details[open] summary::before{content:"▼ "}
     <table class="info-table">
       {% for p in report.app_info.permissions %}
       <tr>
-        <th style="font-family:monospace;font-size:11px;font-weight:400;width:280px">{{ p.key }}</th>
+        <th style="font-family:var(--mono);font-size:11px;font-weight:400;width:280px">{{ p.key }}</th>
         <td>
-          {% if p.status == "dangerous" %}<span class="sev-badge sev-warning" style="margin-right:8px">Sensitive</span>{% endif %}
-          <span style="color:#8b949e;font-size:12px">{{ p.description }}</span>
+          {% if p.status == "dangerous" %}<span class="sev-badge sev-warn" style="margin-right:8px">Sensitive</span>{% endif %}
+          <span style="color:var(--text-dim);font-size:12px">{{ p.description }}</span>
         </td>
       </tr>
       {% endfor %}
@@ -475,32 +521,32 @@ details[open] summary::before{content:"▼ "}
 <div class="section">
   <div class="section-title">Domain Intelligence <span class="count">{{ report.domain_intel | length }}</span></div>
   <div class="section-body">
-    <table class="info-table" style="background:#0d1117">
+    <table class="info-table" style="background:var(--bg)">
       <thead>
-        <tr style="border-bottom:1px solid #30363d">
-          <th style="width:220px">Domain</th>
-          <th style="width:120px">IP</th>
-          <th style="width:160px">Location</th>
-          <th style="width:140px">Country</th>
-          <th>ISP</th>
-          <th style="width:80px">OFAC</th>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th scope="col" style="width:220px">Domain</th>
+          <th scope="col" style="width:120px">IP</th>
+          <th scope="col" style="width:160px">Location</th>
+          <th scope="col" style="width:140px">Country</th>
+          <th scope="col">ISP</th>
+          <th scope="col" style="width:80px">OFAC</th>
         </tr>
       </thead>
       {% for d in report.domain_intel %}
-      <tr {% if d.is_ofac_sanctioned %}style="background:#3d0f0f"{% endif %}>
-        <td style="font-family:monospace;font-size:12px">{{ d.domain }}</td>
-        <td style="font-family:monospace;font-size:12px;color:#79c0ff">{{ d.ip | default(value="—") }}</td>
-        <td style="font-size:12px;color:#8b949e">{{ d.city | default(value="—") }}</td>
+      <tr {% if d.is_ofac_sanctioned %}style="background:var(--high-bg)"{% endif %}>
+        <td style="font-family:var(--mono);font-size:12px">{{ d.domain }}</td>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--code-blue)">{{ d.ip | default(value="—") }}</td>
+        <td style="font-size:12px;color:var(--text-dim)">{{ d.city | default(value="—") }}</td>
         <td style="font-size:12px">
           {% if d.country_code %}
           <span class="pill">{{ d.country_code }}</span>
           {{ d.country | default(value="") }}
           {% else %}—{% endif %}
         </td>
-        <td style="font-size:12px;color:#8b949e">{{ d.isp | default(value="—") }}</td>
+        <td style="font-size:12px;color:var(--text-dim)">{{ d.isp | default(value="—") }}</td>
         <td style="text-align:center">
           {% if d.is_ofac_sanctioned %}<span class="sev-badge sev-high">YES</span>
-          {% else %}<span style="color:#8b949e;font-size:11px">—</span>{% endif %}
+          {% else %}<span style="color:var(--text-dim);font-size:11px">—</span>{% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -515,19 +561,19 @@ details[open] summary::before{content:"▼ "}
   <div class="section-title">Provisioning Profile</div>
   <div class="section-body">
     <table class="info-table">
-      {% if report.provisioning.name %}<tr><th>Profile Name</th><td>{{ report.provisioning.name }}</td></tr>{% endif %}
-      {% if report.provisioning.team_name %}<tr><th>Team</th><td>{{ report.provisioning.team_name }}{% if report.provisioning.team_id %} <span class="pill">{{ report.provisioning.team_id }}</span>{% endif %}</td></tr>{% endif %}
-      <tr><th>Profile Type</th><td>
+      {% if report.provisioning.name %}<tr><th scope="row">Profile Name</th><td>{{ report.provisioning.name }}</td></tr>{% endif %}
+      {% if report.provisioning.team_name %}<tr><th scope="row">Team</th><td>{{ report.provisioning.team_name }}{% if report.provisioning.team_id %} <span class="pill">{{ report.provisioning.team_id }}</span>{% endif %}</td></tr>{% endif %}
+      <tr><th scope="row">Profile Type</th><td>
         {% if report.provisioning.profile_type == "development" or report.provisioning.profile_type == "ad-hoc" %}
-        <span class="sev-badge sev-warning">{{ report.provisioning.profile_type }}</span>
+        <span class="sev-badge sev-warn">{{ report.provisioning.profile_type }}</span>
         {% elif report.provisioning.profile_type == "enterprise" %}
         <span class="sev-badge sev-high">enterprise</span>
         {% else %}
         <span class="sev-badge sev-secure">{{ report.provisioning.profile_type }}</span>
         {% endif %}
       </td></tr>
-      {% if report.provisioning.expiration_date %}<tr><th>Expiration</th><td style="font-family:monospace;font-size:12px">{{ report.provisioning.expiration_date }}</td></tr>{% endif %}
-      {% if report.provisioning.provisioned_device_count > 0 %}<tr><th>Provisioned Devices</th><td>{{ report.provisioning.provisioned_device_count }}</td></tr>{% endif %}
+      {% if report.provisioning.expiration_date %}<tr><th scope="row">Expiration</th><td style="font-family:var(--mono);font-size:12px">{{ report.provisioning.expiration_date }}</td></tr>{% endif %}
+      {% if report.provisioning.provisioned_device_count > 0 %}<tr><th scope="row">Provisioned Devices</th><td>{{ report.provisioning.provisioned_device_count }}</td></tr>{% endif %}
     </table>
   </div>
 </div>
@@ -538,20 +584,20 @@ details[open] summary::before{content:"▼ "}
 <div class="section">
   <div class="section-title">Framework Components (SCA) <span class="count">{{ report.framework_components | length }}</span></div>
   <div class="section-body">
-    <table class="info-table" style="background:#0d1117">
+    <table class="info-table" style="background:var(--bg)">
       <thead>
-        <tr style="border-bottom:1px solid #30363d">
-          <th style="width:200px">Framework</th>
-          <th>Bundle ID</th>
-          <th style="width:120px">Version</th>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th scope="col" style="width:200px">Framework</th>
+          <th scope="col">Bundle ID</th>
+          <th scope="col" style="width:120px">Version</th>
         </tr>
       </thead>
       {% for c in report.framework_components %}
       <tr>
-        <td style="font-weight:500;color:#f0f6fc">{{ c.name }}</td>
-        <td style="font-family:monospace;font-size:12px;color:#79c0ff">{{ c.bundle_id | default(value="—") }}</td>
-        <td style="font-family:monospace;font-size:12px">
-          {% if c.version %}<span class="pill">{{ c.version }}</span>{% else %}<span style="color:#8b949e">—</span>{% endif %}
+        <td style="font-weight:500;color:var(--text-heading)">{{ c.name }}</td>
+        <td style="font-family:var(--mono);font-size:12px;color:var(--code-blue)">{{ c.bundle_id | default(value="—") }}</td>
+        <td style="font-family:var(--mono);font-size:12px">
+          {% if c.version %}<span class="pill">{{ c.version }}</span>{% else %}<span style="color:var(--text-dim)">—</span>{% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -565,30 +611,30 @@ details[open] summary::before{content:"▼ "}
 <div class="section">
   <div class="section-title">Known Vulnerable Dependencies (CVE) <span class="count">{{ cve_findings | length }}</span></div>
   <div class="section-body">
-    <table class="info-table" style="background:#0d1117">
+    <table class="info-table" style="background:var(--bg)">
       <thead>
-        <tr style="border-bottom:1px solid #30363d">
-          <th style="width:200px">Framework</th>
-          <th style="width:120px">CVE</th>
-          <th style="width:80px">Severity</th>
-          <th>Title / Description</th>
+        <tr style="border-bottom:1px solid var(--border)">
+          <th scope="col" style="width:200px">Framework</th>
+          <th scope="col" style="width:120px">CVE</th>
+          <th scope="col" style="width:80px">Severity</th>
+          <th scope="col">Title / Description</th>
         </tr>
       </thead>
       {% for f in cve_findings %}
       <tr class="{% if f.severity == 'high' %}cve-row-high{% else %}cve-row-warning{% endif %}">
-        <td style="font-family:monospace;font-size:12px;color:#79c0ff">{{ f.evidence | first | default(value="—") }}</td>
-        <td style="font-family:monospace;font-size:12px;white-space:nowrap">
+        <td style="font-family:var(--mono);font-size:12px;color:var(--code-blue)">{{ f.evidence | first | default(value="—") }}</td>
+        <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">
           {% set cve_id = f.id | replace(from="QS-CVE-", to="") %}
           <a href="https://nvd.nist.gov/vuln/detail/{{ cve_id }}" target="_blank" rel="noopener">{{ cve_id }}</a>
         </td>
         <td>
           {% if f.severity == "high" %}<span class="sev-badge sev-high">High</span>
-          {% else %}<span class="sev-badge sev-warning">Warning</span>{% endif %}
+          {% else %}<span class="sev-badge sev-warn">Warning</span>{% endif %}
         </td>
         <td>
-          <div style="font-size:13px;font-weight:500;color:#f0f6fc;margin-bottom:3px">{{ f.title }}</div>
-          <div style="font-size:12px;color:#8b949e">{{ f.description }}</div>
-          {% if f.remediation %}<div style="font-size:11px;color:#3fb950;margin-top:4px">{{ f.remediation }}</div>{% endif %}
+          <div style="font-size:13px;font-weight:500;color:var(--text-heading);margin-bottom:3px">{{ f.title }}</div>
+          <div style="font-size:12px;color:var(--text-dim)">{{ f.description }}</div>
+          {% if f.remediation %}<div style="font-size:11px;color:var(--secure);margin-top:4px">{{ f.remediation }}</div>{% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -617,12 +663,12 @@ details[open] summary::before{content:"▼ "}
 {% if report.scan_log %}
 <div class="section">
   <div class="section-title">Scan Audit Log <span class="count">{{ report.scan_log | length }} steps</span></div>
-  <div class="section-body" style="background:#0d1117;padding:12px 16px">
+  <div class="section-body" style="background:var(--bg);padding:12px 16px">
     <table style="width:100%;border-collapse:collapse">
       {% for entry in report.scan_log %}
       <tr>
-        <td style="font-family:monospace;font-size:11px;color:#8b949e;white-space:nowrap;padding:2px 12px 2px 0;width:70px">{{ entry.elapsed_ms }}ms</td>
-        <td style="font-size:12px;color:#c9d1d9;padding:2px 0">{{ entry.step }}</td>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim);white-space:nowrap;padding:2px 12px 2px 0;width:70px">{{ entry.elapsed_ms }}ms</td>
+        <td style="font-size:12px;color:var(--text-body);padding:2px 0">{{ entry.step }}</td>
       </tr>
       {% endfor %}
     </table>
@@ -636,5 +682,7 @@ details[open] summary::before{content:"▼ "}
 </div>
 
 </div><!-- /container -->
+<script data-goatcounter="https://stats.pavise.app/count"
+        async src="//stats.pavise.app/count.js"></script>
 </body>
 </html>

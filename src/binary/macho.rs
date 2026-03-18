@@ -391,7 +391,7 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     let all_rpaths: Vec<String> = collect_rpaths(macho, raw_data);
     let rpath_commands: Vec<String> = all_rpaths
         .iter()
-        .filter(|r| !SAFE_RPATHS.iter().any(|safe| r.as_str() == *safe))
+        .filter(|r| !SAFE_RPATHS.contains(&r.as_str()))
         .cloned()
         .collect();
     let has_dangerous_rpath = !rpath_commands.is_empty();
@@ -405,7 +405,10 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
             Severity::Secure
         },
         description: if has_dangerous_rpath {
-            format!("Non-standard LC_RPATH entries found: {}", rpath_commands.join(", "))
+            format!(
+                "Non-standard LC_RPATH entries found: {}",
+                rpath_commands.join(", ")
+            )
         } else if has_any_rpath {
             "All LC_RPATH entries are standard Xcode paths (safe).".to_string()
         } else {

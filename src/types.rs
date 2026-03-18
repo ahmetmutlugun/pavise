@@ -10,6 +10,7 @@ pub struct AuditEntry {
     pub step: String,
 }
 
+/// Severity level for findings and secrets, ordered from most to least critical.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
@@ -30,6 +31,7 @@ impl std::fmt::Display for Severity {
     }
 }
 
+/// Target mobile platform for the analyzed app.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Platform {
     IOS,
@@ -45,6 +47,7 @@ impl std::fmt::Display for Platform {
     }
 }
 
+/// A single security finding discovered during analysis.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Finding {
     pub id: String,
@@ -59,6 +62,7 @@ pub struct Finding {
     pub remediation: Option<String>,
 }
 
+/// An iOS permission (privacy key) declared in Info.plist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Permission {
     pub key: String,
@@ -67,6 +71,7 @@ pub struct Permission {
     pub reason: String,
 }
 
+/// Metadata extracted from the app's Info.plist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppInfo {
     pub name: String,
@@ -98,6 +103,7 @@ impl Default for AppInfo {
     }
 }
 
+/// A single binary-level security protection check result.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BinaryProtection {
     pub name: String,
@@ -106,6 +112,7 @@ pub struct BinaryProtection {
     pub description: String,
 }
 
+/// Analysis results for a single Mach-O binary (main executable or framework).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BinaryInfo {
     pub path: String,
@@ -114,12 +121,14 @@ pub struct BinaryInfo {
     pub protections: Vec<BinaryProtection>,
 }
 
+/// A domain or URL discovered in app resources or binary strings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DomainInfo {
     pub domain: String,
     pub context: String,
 }
 
+/// Cryptographic hashes and size of the original IPA file.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileHashes {
     pub md5: String,
@@ -128,6 +137,7 @@ pub struct FileHashes {
     pub size_bytes: u64,
 }
 
+/// A potential secret or credential found in app resources.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecretMatch {
     pub rule_id: String,
@@ -137,6 +147,7 @@ pub struct SecretMatch {
     pub file_path: Option<String>,
 }
 
+/// A third-party analytics or advertising tracker detected in the app.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrackerMatch {
     pub name: String,
@@ -145,6 +156,7 @@ pub struct TrackerMatch {
     pub detection_evidence: String,
 }
 
+/// Firebase configuration extracted from GoogleService-Info.plist.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FirebaseInfo {
     pub project_id: Option<String>,
@@ -154,6 +166,7 @@ pub struct FirebaseInfo {
     pub google_app_id: Option<String>,
 }
 
+/// Complete results of an IPA security scan.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanReport {
     pub app_info: AppInfo,

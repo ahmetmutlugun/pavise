@@ -1,1551 +1,2462 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pavise — Mobile Security Analyzer</title>
-  <!-- Chunked upload handled by vanilla JS -->
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Pavise — iOS Security Analyzer</title>
+        <!-- Chunked upload handled by vanilla JS -->
+        <style>
+            *,
+            *::before,
+            *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
 
-    :root {
-      --bg:        #0c1017;
-      --surface:   #141a23;
-      --surface2:  #1a2230;
-      --border:    #242d3a;
-      --border-lt: #2e3a4a;
-      --text:      #d8e0ea;
-      --text-dim:  #6b7a8d;
-      --text-xdim: #4a5568;
-      --accent:    #4a9eff;
-      --accent-dim:rgba(74, 158, 255, 0.12);
-      --high:      #ef4444;
-      --high-dim:  rgba(239, 68, 68, 0.10);
-      --warn:      #e5a820;
-      --warn-dim:  rgba(229, 168, 32, 0.10);
-      --info:      #4a9eff;
-      --info-dim:  rgba(74, 158, 255, 0.08);
-      --secure:    #22c55e;
-      --secure-dim:rgba(34, 197, 94, 0.10);
-      --mono:      'SF Mono', 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
-      --sans:      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif;
-      --sidebar-w: 260px;
-    }
+            :root {
+                --bg: #0d1117;
+                --surface: #161b22;
+                --surface2: #1c2128;
+                --border: #30363d;
+                --border-lt: #3a424d;
+                --border-inner: #21262d;
+                --text: #e6edf3;
+                --text-heading: #f0f6fc;
+                --text-body: #c9d1d9;
+                --text-dim: #8b949e;
+                --text-xdim: #7a8798;
+                --accent: #58a6ff;
+                --accent-dim: rgba(88, 166, 255, 0.12);
+                --high: #f85149;
+                --high-bg: #3d0f0f;
+                --high-border: #6e1a1a;
+                --high-subtle: #1a0a0a;
+                --high-dim: rgba(248, 81, 73, 0.1);
+                --warn: #d29922;
+                --warn-bg: #2d1f00;
+                --warn-border: #5a3e00;
+                --warn-subtle: #1a1400;
+                --warn-dim: rgba(210, 153, 34, 0.1);
+                --info: #58a6ff;
+                --info-bg: #0d2045;
+                --info-border: #1f4080;
+                --info-dim: rgba(88, 166, 255, 0.08);
+                --secure: #3fb950;
+                --secure-bg: #0d2c1a;
+                --secure-border: #1a5c34;
+                --secure-text: #7ee787;
+                --secure-subtle: #0d1a12;
+                --secure-dim: rgba(63, 185, 80, 0.1);
+                --purple: #8b5cf6;
+                --code-blue: #79c0ff;
+                --code-orange: #f0883e;
+                --mono:
+                    "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas,
+                    monospace;
+                --sans:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Helvetica, sans-serif;
+                --sidebar-w: 260px;
+            }
 
-    html { font-size: 15px; }
+            html {
+                font-size: 15px;
+            }
 
-    body {
-      background: var(--bg);
-      background-image:
-        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(74, 158, 255, 0.06), transparent 70%),
-        radial-gradient(ellipse 60% 40% at 80% 100%, rgba(139, 92, 246, 0.04), transparent 60%);
-      color: var(--text);
-      font-family: var(--sans);
-      min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
+            body {
+                background: var(--bg);
+                background-image:
+                    radial-gradient(
+                        ellipse 80% 50% at 50% -10%,
+                        rgba(74, 158, 255, 0.06),
+                        transparent 70%
+                    ),
+                    radial-gradient(
+                        ellipse 60% 40% at 80% 100%,
+                        rgba(139, 92, 246, 0.04),
+                        transparent 60%
+                    );
+                color: var(--text);
+                font-family: var(--sans);
+                min-height: 100vh;
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+            }
 
-    /* ── Shell layout ── */
-    .shell {
-      min-height: 100vh;
-    }
-    .shell.sidebar-collapsed .sidebar { transform: translateX(calc(-1 * var(--sidebar-w))); }
+            /* ── Shell layout ── */
+            .shell {
+                min-height: 100vh;
+            }
+            .shell.sidebar-collapsed .sidebar {
+                transform: translateX(calc(-1 * var(--sidebar-w)));
+            }
 
-    /* ── Sidebar ── */
-    .sidebar {
-      width: var(--sidebar-w);
-      background: var(--surface);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      z-index: 20;
-      overflow: hidden;
-    }
+            /* ── Sidebar ── */
+            .sidebar {
+                width: var(--sidebar-w);
+                background: var(--surface);
+                border-right: 1px solid var(--border);
+                display: flex;
+                flex-direction: column;
+                transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+                position: fixed;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                z-index: 20;
+                overflow: hidden;
+            }
 
-    .sidebar-head {
-      padding: 1.1rem 1rem 0.9rem;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 0.6rem;
-      flex-shrink: 0;
-    }
-    .sidebar-head svg {
-      width: 22px;
-      height: 22px;
-      flex-shrink: 0;
-      filter: drop-shadow(0 0 6px rgba(74, 158, 255, 0.3));
-    }
-    .sidebar-title {
-      font-size: 0.95rem;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-    }
+            .sidebar-head {
+                padding: 1.1rem 1rem 0.9rem;
+                border-bottom: 1px solid var(--border);
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+                flex-shrink: 0;
+                cursor: pointer;
+                transition: background 0.12s;
+                user-select: none;
+            }
+            .sidebar-head:hover {
+                background: var(--surface2);
+            }
+            .sidebar-head svg {
+                width: 22px;
+                height: 22px;
+                flex-shrink: 0;
+                filter: drop-shadow(0 0 6px rgba(74, 158, 255, 0.3));
+                transition: filter 0.35s ease;
+            }
+            .sidebar-head:hover svg {
+                filter: drop-shadow(0 0 10px rgba(74, 158, 255, 0.55))
+                    drop-shadow(0 0 22px rgba(139, 92, 246, 0.3));
+            }
+            .sidebar-title {
+                font-size: 0.95rem;
+                font-weight: 800;
+                letter-spacing: -0.04em;
+            }
 
-    .sidebar-nav {
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      padding: 0.5rem 0.5rem 0;
-      flex-shrink: 0;
-    }
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 0.55rem;
-      padding: 0.5rem 0.6rem;
-      font-size: 0.82rem;
-      font-weight: 500;
-      color: var(--text-dim);
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.12s, color 0.12s;
-      border: none;
-      background: none;
-      width: 100%;
-      text-align: left;
-      text-decoration: none;
-      font-family: var(--sans);
-    }
-    .nav-item:hover { background: var(--surface2); color: var(--text); }
-    .nav-item.active { background: var(--accent-dim); color: var(--accent); }
-    .nav-item svg {
-      width: 16px;
-      height: 16px;
-      flex-shrink: 0;
-      opacity: 0.7;
-    }
-    .nav-item:hover svg, .nav-item.active svg { opacity: 1; }
+            .sidebar-nav {
+                display: flex;
+                flex-direction: column;
+                gap: 1px;
+                padding: 0.5rem 0.5rem 0;
+                flex-shrink: 0;
+            }
+            .nav-item {
+                display: flex;
+                align-items: center;
+                gap: 0.55rem;
+                padding: 0.5rem 0.6rem;
+                font-size: 0.82rem;
+                font-weight: 500;
+                color: var(--text-dim);
+                border-radius: 4px;
+                cursor: pointer;
+                transition:
+                    background 0.12s,
+                    color 0.12s;
+                border: none;
+                background: none;
+                width: 100%;
+                text-align: left;
+                text-decoration: none;
+                font-family: var(--sans);
+            }
+            .nav-item:hover {
+                background: var(--surface2);
+                color: var(--text);
+            }
+            .nav-item.active {
+                background: var(--accent-dim);
+                color: var(--accent);
+            }
+            .nav-item svg {
+                width: 16px;
+                height: 16px;
+                flex-shrink: 0;
+                opacity: 0.7;
+            }
+            .nav-item:hover svg,
+            .nav-item.active svg {
+                opacity: 1;
+            }
 
-    .sidebar-divider {
-      height: 1px;
-      background: var(--border);
-      margin: 0.5rem 0.75rem;
-      flex-shrink: 0;
-    }
+            .sidebar-divider {
+                height: 1px;
+                background: var(--border);
+                margin: 0.5rem 0.75rem;
+                flex-shrink: 0;
+            }
 
-    .sidebar-section-label {
-      font-size: 0.6rem;
-      font-weight: 700;
-      font-family: var(--mono);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-xdim);
-      padding: 0.5rem 0.75rem 0.25rem;
-      flex-shrink: 0;
-    }
+            .sidebar-section-label {
+                font-size: 0.6rem;
+                font-weight: 700;
+                font-family: var(--mono);
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--text-xdim);
+                padding: 0.5rem 0.75rem 0.25rem;
+                flex-shrink: 0;
+            }
 
-    .history-list {
-      flex: 1;
-      overflow-y: auto;
-      padding: 0.25rem 0.5rem 0.5rem;
-    }
-    .history-list::-webkit-scrollbar { width: 4px; }
-    .history-list::-webkit-scrollbar-track { background: transparent; }
-    .history-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+            .history-list {
+                flex: 1;
+                overflow-y: auto;
+                padding: 0.25rem 0.5rem 0.5rem;
+            }
+            .history-list::-webkit-scrollbar {
+                width: 4px;
+            }
+            .history-list::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            .history-list::-webkit-scrollbar-thumb {
+                background: var(--border);
+                border-radius: 2px;
+            }
 
-    .history-item {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.45rem 0.6rem;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.12s;
-      border: none;
-      background: none;
-      width: 100%;
-      text-align: left;
-      font-family: var(--sans);
-      color: var(--text);
-    }
-    .history-item:hover { background: var(--surface2); }
-    .history-item.active { background: var(--accent-dim); }
+            .history-item {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.45rem 0.6rem;
+                border-radius: 4px;
+                cursor: pointer;
+                transition: background 0.12s;
+                border: none;
+                background: none;
+                width: 100%;
+                text-align: left;
+                font-family: var(--sans);
+                color: var(--text);
+            }
+            .history-item:hover {
+                background: var(--surface2);
+            }
+            .history-item.active {
+                background: var(--accent-dim);
+            }
 
-    .history-grade {
-      font-size: 0.7rem;
-      font-weight: 900;
-      font-family: var(--mono);
-      width: 1.4rem;
-      height: 1.4rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 3px;
-      flex-shrink: 0;
-      line-height: 1;
-    }
-    .hg-a { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
-    .hg-b { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
-    .hg-c { background: rgba(229, 168, 32, 0.15); color: #e5a820; }
-    .hg-d { background: rgba(249, 115, 22, 0.15); color: #f97316; }
-    .hg-f { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+            .history-grade {
+                font-size: 0.7rem;
+                font-weight: 900;
+                font-family: var(--mono);
+                width: 1.4rem;
+                height: 1.4rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 3px;
+                flex-shrink: 0;
+                line-height: 1;
+            }
+            .hg-a {
+                background: rgba(34, 197, 94, 0.15);
+                color: #22c55e;
+            }
+            .hg-b {
+                background: rgba(74, 222, 128, 0.15);
+                color: #4ade80;
+            }
+            .hg-c {
+                background: rgba(229, 168, 32, 0.15);
+                color: #e5a820;
+            }
+            .hg-d {
+                background: rgba(240, 136, 62, 0.15);
+                color: #f0883e;
+            }
+            .hg-f {
+                background: rgba(239, 68, 68, 0.15);
+                color: #ef4444;
+            }
 
-    .history-meta {
-      flex: 1;
-      min-width: 0;
-    }
-    .history-name {
-      font-size: 0.78rem;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .history-time {
-      font-size: 0.62rem;
-      color: var(--text-xdim);
-      font-family: var(--mono);
-    }
+            .history-meta {
+                flex: 1;
+                min-width: 0;
+            }
+            .history-name {
+                font-size: 0.78rem;
+                font-weight: 600;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .history-time {
+                font-size: 0.62rem;
+                color: var(--text-xdim);
+                font-family: var(--mono);
+            }
 
-    .history-empty {
-      padding: 1.5rem 0.75rem;
-      text-align: center;
-      color: var(--text-xdim);
-      font-size: 0.75rem;
-      line-height: 1.5;
-    }
-    .history-empty svg {
-      display: block;
-      margin: 0 auto 0.5rem;
-      opacity: 0.3;
-    }
+            .history-empty {
+                padding: 1.5rem 0.75rem;
+                text-align: center;
+                color: var(--text-xdim);
+                font-size: 0.75rem;
+                line-height: 1.5;
+            }
+            .history-empty svg {
+                display: block;
+                margin: 0 auto 0.5rem;
+                opacity: 0.3;
+            }
 
-    .sidebar-footer {
-      padding: 0.6rem 0.75rem;
-      border-top: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-    .sidebar-footer a {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.72rem;
-      color: var(--text-xdim);
-      text-decoration: none;
-      transition: color 0.12s;
-      font-family: var(--mono);
-    }
-    .sidebar-footer a:hover { color: var(--text-dim); }
-    .sidebar-footer svg { width: 14px; height: 14px; flex-shrink: 0; }
+            .sidebar-footer {
+                padding: 0.6rem 0.75rem;
+                border-top: 1px solid var(--border);
+                flex-shrink: 0;
+            }
+            .sidebar-footer a {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-size: 0.72rem;
+                color: var(--text-xdim);
+                text-decoration: none;
+                transition: color 0.12s;
+                font-family: var(--mono);
+            }
+            .sidebar-footer a:hover {
+                color: var(--text-dim);
+            }
+            .sidebar-footer svg {
+                width: 14px;
+                height: 14px;
+                flex-shrink: 0;
+            }
 
-    /* ── Page (right side) ── */
-    .page {
-      min-height: 100vh;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      margin-left: var(--sidebar-w);
-      transition: margin-left 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .shell.sidebar-collapsed .page { margin-left: 0; }
+            /* ── Page (right side) ── */
+            .page {
+                min-height: 100vh;
+                display: grid;
+                grid-template-rows: auto 1fr auto;
+                margin-left: var(--sidebar-w);
+                transition: margin-left 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+            .shell.sidebar-collapsed .page {
+                margin-left: 0;
+            }
 
-    /* ── Top bar ── */
-    .topbar {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.65rem 1.25rem;
-      border-bottom: 1px solid var(--border);
-      background: color-mix(in srgb, var(--surface) 60%, transparent);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      position: sticky;
-      top: 0;
-      z-index: 10;
-    }
+            /* ── Top bar ── */
+            .topbar {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding: 0.65rem 1.25rem;
+                border-bottom: 1px solid var(--border);
+                background: color-mix(in srgb, var(--surface) 60%, transparent);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
 
-    .toggle-sidebar {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      background: var(--surface);
-      color: var(--text-dim);
-      cursor: pointer;
-      transition: background 0.12s, color 0.12s, border-color 0.12s;
-      flex-shrink: 0;
-    }
-    .toggle-sidebar:hover {
-      background: var(--surface2);
-      color: var(--text);
-      border-color: var(--border-lt);
-    }
-    .toggle-sidebar svg { width: 14px; height: 14px; }
+            .toggle-sidebar {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 28px;
+                height: 28px;
+                border: 1px solid var(--border);
+                border-radius: 4px;
+                background: var(--surface);
+                color: var(--text-dim);
+                cursor: pointer;
+                transition:
+                    background 0.12s,
+                    color 0.12s,
+                    border-color 0.12s;
+                flex-shrink: 0;
+            }
+            .toggle-sidebar:hover {
+                background: var(--surface2);
+                color: var(--text);
+                border-color: var(--border-lt);
+            }
+            .toggle-sidebar svg {
+                width: 14px;
+                height: 14px;
+            }
 
-    .topbar-spacer { flex: 1; }
+            .topbar-spacer {
+                flex: 1;
+            }
 
-    .topbar-link {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.72rem;
-      font-weight: 600;
-      color: var(--text-xdim);
-      text-decoration: none;
-      padding: 0.3rem 0.5rem;
-      border-radius: 3px;
-      transition: color 0.12s, background 0.12s;
-    }
-    .topbar-link:hover { color: var(--text-dim); background: var(--surface2); }
-    .topbar-link svg { width: 15px; height: 15px; }
+            .topbar-link {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                font-size: 0.72rem;
+                font-weight: 600;
+                color: var(--text-xdim);
+                text-decoration: none;
+                padding: 0.3rem 0.5rem;
+                border-radius: 3px;
+                transition:
+                    color 0.12s,
+                    background 0.12s;
+            }
+            .topbar-link:hover {
+                color: var(--text-dim);
+                background: var(--surface2);
+            }
+            .topbar-link svg {
+                width: 15px;
+                height: 15px;
+            }
 
-    /* ── Main content ── */
-    .main {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
-    }
-    .page.has-results .main {
-      align-items: flex-start;
-      padding-top: 2rem;
-    }
+            /* ── Main content ── */
+            .main {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: clamp(1.5rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem);
+            }
+            .page.has-results .main {
+                align-items: flex-start;
+                padding-top: 2rem;
+            }
 
-    .container {
-      width: 100%;
-      max-width: 820px;
-    }
+            .container {
+                width: 100%;
+                max-width: 820px;
+            }
 
-    /* ── View switching ── */
-    .view { display: none; }
-    .view.active { display: block; }
+            /* ── View switching ── */
+            .view {
+                display: none;
+            }
+            .view.active {
+                display: block;
+            }
 
-    /* ── Upload zone ── */
-    .upload {
-      position: relative;
-    }
+            /* ── Scan hero / wordmark ── */
+            .scan-hero {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                margin-bottom: 2rem;
+            }
+            .scan-hero svg {
+                width: 34px;
+                height: 34px;
+                flex-shrink: 0;
+                filter: drop-shadow(0 0 8px rgba(74, 158, 255, 0.3));
+            }
+            .scan-hero-name {
+                font-size: 1.45rem;
+                font-weight: 800;
+                letter-spacing: -0.04em;
+                line-height: 1;
+            }
+            .scan-hero-sub {
+                font-size: 0.75rem;
+                color: var(--text-xdim);
+                margin-top: 0.2rem;
+                font-family: var(--mono);
+                letter-spacing: 0.01em;
+            }
 
-    .drop-zone {
-      position: relative;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 3.5rem 2rem;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
-      background: var(--surface);
-    }
-    .drop-zone::before {
-      content: '';
-      position: absolute;
-      inset: -1px;
-      border-radius: 6px;
-      opacity: 0;
-      transition: opacity 0.25s;
-      pointer-events: none;
-      padding: 1px;
-      background: linear-gradient(135deg, var(--accent), #8b5cf6, var(--accent));
-      background-size: 200% 200%;
-      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-    }
-    .drop-zone:hover::before,
-    .drop-zone.drag-over::before {
-      opacity: 1;
-      animation: borderShift 3s ease infinite;
-    }
-    @keyframes borderShift {
-      0%, 100% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-    }
-    .drop-zone:hover,
-    .drop-zone.drag-over {
-      background: color-mix(in srgb, var(--accent) 4%, var(--surface));
-      border-color: transparent;
-      box-shadow: 0 0 30px rgba(74, 158, 255, 0.08), 0 4px 20px rgba(0, 0, 0, 0.3);
-    }
-    .drop-zone.has-file {
-      border-color: var(--secure);
-      background: color-mix(in srgb, var(--secure) 4%, var(--surface));
-      box-shadow: 0 0 30px rgba(34, 197, 94, 0.08), 0 4px 20px rgba(0, 0, 0, 0.3);
-    }
-    .drop-zone.has-file::before { opacity: 0; }
+            /* ── Upload zone ── */
+            .upload {
+                position: relative;
+            }
 
-    .drop-zone input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-      width: 100%;
-      height: 100%;
-    }
+            .drop-zone {
+                position: relative;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                padding: 3.5rem 2rem;
+                text-align: center;
+                cursor: pointer;
+                transition:
+                    border-color 0.2s,
+                    background 0.2s,
+                    box-shadow 0.2s;
+                background: var(--surface);
+            }
+            .drop-zone:hover,
+            .drop-zone.drag-over {
+                background: color-mix(
+                    in srgb,
+                    var(--accent) 4%,
+                    var(--surface)
+                );
+                border-color: var(--accent);
+                box-shadow:
+                    0 0 30px rgba(88, 166, 255, 0.08),
+                    0 4px 20px rgba(0, 0, 0, 0.3);
+            }
+            .drop-zone.has-file {
+                border-color: var(--secure);
+                background: color-mix(
+                    in srgb,
+                    var(--secure) 4%,
+                    var(--surface)
+                );
+                box-shadow:
+                    0 0 30px rgba(34, 197, 94, 0.08),
+                    0 4px 20px rgba(0, 0, 0, 0.3);
+            }
+            .drop-zone.has-file::before {
+                opacity: 0;
+            }
 
-    .drop-icon {
-      display: block;
-      margin: 0 auto 1rem;
-      color: var(--text-xdim);
-      transition: color 0.2s, transform 0.2s;
-    }
-    .drop-zone:hover .drop-icon,
-    .drop-zone.drag-over .drop-icon {
-      color: var(--accent);
-      transform: translateY(-2px);
-    }
-    .drop-zone.has-file .drop-icon {
-      color: var(--secure);
-    }
+            .drop-zone input[type="file"] {
+                position: absolute;
+                inset: 0;
+                opacity: 0;
+                cursor: pointer;
+                width: 100%;
+                height: 100%;
+            }
 
-    .drop-label {
-      font-size: 0.95rem;
-      color: var(--text-dim);
-      line-height: 1.5;
-    }
-    .drop-label strong {
-      color: var(--text);
-      font-weight: 600;
-    }
+            .drop-icon {
+                display: block;
+                margin: 0 auto 1rem;
+                color: var(--text-xdim);
+                transition:
+                    color 0.2s,
+                    transform 0.2s;
+            }
+            .drop-zone:hover .drop-icon,
+            .drop-zone.drag-over .drop-icon {
+                color: var(--accent);
+                transform: translateY(-2px);
+            }
+            .drop-zone.has-file .drop-icon {
+                color: var(--secure);
+            }
 
-    .file-name {
-      margin-top: 0.6rem;
-      font-size: 0.8rem;
-      color: var(--secure);
-      font-family: var(--mono);
-      min-height: 1.2em;
-      letter-spacing: -0.01em;
-    }
+            .drop-label {
+                font-size: 0.95rem;
+                color: var(--text-dim);
+                line-height: 1.5;
+            }
+            .drop-label strong {
+                color: var(--text);
+                font-weight: 600;
+            }
 
-    /* ── Controls row ── */
-    .controls {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      margin-top: 0.75rem;
-    }
+            .file-name {
+                margin-top: 0.6rem;
+                font-size: 0.8rem;
+                color: var(--secure);
+                font-family: var(--mono);
+                min-height: 1.2em;
+                letter-spacing: -0.01em;
+            }
 
-    .btn-scan {
-      font-family: var(--mono);
-      font-size: 0.85rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      background: linear-gradient(135deg, var(--accent), #6d8fff);
-      color: var(--bg);
-      border: none;
-      border-radius: 4px;
-      padding: 0.7rem 2.2rem;
-      cursor: pointer;
-      transition: box-shadow 0.2s, transform 0.15s, opacity 0.12s;
-      box-shadow: 0 2px 12px rgba(74, 158, 255, 0.25);
-    }
-    .btn-scan:hover:not(:disabled) {
-      box-shadow: 0 4px 20px rgba(74, 158, 255, 0.4);
-      transform: translateY(-1px);
-    }
-    .btn-scan:active:not(:disabled) {
-      transform: translateY(0);
-      box-shadow: 0 1px 6px rgba(74, 158, 255, 0.2);
-    }
-    .btn-scan:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-      transform: none;
-      box-shadow: none;
-    }
+            /* ── Controls row ── */
+            .controls {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                margin-top: 0.75rem;
+            }
 
-    /* ── Loading indicator ── */
-    #loading {
-      display: none;
-      align-items: center;
-      gap: 0.65rem;
-    }
-    #loading.active { display: flex; }
+            .btn-scan {
+                font-family: var(--mono);
+                font-size: 0.85rem;
+                font-weight: 700;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                background: linear-gradient(135deg, var(--accent), #6d8fff);
+                color: var(--bg);
+                border: none;
+                border-radius: 4px;
+                padding: 0.7rem 2.2rem;
+                cursor: pointer;
+                transition:
+                    box-shadow 0.2s,
+                    transform 0.15s,
+                    opacity 0.12s;
+                box-shadow: 0 2px 12px rgba(74, 158, 255, 0.25);
+            }
+            .btn-scan:hover:not(:disabled) {
+                box-shadow: 0 4px 20px rgba(74, 158, 255, 0.4);
+                transform: translateY(-1px);
+            }
+            .btn-scan:active:not(:disabled) {
+                transform: translateY(0);
+                box-shadow: 0 1px 6px rgba(74, 158, 255, 0.2);
+            }
+            .btn-scan:disabled {
+                opacity: 0.35;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
+            }
 
-    .spinner {
-      width: 16px;
-      height: 16px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.55s linear infinite;
-      flex-shrink: 0;
-      box-shadow: 0 0 8px rgba(74, 158, 255, 0.2);
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
+            /* ── Loading indicator ── */
+            #loading {
+                display: none;
+                flex-direction: column;
+                gap: 0.3rem;
+            }
+            #loading.active {
+                display: flex;
+            }
+            .scan-loading-row {
+                display: flex;
+                align-items: center;
+                gap: 0.65rem;
+            }
 
-    .scan-phases {
-      display: flex;
-      gap: 0.25rem;
-      font-size: 0.72rem;
-      font-family: var(--mono);
-      letter-spacing: 0.02em;
-    }
-    .scan-phase {
-      color: var(--border-lt);
-      transition: color 0.2s;
-    }
-    .scan-phase::after {
-      content: ' \2192';
-      color: var(--border);
-    }
-    .scan-phase:last-child::after { content: ''; }
-    .scan-phase.active { color: var(--accent); }
-    .scan-phase.done { color: var(--secure); }
+            .spinner {
+                width: 16px;
+                height: 16px;
+                border: 2px solid var(--border);
+                border-top-color: var(--accent);
+                border-radius: 50%;
+                animation: spin 0.55s linear infinite;
+                flex-shrink: 0;
+                box-shadow: 0 0 8px rgba(74, 158, 255, 0.2);
+            }
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
 
-    /* ── Upload progress bar ── */
-    .upload-progress {
-      display: none;
-      margin-top: 0.75rem;
-    }
-    .upload-progress.active { display: block; }
-    .progress-bar-track {
-      height: 4px;
-      background: var(--surface2);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    .progress-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, var(--accent), #8b5cf6);
-      border-radius: 2px;
-      transition: width 0.3s ease;
-    }
-    .progress-text {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.7rem;
-      font-family: var(--mono);
-      color: var(--text-dim);
-      margin-top: 0.35rem;
-    }
+            .scan-phases {
+                display: flex;
+                gap: 0.25rem;
+                font-size: 0.72rem;
+                font-family: var(--mono);
+                letter-spacing: 0.02em;
+            }
+            .scan-phase {
+                color: var(--border-lt);
+                transition: color 0.2s;
+            }
+            .scan-phase::after {
+                content: " \2192";
+                color: var(--border);
+            }
+            .scan-phase:last-child::after {
+                content: "";
+            }
+            .scan-phase.active {
+                color: var(--accent);
+            }
+            .scan-phase.done {
+                color: var(--secure);
+            }
 
-    /* ── Cache badge ── */
-    .cache-badge {
-      display: inline-block;
-      font-size: 0.55rem;
-      font-family: var(--mono);
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      padding: 0.15rem 0.45rem;
-      border-radius: 3px;
-      background: rgba(139, 92, 246, 0.12);
-      color: #a78bfa;
-      border: 1px solid rgba(139, 92, 246, 0.2);
-      vertical-align: middle;
-      margin-left: 0.4rem;
-    }
+            /* ── Upload progress bar ── */
+            .upload-progress {
+                display: none;
+                margin-top: 0.75rem;
+            }
+            .upload-progress.active {
+                display: block;
+            }
+            .progress-bar-track {
+                height: 4px;
+                background: var(--surface2);
+                border-radius: 2px;
+                overflow: hidden;
+            }
+            @keyframes shimmerMove {
+                0% {
+                    background-position: 200% 50%;
+                }
+                100% {
+                    background-position: -200% 50%;
+                }
+            }
+            .progress-bar-fill {
+                height: 100%;
+                width: 0%;
+                background: linear-gradient(
+                    90deg,
+                    var(--accent) 0%,
+                    var(--purple) 50%,
+                    var(--accent) 100%
+                );
+                background-size: 200% 100%;
+                border-radius: 2px;
+                transition: width 0.3s ease;
+                animation: shimmerMove 2s linear infinite;
+            }
+            .progress-text {
+                display: flex;
+                justify-content: space-between;
+                font-size: 0.7rem;
+                font-family: var(--mono);
+                color: var(--text-dim);
+                margin-top: 0.35rem;
+            }
 
-    /* ── Capabilities row ── */
-    .capabilities {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      margin-top: 1.75rem;
-    }
-    @media (max-width: 560px) {
-      .capabilities { grid-template-columns: 1fr; }
-    }
-    .cap {
-      padding: 0.75rem 0.9rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      border-left: 2px solid var(--accent);
-      transition: border-color 0.2s, background 0.2s, transform 0.2s;
-    }
-    .cap:nth-child(2) { border-left-color: var(--high); }
-    .cap:nth-child(3) { border-left-color: var(--warn); }
-    .cap:nth-child(4) { border-left-color: #8b5cf6; }
-    .cap:nth-child(5) { border-left-color: var(--secure); }
-    .cap:nth-child(6) { border-left-color: #f0883e; }
-    .cap:hover {
-      background: var(--surface2);
-      transform: translateY(-1px);
-    }
-    .cap-name {
-      font-size: 0.68rem;
-      font-weight: 700;
-      font-family: var(--mono);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--text-dim);
-      margin-bottom: 0.25rem;
-    }
-    .cap-desc {
-      font-size: 0.78rem;
-      color: var(--text-xdim);
-      line-height: 1.35;
-    }
+            /* ── Cache badge ── */
+            .cache-badge {
+                display: inline-block;
+                font-size: 0.55rem;
+                font-family: var(--mono);
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                padding: 0.15rem 0.45rem;
+                border-radius: 3px;
+                background: rgba(139, 92, 246, 0.12);
+                color: #a78bfa;
+                border: 1px solid rgba(139, 92, 246, 0.2);
+                vertical-align: middle;
+                margin-left: 0.4rem;
+            }
 
-    /* ── Footer ── */
-    footer {
-      padding: 1.5rem;
-      text-align: center;
-      font-size: 0.65rem;
-      font-family: var(--mono);
-      color: var(--text-xdim);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
+            /* ── Capabilities row ── */
+            .capabilities {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+                margin-top: 1.75rem;
+            }
+            @media (max-width: 560px) {
+                .capabilities {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .cap {
+                padding: 0.75rem 0.9rem;
+                background: var(--surface);
+                border: 1px solid var(--border);
+                border-radius: 4px;
+                border-left: 2px solid var(--accent);
+                transition:
+                    border-color 0.2s,
+                    background 0.2s,
+                    transform 0.2s;
+            }
+            .cap:nth-child(2) {
+                border-left-color: var(--high);
+            }
+            .cap:nth-child(3) {
+                border-left-color: var(--warn);
+            }
+            .cap:nth-child(4) {
+                border-left-color: var(--purple);
+            }
+            .cap:nth-child(5) {
+                border-left-color: var(--secure);
+            }
+            .cap:nth-child(6) {
+                border-left-color: #f0883e;
+            }
+            .cap:hover {
+                background: var(--surface2);
+                transform: translateY(-1px);
+            }
+            .cap-name {
+                font-size: 0.68rem;
+                font-weight: 700;
+                font-family: var(--mono);
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: var(--text-dim);
+                margin-bottom: 0.25rem;
+            }
+            .cap-desc {
+                font-size: 0.78rem;
+                color: var(--text-xdim);
+                line-height: 1.35;
+            }
 
-    /* ═══════════════════════════════════════════
+            /* ── Footer ── */
+            footer {
+                padding: 1.5rem;
+                text-align: center;
+                font-size: 0.65rem;
+                font-family: var(--mono);
+                color: var(--text-xdim);
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+            }
+
+            /* ═══════════════════════════════════════════
        About view
        ═══════════════════════════════════════════ */
 
-    .about-content {
-      max-width: 620px;
-    }
+            .about-content {
+                max-width: 620px;
+            }
 
-    .about-hero {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 2.5rem;
-    }
-    .about-hero svg {
-      width: 48px;
-      height: 48px;
-      flex-shrink: 0;
-      filter: drop-shadow(0 0 12px rgba(74, 158, 255, 0.3));
-    }
-    .about-hero-text h1 {
-      font-size: 1.6rem;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-    }
-    .about-hero-text p {
-      font-size: 0.85rem;
-      color: var(--text-dim);
-      margin-top: 0.15rem;
-    }
+            .about-hero {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                margin-bottom: 2.5rem;
+            }
+            .about-hero svg {
+                width: 48px;
+                height: 48px;
+                flex-shrink: 0;
+                filter: drop-shadow(0 0 12px rgba(74, 158, 255, 0.3));
+            }
+            .about-hero-text h1 {
+                font-size: 1.6rem;
+                font-weight: 800;
+                letter-spacing: -0.04em;
+            }
+            .about-hero-text p {
+                font-size: 0.85rem;
+                color: var(--text-dim);
+                margin-top: 0.15rem;
+            }
 
-    .about-section {
-      margin-bottom: 2rem;
-    }
-    .about-section h2 {
-      font-size: 0.65rem;
-      font-weight: 700;
-      font-family: var(--mono);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-xdim);
-      margin-bottom: 0.75rem;
-      padding-bottom: 0.4rem;
-      border-bottom: 1px solid var(--border);
-    }
-    .about-section p {
-      font-size: 0.88rem;
-      line-height: 1.65;
-      color: var(--text-dim);
-    }
-    .about-section p + p {
-      margin-top: 0.6rem;
-    }
+            .about-section {
+                margin-bottom: 2rem;
+            }
+            .about-section h2 {
+                font-size: 0.65rem;
+                font-weight: 700;
+                font-family: var(--mono);
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--text-xdim);
+                margin-bottom: 0.75rem;
+                padding-bottom: 0.4rem;
+                border-bottom: 1px solid var(--border);
+            }
+            .about-section p {
+                font-size: 0.88rem;
+                line-height: 1.65;
+                color: var(--text-dim);
+            }
+            .about-section p + p {
+                margin-top: 0.6rem;
+            }
 
-    .about-checks {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.35rem 1.5rem;
-    }
-    @media (max-width: 500px) {
-      .about-checks { grid-template-columns: 1fr; }
-    }
-    .about-check {
-      display: flex;
-      align-items: baseline;
-      gap: 0.45rem;
-      font-size: 0.82rem;
-      color: var(--text-dim);
-      padding: 0.2rem 0;
-    }
-    .about-check-icon {
-      color: var(--accent);
-      font-size: 0.7rem;
-      flex-shrink: 0;
-      font-weight: 800;
-    }
+            .about-checks {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 0.35rem 1.5rem;
+            }
+            @media (max-width: 500px) {
+                .about-checks {
+                    grid-template-columns: 1fr;
+                }
+            }
+            .about-check {
+                display: flex;
+                align-items: baseline;
+                gap: 0.45rem;
+                font-size: 0.82rem;
+                color: var(--text-dim);
+                padding: 0.2rem 0;
+            }
+            .about-check-icon {
+                color: var(--accent);
+                font-size: 0.7rem;
+                flex-shrink: 0;
+                font-weight: 800;
+            }
 
-    .about-tech {
-      display: flex;
-      gap: 0.4rem;
-      flex-wrap: wrap;
-    }
-    .about-tech-tag {
-      font-size: 0.7rem;
-      font-family: var(--mono);
-      padding: 0.25rem 0.55rem;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      color: var(--text-dim);
-    }
+            .about-tech {
+                display: flex;
+                gap: 0.4rem;
+                flex-wrap: wrap;
+            }
+            .about-tech-tag {
+                font-size: 0.7rem;
+                font-family: var(--mono);
+                padding: 0.25rem 0.55rem;
+                background: var(--surface2);
+                border: 1px solid var(--border);
+                border-radius: 3px;
+                color: var(--text-dim);
+            }
 
-    /* ═══════════════════════════════════════════
+            /* ═══════════════════════════════════════════
        Result fragment styles
        (classes must match serve.rs output)
        ═══════════════════════════════════════════ */
 
-    .result-card {
-      margin-top: 2.5rem;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--surface);
-      overflow: hidden;
-      animation: resultIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(74, 158, 255, 0.05);
-    }
-    @keyframes resultIn {
-      from { opacity: 0; transform: translateY(16px) scale(0.99); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
+            .result-card {
+                margin-top: 2.5rem;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                background: var(--surface);
+                overflow: hidden;
+                animation: resultIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+                box-shadow:
+                    0 8px 40px rgba(0, 0, 0, 0.35),
+                    0 0 0 1px rgba(74, 158, 255, 0.05);
+            }
+            @keyframes resultIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(16px) scale(0.99);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
+            }
 
-    .result-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      padding: 1.5rem 1.75rem;
-      border-bottom: 1px solid var(--border);
-      background: linear-gradient(180deg, var(--surface2) 0%, var(--surface) 100%);
-    }
+            .result-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                padding: 1.5rem 1.75rem;
+                border-bottom: 1px solid var(--border);
+                background: linear-gradient(
+                    180deg,
+                    var(--surface2) 0%,
+                    var(--surface) 100%
+                );
+            }
 
-    .app-name {
-      font-size: 1.3rem;
-      font-weight: 800;
-      letter-spacing: -0.03em;
-    }
-    .app-version {
-      font-size: 0.82rem;
-      color: var(--text-dim);
-      font-weight: 400;
-      margin-left: 0.3rem;
-    }
-    .app-id {
-      font-size: 0.75rem;
-      color: var(--text-dim);
-      font-family: var(--mono);
-      margin-top: 0.3rem;
-    }
+            .app-name {
+                font-size: 1.3rem;
+                font-weight: 800;
+                letter-spacing: -0.03em;
+            }
+            .app-version {
+                font-size: 0.82rem;
+                color: var(--text-dim);
+                font-weight: 400;
+                margin-left: 0.3rem;
+            }
+            .app-id {
+                font-size: 0.75rem;
+                color: var(--text-dim);
+                font-family: var(--mono);
+                margin-top: 0.3rem;
+            }
 
-    .score-block {
-      text-align: right;
-      flex-shrink: 0;
-      padding-left: 1.5rem;
-    }
-    .grade {
-      font-size: 4rem;
-      font-weight: 900;
-      line-height: 1;
-      letter-spacing: -0.05em;
-      font-family: var(--sans);
-      animation: gradeReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
-    }
-    @keyframes gradeReveal {
-      from { opacity: 0; transform: scale(0.8); }
-      to   { opacity: 1; transform: scale(1); }
-    }
-    .grade-a { color: #22c55e; text-shadow: 0 0 30px rgba(34, 197, 94, 0.3); }
-    .grade-b { color: #4ade80; text-shadow: 0 0 30px rgba(74, 222, 128, 0.25); }
-    .grade-c { color: #e5a820; text-shadow: 0 0 30px rgba(229, 168, 32, 0.25); }
-    .grade-d { color: #f97316; text-shadow: 0 0 30px rgba(249, 115, 22, 0.25); }
-    .grade-f { color: #ef4444; text-shadow: 0 0 30px rgba(239, 68, 68, 0.3); }
+            .score-block {
+                text-align: right;
+                flex-shrink: 0;
+                padding-left: 1.5rem;
+            }
+            .grade {
+                font-size: 4rem;
+                font-weight: 900;
+                line-height: 1;
+                letter-spacing: -0.05em;
+                font-family: var(--sans);
+                animation: gradeReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s
+                    both;
+            }
+            @keyframes gradeReveal {
+                from {
+                    opacity: 0;
+                    transform: scale(0.8);
+                }
+                to {
+                    opacity: 1;
+                    transform: scale(1);
+                }
+            }
+            @keyframes gradeGlowGreen {
+                0%,
+                100% {
+                    text-shadow: 0 0 30px rgba(34, 197, 94, 0.3);
+                }
+                40% {
+                    text-shadow:
+                        0 0 55px rgba(34, 197, 94, 0.65),
+                        0 0 100px rgba(34, 197, 94, 0.25);
+                }
+            }
+            @keyframes gradeGlowRed {
+                0%,
+                100% {
+                    text-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
+                }
+                40% {
+                    text-shadow:
+                        0 0 50px rgba(239, 68, 68, 0.6),
+                        0 0 90px rgba(239, 68, 68, 0.2);
+                }
+            }
+            .grade-a {
+                color: #22c55e;
+                text-shadow: 0 0 30px rgba(34, 197, 94, 0.3);
+                animation:
+                    gradeReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both,
+                    gradeGlowGreen 1.4s ease-out 0.65s;
+            }
+            .grade-b {
+                color: #4ade80;
+                text-shadow: 0 0 30px rgba(74, 222, 128, 0.25);
+            }
+            .grade-c {
+                color: #e5a820;
+                text-shadow: 0 0 30px rgba(229, 168, 32, 0.25);
+            }
+            .grade-d {
+                color: #f0883e;
+                text-shadow: 0 0 30px rgba(240, 136, 62, 0.25);
+            }
+            .grade-f {
+                color: #ef4444;
+                text-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
+                animation:
+                    gradeReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both,
+                    gradeGlowRed 1.4s ease-out 0.65s;
+            }
 
-    .score-num {
-      font-size: 1rem;
-      font-weight: 700;
-      font-family: var(--mono);
-      color: var(--text-dim);
-      margin-top: 0.2rem;
-    }
-    .score-denom {
-      font-size: 0.72rem;
-      font-weight: 400;
-      color: var(--text-xdim);
-    }
+            .score-num {
+                font-size: 1rem;
+                font-weight: 700;
+                font-family: var(--mono);
+                color: var(--text-dim);
+                margin-top: 0.2rem;
+            }
+            .score-denom {
+                font-size: 0.72rem;
+                font-weight: 400;
+                color: var(--text-xdim);
+            }
 
-    /* ── Stats row ── */
-    .stats-row {
-      display: flex;
-      border-bottom: 1px solid var(--border);
-    }
-    .stat {
-      flex: 1;
-      padding: 0.8rem 0.75rem;
-      text-align: center;
-      border-right: 1px solid var(--border);
-      position: relative;
-    }
-    .stat:last-child { border-right: none; }
+            /* ── Stats row ── */
+            .stats-row {
+                display: flex;
+                border-bottom: 1px solid var(--border);
+            }
+            .stat {
+                flex: 1;
+                padding: 0.8rem 0.75rem;
+                text-align: center;
+                border-right: 1px solid var(--border);
+                position: relative;
+            }
+            .stat:last-child {
+                border-right: none;
+            }
 
-    .stat-num {
-      font-size: 1.4rem;
-      font-weight: 800;
-      font-family: var(--mono);
-      line-height: 1;
-    }
-    .stat-label {
-      font-size: 0.6rem;
-      font-family: var(--mono);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-xdim);
-      margin-top: 0.3rem;
-    }
-    .stat-high .stat-num { color: var(--high); }
-    .stat-high { box-shadow: inset 0 -2px 0 var(--high); }
-    .stat-warn .stat-num { color: var(--warn); }
-    .stat-warn { box-shadow: inset 0 -2px 0 var(--warn); }
-    .stat-info .stat-num { color: var(--info); }
-    .stat-info { box-shadow: inset 0 -2px 0 var(--info); }
+            .stat-num {
+                font-size: 1.4rem;
+                font-weight: 800;
+                font-family: var(--mono);
+                line-height: 1;
+            }
+            .stat-label {
+                font-size: 0.6rem;
+                font-family: var(--mono);
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: var(--text-xdim);
+                margin-top: 0.3rem;
+            }
+            .stat-high .stat-num {
+                color: var(--high);
+            }
+            .stat-high {
+                box-shadow: inset 0 -2px 0 var(--high);
+            }
+            .stat-warn .stat-num {
+                color: var(--warn);
+            }
+            .stat-warn {
+                box-shadow: inset 0 -2px 0 var(--warn);
+            }
+            .stat-info .stat-num {
+                color: var(--info);
+            }
+            .stat-info {
+                box-shadow: inset 0 -2px 0 var(--info);
+            }
 
-    /* ── Sections ── */
-    .section-label {
-      font-size: 0.7rem;
-      font-weight: 700;
-      font-family: var(--mono);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--text-dim);
-      padding: 1.1rem 1.75rem 0.55rem;
-    }
-    .arch-badge {
-      font-size: 0.65rem;
-      font-weight: 400;
-      text-transform: none;
-      letter-spacing: 0;
-      color: var(--text-xdim);
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 2px;
-      padding: 0.05rem 0.35rem;
-      margin-left: 0.4rem;
-      vertical-align: middle;
-    }
+            /* ── Sections ── */
+            .section-label {
+                font-size: 0.7rem;
+                font-weight: 700;
+                font-family: var(--mono);
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--text-dim);
+                padding: 1.1rem 1.75rem 0.55rem;
+            }
+            .arch-badge {
+                font-size: 0.65rem;
+                font-weight: 400;
+                text-transform: none;
+                letter-spacing: 0;
+                color: var(--text-xdim);
+                background: var(--surface2);
+                border: 1px solid var(--border);
+                border-radius: 2px;
+                padding: 0.05rem 0.35rem;
+                margin-left: 0.4rem;
+                vertical-align: middle;
+            }
 
-    /* ── Binary protections ── */
-    .prot-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 1px;
-      margin: 0 1.75rem;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      overflow: hidden;
-      background: var(--border);
-    }
-    .prot-row {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-size: 0.82rem;
-      padding: 0.45rem 0.7rem;
-      background: var(--surface2);
-      transition: background 0.15s;
-    }
-    .prot-row:hover { background: color-mix(in srgb, white 2%, var(--surface2)); }
-    .prot-icon {
-      font-size: 0.85rem;
-      font-weight: 800;
-      flex-shrink: 0;
-      width: 1rem;
-      text-align: center;
-    }
-    .prot-ok .prot-icon { color: var(--secure); text-shadow: 0 0 6px rgba(34, 197, 94, 0.4); }
-    .prot-fail .prot-icon { color: var(--high); text-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+            /* ── Binary protections ── */
+            .prot-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+                gap: 1px;
+                margin: 0 1.75rem;
+                border: 1px solid var(--border);
+                border-radius: 4px;
+                overflow: hidden;
+                background: var(--border);
+            }
+            .prot-row {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-size: 0.82rem;
+                padding: 0.45rem 0.7rem;
+                background: var(--surface2);
+                transition: background 0.15s;
+            }
+            .prot-row:hover {
+                background: color-mix(in srgb, white 2%, var(--surface2));
+            }
+            .prot-icon {
+                font-size: 0.85rem;
+                font-weight: 800;
+                flex-shrink: 0;
+                width: 1rem;
+                text-align: center;
+            }
+            .prot-ok .prot-icon {
+                color: var(--secure);
+                text-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+            }
+            .prot-fail .prot-icon {
+                color: var(--high);
+                text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+            }
 
-    /* ── Findings ── */
-    .findings-list {
-      display: flex;
-      flex-direction: column;
-      padding: 0 1.75rem;
-      gap: 1px;
-    }
+            /* ── Findings ── */
+            .findings-list {
+                display: flex;
+                flex-direction: column;
+                padding: 0 1.75rem;
+                gap: 1px;
+            }
 
-    .finding-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.65rem;
-      padding: 0.6rem 0;
-      border-bottom: 1px solid var(--border);
-      transition: background 0.15s;
-    }
-    .finding-row:last-child { border-bottom: none; }
-    .finding-row:hover {
-      background: rgba(255, 255, 255, 0.015);
-    }
+            .finding-row {
+                display: flex;
+                align-items: flex-start;
+                gap: 0.65rem;
+                padding: 0.6rem 0;
+                border-bottom: 1px solid var(--border);
+                transition: background 0.15s;
+            }
+            .finding-row:last-child {
+                border-bottom: none;
+            }
+            .finding-row:hover {
+                background: rgba(255, 255, 255, 0.015);
+            }
 
-    .sev-badge {
-      font-size: 0.58rem;
-      font-weight: 800;
-      font-family: var(--mono);
-      padding: 0.2rem 0.4rem;
-      border-radius: 3px;
-      white-space: nowrap;
-      flex-shrink: 0;
-      margin-top: 0.15rem;
-      letter-spacing: 0.04em;
-    }
-    .sev-high {
-      background: var(--high-dim);
-      color: var(--high);
-      border: 1px solid color-mix(in srgb, var(--high) 25%, transparent);
-    }
-    .sev-warn {
-      background: var(--warn-dim);
-      color: var(--warn);
-      border: 1px solid color-mix(in srgb, var(--warn) 25%, transparent);
-    }
-    .sev-info {
-      background: var(--info-dim);
-      color: var(--info);
-      border: 1px solid color-mix(in srgb, var(--info) 20%, transparent);
-    }
-    .sev-secure {
-      background: var(--secure-dim);
-      color: var(--secure);
-      border: 1px solid color-mix(in srgb, var(--secure) 20%, transparent);
-    }
+            .sev-badge {
+                font-size: 0.58rem;
+                font-weight: 800;
+                font-family: var(--mono);
+                padding: 0.2rem 0.4rem;
+                border-radius: 3px;
+                white-space: nowrap;
+                flex-shrink: 0;
+                margin-top: 0.15rem;
+                letter-spacing: 0.04em;
+            }
+            .sev-high {
+                background: var(--high-dim);
+                color: var(--high);
+                border: 1px solid
+                    color-mix(in srgb, var(--high) 25%, transparent);
+            }
+            .sev-warn {
+                background: var(--warn-dim);
+                color: var(--warn);
+                border: 1px solid
+                    color-mix(in srgb, var(--warn) 25%, transparent);
+            }
+            .sev-info {
+                background: var(--info-dim);
+                color: var(--info);
+                border: 1px solid
+                    color-mix(in srgb, var(--info) 20%, transparent);
+            }
+            .sev-secure {
+                background: var(--secure-dim);
+                color: var(--secure);
+                border: 1px solid
+                    color-mix(in srgb, var(--secure) 20%, transparent);
+            }
 
-    .finding-body { flex: 1; min-width: 0; }
-    .finding-title {
-      font-size: 0.85rem;
-      font-weight: 500;
-      line-height: 1.3;
-    }
-    .finding-evidence {
-      font-size: 0.72rem;
-      color: var(--text-dim);
-      font-family: var(--mono);
-      margin-top: 0.15rem;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .finding-id {
-      font-size: 0.65rem;
-      font-family: var(--mono);
-      color: var(--text-xdim);
-      flex-shrink: 0;
-      margin-top: 0.15rem;
-    }
+            .finding-body {
+                flex: 1;
+                min-width: 0;
+            }
+            .finding-title {
+                font-size: 0.85rem;
+                font-weight: 500;
+                line-height: 1.3;
+            }
+            .finding-evidence {
+                font-size: 0.72rem;
+                color: var(--text-dim);
+                font-family: var(--mono);
+                margin-top: 0.15rem;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .finding-id {
+                font-size: 0.65rem;
+                font-family: var(--mono);
+                color: var(--text-xdim);
+                flex-shrink: 0;
+                margin-top: 0.15rem;
+            }
 
-    .more-note {
-      font-size: 0.78rem;
-      color: var(--text-dim);
-      text-align: center;
-      padding: 0.85rem 1.75rem;
-      border-top: 1px solid var(--border);
-    }
+            .more-note {
+                font-size: 0.78rem;
+                color: var(--text-dim);
+                text-align: center;
+                padding: 0.85rem 1.75rem;
+                border-top: 1px solid var(--border);
+            }
 
-    /* ── Staggered cascade on result sections ── */
-    .result-card .stats-row { animation: sectionIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both; }
-    .result-card .section-label { animation: sectionIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both; }
-    .result-card .prot-grid { animation: sectionIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both; }
-    .result-card .findings-list { animation: sectionIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both; }
-    .result-card .download-row { animation: sectionIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both; }
-    @keyframes sectionIn {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
+            /* ── Staggered cascade on result sections ── */
+            .result-card .stats-row {
+                animation: sectionIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.1s
+                    both;
+            }
+            .result-card .section-label {
+                animation: sectionIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.2s
+                    both;
+            }
+            .result-card .prot-grid {
+                animation: sectionIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.25s
+                    both;
+            }
+            .result-card .findings-list {
+                animation: sectionIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.3s
+                    both;
+            }
+            .result-card .download-row {
+                animation: sectionIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.35s
+                    both;
+            }
+            @keyframes sectionIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(6px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
 
-    /* ── Download buttons ── */
-    .download-row {
-      display: flex;
-      border-top: 1px solid var(--border);
-    }
-    .btn {
-      flex: 1;
-      text-align: center;
-      padding: 0.75rem 1rem;
-      font-size: 0.8rem;
-      font-weight: 700;
-      font-family: var(--mono);
-      letter-spacing: 0.04em;
-      text-decoration: none;
-      transition: background 0.15s, color 0.15s;
-      border: none;
-      border-radius: 0;
-    }
-    .btn-json {
-      background: var(--surface2);
-      color: var(--info);
-      border-right: 1px solid var(--border);
-    }
-    .btn-json:hover {
-      background: color-mix(in srgb, var(--info) 12%, var(--surface2));
-      color: color-mix(in srgb, white 20%, var(--info));
-    }
-    .btn-pdf {
-      background: var(--surface2);
-      color: #b384f5;
-    }
-    .btn-pdf:hover {
-      background: color-mix(in srgb, #b384f5 12%, var(--surface2));
-      color: color-mix(in srgb, white 20%, #b384f5);
-    }
+            /* ── Download buttons ── */
+            .download-row {
+                display: flex;
+                border-top: 1px solid var(--border);
+            }
+            .btn {
+                flex: 1;
+                text-align: center;
+                padding: 0.75rem 1rem;
+                font-size: 0.8rem;
+                font-weight: 700;
+                font-family: var(--mono);
+                letter-spacing: 0.04em;
+                text-decoration: none;
+                transition:
+                    background 0.15s,
+                    color 0.15s;
+                border: none;
+                border-radius: 0;
+            }
+            .btn-json {
+                background: var(--surface2);
+                color: var(--info);
+                border-right: 1px solid var(--border);
+            }
+            .btn-json:hover {
+                background: color-mix(
+                    in srgb,
+                    var(--info) 12%,
+                    var(--surface2)
+                );
+                color: color-mix(in srgb, white 20%, var(--info));
+            }
+            .btn-pdf {
+                background: var(--surface2);
+                color: #b384f5;
+            }
+            .btn-pdf:hover {
+                background: color-mix(in srgb, #b384f5 12%, var(--surface2));
+                color: color-mix(in srgb, white 20%, #b384f5);
+            }
 
-    /* ── Error ── */
-    .error-card {
-      display: flex;
-      align-items: center;
-      gap: 0.65rem;
-      background: var(--high-dim);
-      border: 1px solid color-mix(in srgb, var(--high) 25%, transparent);
-      border-radius: 4px;
-      padding: 0.85rem 1.25rem;
-      margin-top: 2rem;
-      color: var(--high);
-      animation: resultIn 0.2s ease-out;
-    }
-    .error-icon { font-size: 1rem; flex-shrink: 0; font-weight: 700; }
-    .error-msg { font-size: 0.85rem; }
+            /* ── Error ── */
+            .error-card {
+                display: flex;
+                align-items: center;
+                gap: 0.65rem;
+                background: var(--high-dim);
+                border: 1px solid
+                    color-mix(in srgb, var(--high) 25%, transparent);
+                border-radius: 4px;
+                padding: 0.85rem 1.25rem;
+                margin-top: 2rem;
+                color: var(--high);
+                animation: resultIn 0.2s ease-out;
+            }
+            .error-icon {
+                font-size: 1rem;
+                flex-shrink: 0;
+                font-weight: 700;
+            }
+            .error-msg {
+                font-size: 0.85rem;
+            }
 
-    /* ── Responsive ── */
-    @media (max-width: 768px) {
-      .shell { grid-template-columns: 0px 1fr; }
-      .sidebar { transform: translateX(calc(-1 * var(--sidebar-w))); }
-      .page { margin-left: 0; }
-      .shell.sidebar-open .sidebar { transform: translateX(0); }
-      .shell.sidebar-open .sidebar-overlay { display: block; }
-    }
-    .sidebar-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 15;
-    }
+            /* ── Responsive ── */
+            @media (max-width: 768px) {
+                .shell {
+                    grid-template-columns: 0px 1fr;
+                }
+                .sidebar {
+                    transform: translateX(calc(-1 * var(--sidebar-w)));
+                }
+                .page {
+                    margin-left: 0;
+                }
+                .shell.sidebar-open .sidebar {
+                    transform: translateX(0);
+                }
+                .shell.sidebar-open .sidebar-overlay {
+                    display: block;
+                }
+            }
+            .sidebar-overlay {
+                display: none;
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.5);
+                z-index: 15;
+            }
 
-    @media (max-width: 560px) {
-      .stats-row { flex-wrap: wrap; }
-      .stat {
-        flex: 1 1 calc(33.333% - 1px);
-        min-width: 70px;
-      }
-      .result-header { padding: 1.25rem; }
-      .section-label { padding-left: 1.25rem; padding-right: 1.25rem; }
-      .findings-list { padding: 0 1.25rem; }
-      .prot-grid { margin: 0 1.25rem; }
-      .download-row { flex-direction: column; }
-      .btn-json { border-right: none; border-bottom: 1px solid var(--border); }
-      .grade { font-size: 3rem; }
-    }
+            @media (max-width: 560px) {
+                .stats-row {
+                    flex-wrap: wrap;
+                }
+                .stat {
+                    flex: 1 1 calc(33.333% - 1px);
+                    min-width: 70px;
+                }
+                .result-header {
+                    padding: 1.25rem;
+                }
+                .section-label {
+                    padding-left: 1.25rem;
+                    padding-right: 1.25rem;
+                }
+                .findings-list {
+                    padding: 0 1.25rem;
+                }
+                .prot-grid {
+                    margin: 0 1.25rem;
+                }
+                .download-row {
+                    flex-direction: column;
+                }
+                .btn-json {
+                    border-right: none;
+                    border-bottom: 1px solid var(--border);
+                }
+                .grade {
+                    font-size: 3rem;
+                }
+            }
 
-    /* ── Reduced motion ── */
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        animation-duration: 0.01ms !important;
-        animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
-      }
-    }
+            /* ── Reduced motion ── */
+            @media (prefers-reduced-motion: reduce) {
+                *,
+                *::before,
+                *::after {
+                    animation-duration: 0.01ms !important;
+                    animation-iteration-count: 1 !important;
+                    transition-duration: 0.01ms !important;
+                }
+            }
 
-    /* ── Focus ── */
-    .btn-scan:focus-visible,
-    .btn:focus-visible,
-    .toggle-sidebar:focus-visible,
-    .nav-item:focus-visible,
-    .history-item:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-    }
-    .drop-zone:focus-within {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-    }
-  </style>
-</head>
-<body>
-  <div class="shell" id="shell">
+            /* ── Scan sub-message ── */
+            .scan-msg {
+                font-size: 0.67rem;
+                font-family: var(--mono);
+                color: var(--text-xdim);
+                padding-left: calc(16px + 0.65rem); /* align after spinner */
+                min-height: 1em;
+                opacity: 0;
+                transition: opacity 0.2s;
+            }
 
-    <!-- Sidebar overlay for mobile -->
-    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+            /* ── Critical finding pulse ── */
+            @keyframes critAttention {
+                0%,
+                100% {
+                    background: transparent;
+                }
+                40% {
+                    background: rgba(239, 68, 68, 0.045);
+                }
+            }
+            .finding-row.crit-attn {
+                animation: critAttention 0.8s ease-in-out 2;
+            }
 
-    <!-- ── Sidebar ── -->
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-head">
-        <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="sGrad" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stop-color="#4a9eff"/>
-              <stop offset="100%" stop-color="#8b5cf6"/>
-            </linearGradient>
-          </defs>
-          <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#sGrad)" stroke-width="1.5" fill="none" opacity="0.6"/>
-          <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" fill="url(#sGrad)" opacity="0.1"/>
-          <path d="M10 14.5l3 3 5-5" stroke="url(#sGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-        </svg>
-        <span class="sidebar-title">Pavise</span>
-      </div>
+            /* ── Skip link ── */
+            .skip-link {
+                position: absolute;
+                top: -100%;
+                left: 0;
+                background: var(--accent);
+                color: var(--bg);
+                padding: 0.5rem 1rem;
+                font-size: 0.82rem;
+                font-weight: 600;
+                text-decoration: none;
+                z-index: 200;
+                border-radius: 0 0 4px 0;
+            }
+            .skip-link:focus {
+                top: 0;
+                outline: none;
+            }
 
-      <nav class="sidebar-nav">
-        <button class="nav-item active" data-view="scan" id="nav-scan">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-          Scan
-        </button>
-        <button class="nav-item" data-view="about" id="nav-about">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
-          </svg>
-          About
-        </button>
-      </nav>
+            /* ── Focus ── */
+            .btn-scan:focus-visible,
+            .btn:focus-visible,
+            .toggle-sidebar:focus-visible,
+            .nav-item:focus-visible,
+            .history-item:focus-visible {
+                outline: 2px solid var(--accent);
+                outline-offset: 2px;
+            }
+            .drop-zone:focus-within {
+                outline: 2px solid var(--accent);
+                outline-offset: 2px;
+            }
+        </style>
+    </head>
+    <body>
+        <a href="#main-content" class="skip-link">Skip to main content</a>
+        <div class="shell" id="shell">
+            <!-- Sidebar overlay for mobile -->
+            <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
-      <div class="sidebar-divider"></div>
-      <div class="sidebar-section-label">Scan History</div>
-
-      <div class="history-list" id="history-list">
-        <div class="history-empty" id="history-empty">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-          Upload an IPA or APK to get started
-        </div>
-      </div>
-
-      <div class="sidebar-footer">
-        <a href="https://github.com/AhmetMutworkers/pavise" target="_blank" rel="noopener noreferrer">
-          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-          github.com/pavise
-        </a>
-      </div>
-    </aside>
-
-    <!-- ── Page ── -->
-    <div class="page" id="page">
-      <div class="topbar">
-        <button class="toggle-sidebar" id="toggle-sidebar" aria-label="Toggle sidebar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
-          </svg>
-        </button>
-        <div class="topbar-spacer"></div>
-        <span style="font-size:0.65rem;font-family:var(--mono);color:var(--text-xdim);text-transform:uppercase;letter-spacing:0.08em;">Static Analysis</span>
-      </div>
-
-      <!-- ── Scan view ── -->
-      <div class="main">
-        <div class="container">
-          <div class="view active" id="view-scan">
-            <div class="upload">
-              <form id="scan-form">
-                <div class="drop-zone" id="drop-zone">
-                  <input type="file" name="file" accept=".ipa,.apk" id="file-input" required>
-                  <svg class="drop-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="17 8 12 3 7 8"/>
-                    <line x1="12" y1="3" x2="12" y2="15"/>
-                  </svg>
-                  <div class="drop-label">
-                    Drop <strong>.ipa</strong> or <strong>.apk</strong> to analyze
-                  </div>
-                  <div class="file-name" id="file-name"></div>
+            <!-- ── Sidebar ── -->
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-head">
+                    <svg
+                        viewBox="0 0 28 28"
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                    >
+                        <defs>
+                            <linearGradient
+                                id="sGrad"
+                                x1="3"
+                                y1="2"
+                                x2="25"
+                                y2="28"
+                                gradientUnits="userSpaceOnUse"
+                            >
+                                <stop offset="0%" stop-color="#4a9eff" />
+                                <stop offset="100%" stop-color="#8b5cf6" />
+                            </linearGradient>
+                        </defs>
+                        <path
+                            d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z"
+                            stroke="url(#sGrad)"
+                            stroke-width="1.5"
+                            fill="none"
+                            opacity="0.6"
+                        />
+                        <path
+                            d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z"
+                            fill="url(#sGrad)"
+                            opacity="0.1"
+                        />
+                        <path
+                            d="M10 14.5l3 3 5-5"
+                            stroke="url(#sGrad)"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            fill="none"
+                        />
+                    </svg>
+                    <span class="sidebar-title">Pavise</span>
                 </div>
 
-                <div class="upload-progress" id="upload-progress">
-                  <div class="progress-bar-track">
-                    <div class="progress-bar-fill" id="progress-fill"></div>
-                  </div>
-                  <div class="progress-text">
-                    <span id="progress-label">Uploading...</span>
-                    <span id="progress-pct">0%</span>
-                  </div>
-                </div>
+                <nav class="sidebar-nav">
+                    <button
+                        class="nav-item active"
+                        data-view="scan"
+                        id="nav-scan"
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        Scan
+                    </button>
+                    <button class="nav-item" data-view="about" id="nav-about">
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="16" x2="12" y2="12" />
+                            <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                        About
+                    </button>
+                </nav>
 
-                <div class="controls">
-                  <button class="btn-scan" type="submit" id="submit-btn">Scan</button>
-                  <div id="loading" class="scan-loading">
-                    <div class="spinner"></div>
-                    <div class="scan-phases">
-                      <span class="scan-phase" data-phase="0">upload</span>
-                      <span class="scan-phase" data-phase="1">extract</span>
-                      <span class="scan-phase" data-phase="2">binary</span>
-                      <span class="scan-phase" data-phase="3">patterns</span>
-                      <span class="scan-phase" data-phase="4">report</span>
+                <div class="sidebar-divider"></div>
+                <h2 class="sidebar-section-label">Scan History</h2>
+
+                <div class="history-list" id="history-list">
+                    <div class="history-empty" id="history-empty">
+                        <svg
+                            width="28"
+                            height="28"
+                            viewBox="0 0 28 28"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path
+                                d="M14 3L4 7.5v6.5c0 6.35 4.13 11.1 10 13 5.87-1.9 10-6.65 10-13V7.5L14 3z"
+                            />
+                        </svg>
+                        No scans yet
                     </div>
-                  </div>
                 </div>
-              </form>
+
+                <div class="sidebar-footer">
+                    <a
+                        href="https://github.com/ahmetmutlugun"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <svg viewBox="0 0 16 16" fill="currentColor">
+                            <path
+                                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+                            />
+                        </svg>
+                        github.com/ahmetmutlugun
+                    </a>
+                </div>
+            </aside>
+
+            <!-- ── Page ── -->
+            <div class="page" id="page">
+                <div class="topbar">
+                    <button
+                        class="toggle-sidebar"
+                        id="toggle-sidebar"
+                        aria-label="Toggle sidebar"
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </button>
+                    <div class="topbar-spacer"></div>
+                    <span
+                        style="
+                            font-size: 0.65rem;
+                            font-family: var(--mono);
+                            color: var(--text-xdim);
+                            text-transform: uppercase;
+                            letter-spacing: 0.08em;
+                        "
+                        >Static Analysis</span
+                    >
+                </div>
+
+                <!-- ── Scan view ── -->
+                <div class="main" id="main-content">
+                    <div class="container">
+                        <div class="view active" id="view-scan">
+                            <div class="scan-hero">
+                                <svg
+                                    viewBox="0 0 28 28"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                >
+                                    <defs>
+                                        <linearGradient
+                                            id="hGrad"
+                                            x1="3"
+                                            y1="2"
+                                            x2="25"
+                                            y2="28"
+                                            gradientUnits="userSpaceOnUse"
+                                        >
+                                            <stop
+                                                offset="0%"
+                                                stop-color="#4a9eff"
+                                            />
+                                            <stop
+                                                offset="100%"
+                                                stop-color="#8b5cf6"
+                                            />
+                                        </linearGradient>
+                                    </defs>
+                                    <path
+                                        d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z"
+                                        stroke="url(#hGrad)"
+                                        stroke-width="1.5"
+                                        fill="none"
+                                        opacity="0.6"
+                                    />
+                                    <path
+                                        d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z"
+                                        fill="url(#hGrad)"
+                                        opacity="0.1"
+                                    />
+                                    <path
+                                        d="M10 14.5l3 3 5-5"
+                                        stroke="url(#hGrad)"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        fill="none"
+                                    />
+                                </svg>
+                                <div>
+                                    <div class="scan-hero-name">Pavise</div>
+                                    <div class="scan-hero-sub">
+                                        iOS Security Analyzer
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="upload">
+                                <form id="scan-form">
+                                    <div class="drop-zone" id="drop-zone">
+                                        <input
+                                            type="file"
+                                            name="file"
+                                            accept=".ipa"
+                                            id="file-input"
+                                            required
+                                        />
+                                        <svg
+                                            class="drop-icon"
+                                            width="40"
+                                            height="40"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path
+                                                d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"
+                                            />
+                                            <polyline points="17 8 12 3 7 8" />
+                                            <line
+                                                x1="12"
+                                                y1="3"
+                                                x2="12"
+                                                y2="15"
+                                            />
+                                        </svg>
+                                        <div class="drop-label">
+                                            Drop an <strong>.ipa</strong> to
+                                            analyze
+                                        </div>
+                                        <div
+                                            class="file-name"
+                                            id="file-name"
+                                        ></div>
+                                    </div>
+
+                                    <div
+                                        class="upload-progress"
+                                        id="upload-progress"
+                                    >
+                                        <div class="progress-bar-track">
+                                            <div
+                                                class="progress-bar-fill"
+                                                id="progress-fill"
+                                            ></div>
+                                        </div>
+                                        <div class="progress-text">
+                                            <span id="progress-label"
+                                                >Uploading...</span
+                                            >
+                                            <span id="progress-pct">0%</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="controls">
+                                        <button
+                                            class="btn-scan"
+                                            type="submit"
+                                            id="submit-btn"
+                                        >
+                                            Scan
+                                        </button>
+                                        <div id="loading" class="scan-loading">
+                                            <div class="scan-loading-row">
+                                                <div class="spinner"></div>
+                                                <div class="scan-phases">
+                                                    <span
+                                                        class="scan-phase"
+                                                        data-phase="0"
+                                                        >upload</span
+                                                    >
+                                                    <span
+                                                        class="scan-phase"
+                                                        data-phase="1"
+                                                        >extract</span
+                                                    >
+                                                    <span
+                                                        class="scan-phase"
+                                                        data-phase="2"
+                                                        >binary</span
+                                                    >
+                                                    <span
+                                                        class="scan-phase"
+                                                        data-phase="3"
+                                                        >patterns</span
+                                                    >
+                                                    <span
+                                                        class="scan-phase"
+                                                        data-phase="4"
+                                                        >report</span
+                                                    >
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="scan-msg"
+                                                id="scan-msg"
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <div class="capabilities">
+                                <div class="cap">
+                                    <div class="cap-name">Binary</div>
+                                    <div class="cap-desc">
+                                        PIE, ARC, stack canaries, encryption
+                                    </div>
+                                </div>
+                                <div class="cap">
+                                    <div class="cap-name">Secrets</div>
+                                    <div class="cap-desc">
+                                        API keys, tokens, credentials
+                                    </div>
+                                </div>
+                                <div class="cap">
+                                    <div class="cap-name">OWASP</div>
+                                    <div class="cap-desc">
+                                        Mobile Top 10, CWE mapping
+                                    </div>
+                                </div>
+                                <div class="cap">
+                                    <div class="cap-name">Trackers</div>
+                                    <div class="cap-desc">
+                                        SDKs, analytics, ad networks
+                                    </div>
+                                </div>
+                                <div class="cap">
+                                    <div class="cap-name">Transport</div>
+                                    <div class="cap-desc">
+                                        ATS exceptions, insecure domains
+                                    </div>
+                                </div>
+                                <div class="cap">
+                                    <div class="cap-name">Supply Chain</div>
+                                    <div class="cap-desc">
+                                        Framework SCA, known CVEs
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div
+                                id="results"
+                                aria-live="polite"
+                                aria-atomic="true"
+                            ></div>
+                        </div>
+
+                        <!-- ── About view ── -->
+                        <div class="view" id="view-about">
+                            <div class="about-content">
+                                <div class="about-hero">
+                                    <svg
+                                        viewBox="0 0 28 28"
+                                        fill="none"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                    >
+                                        <defs>
+                                            <linearGradient
+                                                id="aGrad"
+                                                x1="3"
+                                                y1="2"
+                                                x2="25"
+                                                y2="28"
+                                                gradientUnits="userSpaceOnUse"
+                                            >
+                                                <stop
+                                                    offset="0%"
+                                                    stop-color="#4a9eff"
+                                                />
+                                                <stop
+                                                    offset="100%"
+                                                    stop-color="#8b5cf6"
+                                                />
+                                            </linearGradient>
+                                        </defs>
+                                        <path
+                                            d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z"
+                                            stroke="url(#aGrad)"
+                                            stroke-width="1.5"
+                                            fill="none"
+                                            opacity="0.6"
+                                        />
+                                        <path
+                                            d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z"
+                                            fill="url(#aGrad)"
+                                            opacity="0.1"
+                                        />
+                                        <path
+                                            d="M10 14.5l3 3 5-5"
+                                            stroke="url(#aGrad)"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            fill="none"
+                                        />
+                                    </svg>
+                                    <div class="about-hero-text">
+                                        <h1>Pavise</h1>
+                                        <p>
+                                            Fast iOS app static security
+                                            analysis
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>What it does</h2>
+                                    <p>
+                                        Pavise performs deep static analysis of
+                                        iOS IPA files in under 3 seconds. It
+                                        inspects binaries, manifests, embedded
+                                        resources, and source patterns to
+                                        surface security issues before they
+                                        ship.
+                                    </p>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>Analysis coverage</h2>
+                                    <div class="about-checks">
+                                        <div class="about-check">
+                                            <span class="about-check-icon"
+                                                >+</span
+                                            >
+                                            Binary protections (PIE, ARC, stack
+                                            canaries)
+                                        </div>
+                                        <div class="about-check">
+                                            <span class="about-check-icon"
+                                                >+</span
+                                            >
+                                            Hardcoded secrets and API keys
+                                        </div>
+                                        <div class="about-check">
+                                            <span class="about-check-icon"
+                                                >+</span
+                                            >
+                                            OWASP Mobile Top 10 mapping
+                                        </div>
+                                        <div class="about-check">
+                                            <span class="about-check-icon"
+                                                >+</span
+                                            >
+                                            Third-party tracker detection
+                                        </div>
+                                        <div class="about-check">
+                                            <span class="about-check-icon"
+                                                >+</span
+                                            >
+                                            Transport security (ATS) audit
+                                        </div>
+                                        <div class="about-check">
+                                            <span class="about-check-icon"
+                                                >+</span
+                                            >
+                                            Framework SCA with CVE lookup
+                                        </div>
+                                        <div class="about-check">
+                                            <span class="about-check-icon"
+                                                >+</span
+                                            >
+                                            Entitlements and permissions
+                                        </div>
+                                        <div class="about-check">
+                                            <span class="about-check-icon"
+                                                >+</span
+                                            >
+                                            Firebase and cloud misconfig
+                                        </div>
+                                        <div class="about-check">
+                                            <span class="about-check-icon"
+                                                >+</span
+                                            >
+                                            URL and email extraction
+                                        </div>
+                                        <div class="about-check">
+                                            <span class="about-check-icon"
+                                                >+</span
+                                            >
+                                            Provisioning profile analysis
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>Output formats</h2>
+                                    <p>
+                                        JSON for automation and CI/CD pipelines.
+                                        PDF for stakeholder reports. SARIF 2.1.0
+                                        for IDE integration. HTML for quick
+                                        review.
+                                    </p>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>Built with</h2>
+                                    <div class="about-tech">
+                                        <span class="about-tech-tag">Rust</span>
+                                        <span class="about-tech-tag">Axum</span>
+                                        <span class="about-tech-tag"
+                                            >Goblin</span
+                                        >
+                                        <span class="about-tech-tag"
+                                            >Rayon</span
+                                        >
+                                        <span class="about-tech-tag"
+                                            >Typst</span
+                                        >
+                                        <span class="about-tech-tag">Tera</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <footer>pavise static analysis</footer>
             </div>
-
-            <div class="capabilities">
-              <div class="cap">
-                <div class="cap-name">Binary</div>
-                <div class="cap-desc">PIE, ARC, stack canaries, encryption</div>
-              </div>
-              <div class="cap">
-                <div class="cap-name">Secrets</div>
-                <div class="cap-desc">API keys, tokens, credentials</div>
-              </div>
-              <div class="cap">
-                <div class="cap-name">OWASP</div>
-                <div class="cap-desc">Mobile Top 10, CWE mapping</div>
-              </div>
-              <div class="cap">
-                <div class="cap-name">Trackers</div>
-                <div class="cap-desc">SDKs, analytics, ad networks</div>
-              </div>
-              <div class="cap">
-                <div class="cap-name">Transport</div>
-                <div class="cap-desc">ATS exceptions, insecure domains</div>
-              </div>
-              <div class="cap">
-                <div class="cap-name">Supply Chain</div>
-                <div class="cap-desc">Framework SCA, known CVEs</div>
-              </div>
-            </div>
-
-            <div id="results"></div>
-          </div>
-
-          <!-- ── About view ── -->
-          <div class="view" id="view-about">
-            <div class="about-content">
-              <div class="about-hero">
-                <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <defs>
-                    <linearGradient id="aGrad" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stop-color="#4a9eff"/>
-                      <stop offset="100%" stop-color="#8b5cf6"/>
-                    </linearGradient>
-                  </defs>
-                  <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#aGrad)" stroke-width="1.5" fill="none" opacity="0.6"/>
-                  <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" fill="url(#aGrad)" opacity="0.1"/>
-                  <path d="M10 14.5l3 3 5-5" stroke="url(#aGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-                </svg>
-                <div class="about-hero-text">
-                  <h1>Pavise</h1>
-                  <p>Fast mobile app static security analysis</p>
-                </div>
-              </div>
-
-              <div class="about-section">
-                <h2>What it does</h2>
-                <p>Pavise performs deep static analysis of iOS IPA and Android APK files in under 3 seconds. It inspects binaries, manifests, embedded resources, and source patterns to surface security issues before they ship.</p>
-              </div>
-
-              <div class="about-section">
-                <h2>Analysis coverage</h2>
-                <div class="about-checks">
-                  <div class="about-check"><span class="about-check-icon">+</span> Binary protections (PIE, ARC, stack canaries)</div>
-                  <div class="about-check"><span class="about-check-icon">+</span> Hardcoded secrets and API keys</div>
-                  <div class="about-check"><span class="about-check-icon">+</span> OWASP Mobile Top 10 mapping</div>
-                  <div class="about-check"><span class="about-check-icon">+</span> Third-party tracker detection</div>
-                  <div class="about-check"><span class="about-check-icon">+</span> Transport security (ATS) audit</div>
-                  <div class="about-check"><span class="about-check-icon">+</span> Framework SCA with CVE lookup</div>
-                  <div class="about-check"><span class="about-check-icon">+</span> Entitlements and permissions</div>
-                  <div class="about-check"><span class="about-check-icon">+</span> Firebase and cloud misconfig</div>
-                  <div class="about-check"><span class="about-check-icon">+</span> URL and email extraction</div>
-                  <div class="about-check"><span class="about-check-icon">+</span> Provisioning profile analysis</div>
-                </div>
-              </div>
-
-              <div class="about-section">
-                <h2>Output formats</h2>
-                <p>JSON for automation and CI/CD pipelines. PDF for stakeholder reports. SARIF 2.1.0 for IDE integration. HTML for quick review.</p>
-              </div>
-
-              <div class="about-section">
-                <h2>Built with</h2>
-                <div class="about-tech">
-                  <span class="about-tech-tag">Rust</span>
-                  <span class="about-tech-tag">Axum</span>
-                  <span class="about-tech-tag">Goblin</span>
-                  <span class="about-tech-tag">Rayon</span>
-                  <span class="about-tech-tag">Typst</span>
-                  <span class="about-tech-tag">htmx</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
-      </div>
 
-      <footer>pavise static analysis</footer>
-    </div>
-  </div>
+        <script>
+            // ── Elements ──
+            const fileInput = document.getElementById("file-input");
+            const fileName = document.getElementById("file-name");
+            const dropZone = document.getElementById("drop-zone");
+            const page = document.getElementById("page");
+            const shell = document.getElementById("shell");
+            const sidebar = document.getElementById("sidebar");
+            const overlay = document.getElementById("sidebar-overlay");
+            const toggleBtn = document.getElementById("toggle-sidebar");
+            const historyEl = document.getElementById("history-list");
+            const emptyEl = document.getElementById("history-empty");
+            const submitBtn = document.getElementById("submit-btn");
+            const loading = document.getElementById("loading");
+            const progressEl = document.getElementById("upload-progress");
+            const progressFill = document.getElementById("progress-fill");
+            const progressLabel = document.getElementById("progress-label");
+            const progressPct = document.getElementById("progress-pct");
+            const results = document.getElementById("results");
+            const scanMsgEl = document.getElementById("scan-msg");
 
-  <script>
-    // ── Elements ──
-    const fileInput  = document.getElementById('file-input');
-    const fileName   = document.getElementById('file-name');
-    const dropZone   = document.getElementById('drop-zone');
-    const page       = document.getElementById('page');
-    const shell      = document.getElementById('shell');
-    const sidebar    = document.getElementById('sidebar');
-    const overlay    = document.getElementById('sidebar-overlay');
-    const toggleBtn  = document.getElementById('toggle-sidebar');
-    const historyEl  = document.getElementById('history-list');
-    const emptyEl    = document.getElementById('history-empty');
-    const submitBtn  = document.getElementById('submit-btn');
-    const loading    = document.getElementById('loading');
-    const progressEl = document.getElementById('upload-progress');
-    const progressFill = document.getElementById('progress-fill');
-    const progressLabel = document.getElementById('progress-label');
-    const progressPct = document.getElementById('progress-pct');
-    const results    = document.getElementById('results');
+            // ── Sidebar toggle ──
+            const isMobile = () => window.innerWidth <= 768;
 
-    // ── Sidebar toggle ──
-    const isMobile = () => window.innerWidth <= 768;
+            document
+                .querySelector(".sidebar-head")
+                .addEventListener("click", () => {
+                    switchView("scan");
+                    if (isMobile()) shell.classList.remove("sidebar-open");
+                });
 
-    toggleBtn.addEventListener('click', () => {
-      if (isMobile()) {
-        shell.classList.toggle('sidebar-open');
-      } else {
-        shell.classList.toggle('sidebar-collapsed');
-        localStorage.setItem('pavise-sidebar', shell.classList.contains('sidebar-collapsed') ? 'collapsed' : 'open');
-      }
-    });
-    overlay.addEventListener('click', () => shell.classList.remove('sidebar-open'));
+            toggleBtn.addEventListener("click", () => {
+                if (isMobile()) {
+                    shell.classList.toggle("sidebar-open");
+                } else {
+                    shell.classList.toggle("sidebar-collapsed");
+                    localStorage.setItem(
+                        "pavise-sidebar",
+                        shell.classList.contains("sidebar-collapsed")
+                            ? "collapsed"
+                            : "open",
+                    );
+                }
+            });
+            overlay.addEventListener("click", () =>
+                shell.classList.remove("sidebar-open"),
+            );
 
-    if (!isMobile() && localStorage.getItem('pavise-sidebar') === 'collapsed') {
-      shell.classList.add('sidebar-collapsed');
-    }
+            if (
+                !isMobile() &&
+                localStorage.getItem("pavise-sidebar") === "collapsed"
+            ) {
+                shell.classList.add("sidebar-collapsed");
+            }
 
-    // ── View switching ──
-    const views = document.querySelectorAll('.view');
-    const navItems = document.querySelectorAll('.nav-item[data-view]');
+            // ── View switching ──
+            const views = document.querySelectorAll(".view");
+            const navItems = document.querySelectorAll(".nav-item[data-view]");
 
-    function switchView(viewId) {
-      views.forEach(v => v.classList.toggle('active', v.id === 'view-' + viewId));
-      navItems.forEach(n => n.classList.toggle('active', n.dataset.view === viewId));
-      if (isMobile()) shell.classList.remove('sidebar-open');
-    }
+            function switchView(viewId) {
+                views.forEach((v) =>
+                    v.classList.toggle("active", v.id === "view-" + viewId),
+                );
+                navItems.forEach((n) =>
+                    n.classList.toggle("active", n.dataset.view === viewId),
+                );
+                if (isMobile()) shell.classList.remove("sidebar-open");
+            }
 
-    navItems.forEach(n => n.addEventListener('click', () => switchView(n.dataset.view)));
+            navItems.forEach((n) =>
+                n.addEventListener("click", () => switchView(n.dataset.view)),
+            );
 
-    // ── File handling ──
-    fileInput.addEventListener('change', () => {
-      const name = fileInput.files[0]?.name ?? '';
-      fileName.textContent = name;
-      dropZone.classList.toggle('has-file', !!name);
-    });
+            // ── File handling ──
+            fileInput.addEventListener("change", () => {
+                const name = fileInput.files[0]?.name ?? "";
+                fileName.textContent = name;
+                dropZone.classList.toggle("has-file", !!name);
+            });
 
-    dropZone.addEventListener('dragover', e => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-    dropZone.addEventListener('drop', e => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      if (e.dataTransfer.files.length) {
-        fileInput.files = e.dataTransfer.files;
-        const name = e.dataTransfer.files[0].name;
-        fileName.textContent = name;
-        dropZone.classList.toggle('has-file', !!name);
-      }
-    });
+            dropZone.addEventListener("dragover", (e) => {
+                e.preventDefault();
+                dropZone.classList.add("drag-over");
+            });
+            dropZone.addEventListener("dragleave", () =>
+                dropZone.classList.remove("drag-over"),
+            );
+            dropZone.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dropZone.classList.remove("drag-over");
+                if (e.dataTransfer.files.length) {
+                    fileInput.files = e.dataTransfer.files;
+                    const name = e.dataTransfer.files[0].name;
+                    fileName.textContent = name;
+                    dropZone.classList.toggle("has-file", !!name);
+                }
+            });
 
-    // ── Phase animation during scan ──
-    let phaseInterval = null;
-    const phases = document.querySelectorAll('.scan-phase');
+            // ── Phase animation during scan ──
+            let phaseInterval = null;
+            let msgInterval = null;
+            let currentPhase = 0;
+            let currentMsgIdx = 0;
+            const phases = document.querySelectorAll(".scan-phase");
 
-    function startPhases() {
-      let current = 0;
-      phases.forEach(p => p.classList.remove('active', 'done'));
-      phases[0].classList.add('active');
-      phaseInterval = setInterval(() => {
-        if (current < phases.length) {
-          phases[current].classList.remove('active');
-          phases[current].classList.add('done');
-        }
-        current++;
-        if (current < phases.length) {
-          phases[current].classList.add('active');
-        }
-      }, 600);
-    }
+            const phaseMessages = [
+                [
+                    "Streaming IPA to analysis pipeline...",
+                    "Computing SHA-256...",
+                ],
+                [
+                    "Inflating ZIP archive...",
+                    "Locating Mach-O binaries...",
+                    "Reading Info.plist...",
+                ],
+                [
+                    "Parsing Mach-O load commands...",
+                    "Checking PIE and stack canaries...",
+                    "Inspecting encryption flags...",
+                    "Extracting symbol table...",
+                ],
+                [
+                    "Running secret pattern matching...",
+                    "Scanning for hardcoded credentials...",
+                    "Checking URL schemes...",
+                    "Analyzing embedded strings...",
+                ],
+                [
+                    "Computing OWASP M-series scores...",
+                    "Grading security posture...",
+                    "Building findings summary...",
+                ],
+            ];
 
-    function stopPhases() {
-      clearInterval(phaseInterval);
-      phases.forEach(p => { p.classList.remove('active'); p.classList.add('done'); });
-    }
+            function updateScanMsg(text) {
+                scanMsgEl.style.opacity = "0";
+                setTimeout(() => {
+                    scanMsgEl.textContent = text;
+                    scanMsgEl.style.opacity = "1";
+                }, 160);
+            }
 
-    // ── Helpers ──
-    function formatBytes(bytes) {
-      if (bytes < 1024) return bytes + ' B';
-      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-      if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
-      return (bytes / 1073741824).toFixed(2) + ' GB';
-    }
+            function startPhases() {
+                currentPhase = 0;
+                currentMsgIdx = 0;
+                phases.forEach((p) => p.classList.remove("active", "done"));
+                phases[0].classList.add("active");
+                updateScanMsg(phaseMessages[0][0]);
 
-    function setProgress(pct, label) {
-      progressFill.style.width = pct + '%';
-      progressPct.textContent = Math.round(pct) + '%';
-      if (label) progressLabel.textContent = label;
-    }
+                phaseInterval = setInterval(() => {
+                    if (currentPhase < phases.length) {
+                        phases[currentPhase].classList.remove("active");
+                        phases[currentPhase].classList.add("done");
+                    }
+                    currentPhase++;
+                    currentMsgIdx = 0;
+                    if (currentPhase < phases.length) {
+                        phases[currentPhase].classList.add("active");
+                        const msgs = phaseMessages[currentPhase];
+                        if (msgs && msgs[0]) updateScanMsg(msgs[0]);
+                    }
+                }, 600);
 
-    // ── Chunked upload + scan ──
-    const CHUNK_SIZE = 50 * 1024 * 1024; // 50 MB
+                msgInterval = setInterval(() => {
+                    const msgs = phaseMessages[currentPhase] || [];
+                    if (msgs.length > 1) {
+                        currentMsgIdx = (currentMsgIdx + 1) % msgs.length;
+                        updateScanMsg(msgs[currentMsgIdx]);
+                    }
+                }, 1500);
+            }
 
-    async function uploadChunked(file) {
-      // 1. Init upload session
-      const initRes = await fetch('/api/upload', { method: 'POST' });
-      if (!initRes.ok) throw new Error('Failed to init upload');
-      const { upload_id } = await initRes.json();
+            function stopPhases() {
+                clearInterval(phaseInterval);
+                clearInterval(msgInterval);
+                phases.forEach((p) => {
+                    p.classList.remove("active");
+                    p.classList.add("done");
+                });
+                scanMsgEl.style.opacity = "0";
+            }
 
-      // 2. Upload chunks
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
+            // ── Helpers ──
+            function formatBytes(bytes) {
+                if (bytes < 1024) return bytes + " B";
+                if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+                if (bytes < 1073741824)
+                    return (bytes / 1048576).toFixed(1) + " MB";
+                return (bytes / 1073741824).toFixed(2) + " GB";
+            }
 
-        const res = await fetch(`/api/upload/${upload_id}/${i}`, {
-          method: 'PUT',
-          body: chunk,
-          headers: { 'Content-Type': 'application/octet-stream' },
-        });
+            function setProgress(pct, label) {
+                progressFill.style.width = pct + "%";
+                progressPct.textContent = Math.round(pct) + "%";
+                if (label) progressLabel.textContent = label;
+            }
 
-        if (!res.ok) {
-          const msg = await res.text();
-          throw new Error(`Chunk ${i} failed: ${msg}`);
-        }
+            // ── Chunked upload + scan ──
+            const CHUNK_SIZE = 50 * 1024 * 1024; // 50 MB
 
-        const uploaded = end;
-        const pct = (uploaded / file.size) * 100;
-        setProgress(pct, `Uploading ${formatBytes(uploaded)} / ${formatBytes(file.size)}`);
-      }
+            async function uploadChunked(file) {
+                // 1. Init upload session
+                const initRes = await fetch("/api/upload", { method: "POST" });
+                if (!initRes.ok) throw new Error("Failed to init upload");
+                const { upload_id } = await initRes.json();
 
-      // 3. Trigger scan
-      setProgress(100, 'Scanning...');
-      const scanRes = await fetch(`/api/upload/${upload_id}/scan`, { method: 'POST' });
-      if (!scanRes.ok) {
-        const msg = await scanRes.text();
-        throw new Error(msg);
-      }
-      return scanRes.text();
-    }
+                // 2. Upload chunks
+                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                for (let i = 0; i < totalChunks; i++) {
+                    const start = i * CHUNK_SIZE;
+                    const end = Math.min(start + CHUNK_SIZE, file.size);
+                    const chunk = file.slice(start, end);
 
-    // ── Form submission ──
-    document.getElementById('scan-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const file = fileInput.files[0];
-      if (!file) return;
+                    const res = await fetch(`/api/upload/${upload_id}/${i}`, {
+                        method: "PUT",
+                        body: chunk,
+                        headers: { "Content-Type": "application/octet-stream" },
+                    });
 
-      submitBtn.disabled = true;
-      loading.classList.add('active');
-      progressEl.classList.add('active');
-      setProgress(0, 'Starting upload...');
-      startPhases();
+                    if (!res.ok) {
+                        const msg = await res.text();
+                        throw new Error(`Chunk ${i} failed: ${msg}`);
+                    }
 
-      try {
-        const html = await uploadChunked(file);
-        results.innerHTML = html;
-        page.classList.add('has-results');
+                    const uploaded = end;
+                    const pct = (uploaded / file.size) * 100;
+                    setProgress(
+                        pct,
+                        `Uploading ${formatBytes(uploaded)} / ${formatBytes(file.size)}`,
+                    );
+                }
 
-        // Extract scan info for history
-        const resultCard = results.querySelector('.result-card');
-        if (resultCard) {
-          const appName = resultCard.querySelector('.app-name')?.childNodes[0]?.textContent?.trim() || 'Unknown';
-          const grade = resultCard.querySelector('.grade')?.textContent?.trim() || '?';
-          const score = resultCard.querySelector('.score-num')?.childNodes[0]?.textContent?.trim() || '0';
-          const jsonLink = resultCard.querySelector('.btn-json');
-          const scanId = jsonLink ? jsonLink.getAttribute('href').split('/')[3] : null;
-          if (scanId) {
-            addToHistory({ id: scanId, name: appName, grade, score, ts: Date.now() });
-          }
-        }
-      } catch (err) {
-        results.innerHTML = `<div class="error-card"><span class="error-icon">\u2717</span><span class="error-msg">${escapeHtml(err.message)}</span></div>`;
-        page.classList.add('has-results');
-      } finally {
-        submitBtn.disabled = false;
-        loading.classList.remove('active');
-        progressEl.classList.remove('active');
-        stopPhases();
-      }
-    });
+                // 3. Trigger scan
+                setProgress(100, "Scanning...");
+                const scanRes = await fetch(`/api/upload/${upload_id}/scan`, {
+                    method: "POST",
+                });
+                if (!scanRes.ok) {
+                    const msg = await scanRes.text();
+                    throw new Error(msg);
+                }
+                return scanRes.text();
+            }
 
-    // ── Scan history (localStorage) ──
-    const HISTORY_KEY = 'pavise-history';
-    const MAX_HISTORY = 50;
+            // ── Form submission ──
+            document
+                .getElementById("scan-form")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    const file = fileInput.files[0];
+                    if (!file) return;
 
-    function getHistory() {
-      try {
-        return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
-      } catch { return []; }
-    }
+                    submitBtn.disabled = true;
+                    loading.classList.add("active");
+                    progressEl.classList.add("active");
+                    setProgress(0, "Starting upload...");
+                    startPhases();
 
-    function saveHistory(items) {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(items.slice(0, MAX_HISTORY)));
-    }
+                    try {
+                        const html = await uploadChunked(file);
+                        results.innerHTML = html;
+                        page.classList.add("has-results");
 
-    function addToHistory(entry) {
-      const items = getHistory().filter(h => h.id !== entry.id);
-      items.unshift(entry);
-      saveHistory(items);
-      renderHistory();
-    }
+                        // Pulse first few critical/high findings to draw the eye
+                        results
+                            .querySelectorAll(".sev-high")
+                            .forEach((badge, i) => {
+                                if (i >= 4) return;
+                                const row = badge.closest(".finding-row");
+                                if (row) {
+                                    setTimeout(
+                                        () => {
+                                            row.classList.add("crit-attn");
+                                            row.addEventListener(
+                                                "animationend",
+                                                () =>
+                                                    row.classList.remove(
+                                                        "crit-attn",
+                                                    ),
+                                                { once: true },
+                                            );
+                                        },
+                                        700 + i * 120,
+                                    );
+                                }
+                            });
 
-    function formatTimeAgo(ts) {
-      const diff = Date.now() - ts;
-      const mins = Math.floor(diff / 60000);
-      if (mins < 1) return 'just now';
-      if (mins < 60) return mins + 'm ago';
-      const hrs = Math.floor(mins / 60);
-      if (hrs < 24) return hrs + 'h ago';
-      const days = Math.floor(hrs / 24);
-      if (days < 30) return days + 'd ago';
-      return new Date(ts).toLocaleDateString();
-    }
+                        // Extract scan info for history
+                        const resultCard =
+                            results.querySelector(".result-card");
+                        if (resultCard) {
+                            const appName =
+                                resultCard
+                                    .querySelector(".app-name")
+                                    ?.childNodes[0]?.textContent?.trim() ||
+                                "Unknown";
+                            const grade =
+                                resultCard
+                                    .querySelector(".grade")
+                                    ?.textContent?.trim() || "?";
+                            const score =
+                                resultCard
+                                    .querySelector(".score-num")
+                                    ?.childNodes[0]?.textContent?.trim() || "0";
+                            const jsonLink =
+                                resultCard.querySelector(".btn-json");
+                            const scanId = jsonLink
+                                ? jsonLink.getAttribute("href").split("/")[3]
+                                : null;
+                            if (scanId) {
+                                addToHistory({
+                                    id: scanId,
+                                    name: appName,
+                                    grade,
+                                    score,
+                                    ts: Date.now(),
+                                });
+                            }
+                        }
+                    } catch (err) {
+                        results.innerHTML = `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(err.message)}</span></div>`;
+                        page.classList.add("has-results");
+                    } finally {
+                        submitBtn.disabled = false;
+                        loading.classList.remove("active");
+                        progressEl.classList.remove("active");
+                        stopPhases();
+                    }
+                });
 
-    function gradeClass(g) {
-      const l = g.toLowerCase();
-      if (l === 'a') return 'hg-a';
-      if (l === 'b') return 'hg-b';
-      if (l === 'c') return 'hg-c';
-      if (l === 'd') return 'hg-d';
-      return 'hg-f';
-    }
+            // ── Scan history (localStorage) ──
+            const HISTORY_KEY = "pavise-history";
+            const MAX_HISTORY = 50;
 
-    function renderHistory() {
-      const items = getHistory();
-      emptyEl.style.display = items.length ? 'none' : 'block';
+            function getHistory() {
+                try {
+                    return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+                } catch {
+                    return [];
+                }
+            }
 
-      historyEl.querySelectorAll('.history-item').forEach(el => el.remove());
+            function saveHistory(items) {
+                localStorage.setItem(
+                    HISTORY_KEY,
+                    JSON.stringify(items.slice(0, MAX_HISTORY)),
+                );
+            }
 
-      items.forEach(item => {
-        const btn = document.createElement('button');
-        btn.className = 'history-item';
-        btn.innerHTML = `
-          <span class="history-grade ${gradeClass(item.grade)}">${item.grade}</span>
+            function addToHistory(entry) {
+                const items = getHistory().filter((h) => h.id !== entry.id);
+                items.unshift(entry);
+                saveHistory(items);
+                renderHistory();
+            }
+
+            function formatTimeAgo(ts) {
+                const diff = Date.now() - ts;
+                const mins = Math.floor(diff / 60000);
+                if (mins < 1) return "just now";
+                if (mins < 60) return mins + "m ago";
+                const hrs = Math.floor(mins / 60);
+                if (hrs < 24) return hrs + "h ago";
+                const days = Math.floor(hrs / 24);
+                if (days < 30) return days + "d ago";
+                return new Date(ts).toLocaleDateString();
+            }
+
+            function gradeClass(g) {
+                const l = g.toLowerCase();
+                if (l === "a") return "hg-a";
+                if (l === "b") return "hg-b";
+                if (l === "c") return "hg-c";
+                if (l === "d") return "hg-d";
+                return "hg-f";
+            }
+
+            function renderHistory() {
+                const items = getHistory();
+                emptyEl.style.display = items.length ? "none" : "block";
+
+                historyEl
+                    .querySelectorAll(".history-item")
+                    .forEach((el) => el.remove());
+
+                items.forEach((item) => {
+                    const btn = document.createElement("button");
+                    btn.className = "history-item";
+                    btn.setAttribute(
+                        "aria-label",
+                        `Grade ${item.grade} — ${item.name}, scanned ${formatTimeAgo(item.ts)}`,
+                    );
+                    btn.innerHTML = `
+          <span class="history-grade ${gradeClass(item.grade)}" aria-hidden="true">${item.grade}</span>
           <div class="history-meta">
             <div class="history-name">${escapeHtml(item.name)}</div>
             <div class="history-time">${formatTimeAgo(item.ts)}</div>
           </div>
         `;
-        btn.addEventListener('click', () => loadHistoryScan(item.id));
-        historyEl.appendChild(btn);
-      });
-    }
+                    btn.addEventListener("click", () =>
+                        loadHistoryScan(item.id),
+                    );
+                    historyEl.appendChild(btn);
+                });
+            }
 
-    function escapeHtml(s) {
-      const d = document.createElement('div');
-      d.textContent = s;
-      return d.innerHTML;
-    }
+            function escapeHtml(s) {
+                const d = document.createElement("div");
+                d.textContent = s;
+                return d.innerHTML;
+            }
 
-    function loadHistoryScan(id) {
-      switchView('scan');
-      results.innerHTML = '<div style="display:flex;align-items:center;gap:0.65rem;padding:1.5rem 0;color:var(--text-dim);font-size:0.85rem;"><div class="spinner"></div>Loading scan...</div>';
-      page.classList.add('has-results');
+            function loadHistoryScan(id) {
+                switchView("scan");
+                results.innerHTML =
+                    '<div style="display:flex;align-items:center;gap:0.65rem;padding:1.5rem 0;color:var(--text-dim);font-size:0.85rem;"><div class="spinner"></div>Loading scan...</div>';
+                page.classList.add("has-results");
 
-      fetch('/api/scan/' + id)
-        .then(r => {
-          if (!r.ok) throw new Error('Scan expired');
-          return r.text();
-        })
-        .then(html => { results.innerHTML = html; })
-        .catch(() => {
-          results.innerHTML = '<div class="error-card"><span class="error-icon">\u2717</span><span class="error-msg">Scan result has expired. Re-upload the file to scan again.</span></div>';
-        });
-    }
+                fetch("/api/scan/" + id)
+                    .then((r) => {
+                        if (!r.ok) throw new Error("Scan expired");
+                        return r.text();
+                    })
+                    .then((html) => {
+                        results.innerHTML = html;
+                    })
+                    .catch(() => {
+                        results.innerHTML =
+                            '<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">Scan result has expired. Re-upload the file to scan again.</span></div>';
+                    });
+            }
 
-    renderHistory();
-  </script>
-</body>
+            renderHistory();
+
+            // ── Keyboard shortcut: U to open file picker ──
+            document.addEventListener("keydown", (e) => {
+                if (e.key !== "u" && e.key !== "U") return;
+                const active = document.activeElement;
+                if (
+                    active &&
+                    (active.tagName === "INPUT" ||
+                        active.tagName === "TEXTAREA" ||
+                        active.isContentEditable)
+                )
+                    return;
+                if (
+                    document
+                        .getElementById("view-scan")
+                        .classList.contains("active")
+                ) {
+                    e.preventDefault();
+                    fileInput.click();
+                }
+            });
+
+            // ── Console easter egg ──
+            console.log(
+                "%c⬡ Pavise%c  iOS Security Analyzer\n%cParsing Mach-O since 2024. Built with Rust.\ngithub.com/ahmetmutlugun",
+                "color:#4a9eff;font-size:15px;font-weight:900;letter-spacing:-0.02em;",
+                "color:#8b949e;font-size:12px;font-weight:600;",
+                "color:#4a5568;font-size:11px;line-height:1.6;",
+            );
+        </script>
+        <script data-goatcounter="https://stats.pavise.app/count"
+                async src="//stats.pavise.app/count.js"></script>
+    </body>
 </html>

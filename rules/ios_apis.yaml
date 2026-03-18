@@ -209,6 +209,7 @@
   symbols:
     - _SecTrustSetExceptions
     - _SecTrustSetVerifyDate
+    - _SecTrustEvaluateWithError
   severity: high
   cwe: "CWE-295"
   owasp_mobile: "M3"
@@ -243,6 +244,7 @@
     - _SecTrustSetAnchorCertificates
     - _SecCertificateCreateWithData
     - _SecTrustCopyPublicKey
+    - _TrustKit
   severity: info
   owasp_masvs: "MSTG-NETWORK-4"
   remediation: "Certificate pinning is present. Ensure pins are updated before certificate expiry and that a backup pin or fallback mechanism exists to prevent a bricked app"

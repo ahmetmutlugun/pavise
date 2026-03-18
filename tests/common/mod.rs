@@ -69,7 +69,7 @@ impl IpaBuilder {
 }
 
 /// Minimal XML Info.plist sufficient to pass `info_plist::analyze`.
-fn minimal_info_plist(app_name: &str) -> String {
+pub fn minimal_info_plist(app_name: &str) -> String {
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

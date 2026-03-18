@@ -126,7 +126,7 @@ pub fn to_string(report: &ScanReport) -> Result<String> {
                 "driver": {
                     "name": "Pavise",
                     "version": env!("CARGO_PKG_VERSION"),
-                    "informationUri": "https://github.com/pavise/pavise",
+                    "informationUri": "https://github.com/ahmetmutlugun",
                     "rules": rules
                 }
             },

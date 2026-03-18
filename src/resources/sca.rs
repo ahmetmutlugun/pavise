@@ -121,10 +121,7 @@ fn parse_podfile_lock(text: &str, source_path: &str) -> Vec<FrameworkComponent> 
         let name;
         let version;
         if let Some(paren_pos) = rest.find('(') {
-            name = rest[..paren_pos]
-                .trim()
-                .trim_end_matches(':')
-                .to_string();
+            name = rest[..paren_pos].trim().trim_end_matches(':').to_string();
             let after_open = &rest[paren_pos + 1..];
             version = after_open
                 .find(')')
@@ -136,11 +133,7 @@ fn parse_podfile_lock(text: &str, source_path: &str) -> Vec<FrameworkComponent> 
             continue;
         }
         // Use the base pod name (strip "/Subspec" suffix if present)
-        let base_name = name
-            .split('/')
-            .next()
-            .unwrap_or(&name)
-            .to_string();
+        let base_name = name.split('/').next().unwrap_or(&name).to_string();
 
         components.push(FrameworkComponent {
             name: base_name,
