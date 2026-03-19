@@ -18,7 +18,7 @@ use pavise::{
 #[command(
     name = "pavise",
     about = "Fast mobile app static security analysis",
-    long_about = "Pavise performs static security analysis on iOS IPA and Android APK files.\nTargets <3s scan time with coverage equivalent to MobSF."
+    long_about = "Pavise performs static security analysis on iOS IPA and Android APK files.\nTargets sub-second scan times with comprehensive security coverage."
 )]
 struct Cli {
     /// Path to IPA or APK file to scan

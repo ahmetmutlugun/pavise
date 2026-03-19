@@ -1,89 +1,57 @@
 # Pavise
 
-Fast static security analysis for iOS IPA files. Scans apps in under 3 seconds with coverage comparable to MobSF.
+[![Crates.io](https://img.shields.io/crates/v/pavise)](https://crates.io/crates/pavise)
+[![License: MPL-2.0](https://img.shields.io/crates/l/pavise)](LICENSE)
+[![CI](https://github.com/ahmetmutlugun/pavise/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmetmutlugun/pavise/actions/workflows/ci.yml)
+[![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://ghcr.io/ahmetmutlugun/pavise)
 
-## Features
+Fast static security analysis for iOS IPA files. Sub-second scans with comprehensive coverage.
 
-- **Binary protections** — NX, PIE, ARC, encryption, RPATH, stack canaries
-- **Manifest analysis** — Info.plist, entitlements, provisioning profiles
-- **Secret detection** — 23 patterns (AWS, GCP, Azure, GitHub, Stripe, Slack, OpenAI, etc.)
-- **Dangerous API usage** — 15+ risky iOS APIs (strcpy, NSLog, malloc, etc.)
-- **Tracker detection** — 30+ advertising/analytics SDKs (Firebase, Crashlytics, Flurry, etc.)
-- **Supply chain analysis** — framework inventory with version tracking
-- **Network intelligence** — DNS resolution and IP geolocation (opt-in `--network`)
-- **Multiple output formats** — JSON, SARIF 2.1.0, HTML, PDF
-- **Baseline diffing** — compare scans to track regressions with `--baseline`
-- **OWASP-based scoring** — 0–100 score with A–F grading
-
-## Installation
-
-### From source
+## Quick Start
 
 ```bash
+# Install
 cargo install pavise
-```
 
-### Pre-built binaries
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/ahmetmutlugun/pavise/main/install.sh | sh
-```
-
-### Docker
-
-```bash
-docker pull ghcr.io/ahmetmutlugun/pavise:latest
-docker run --rm -v "$PWD:/work" ghcr.io/ahmetmutlugun/pavise pavise /work/app.ipa
-```
-
-## Usage
-
-```bash
-# Basic scan (JSON to stdout)
+# Scan
 pavise app.ipa
-
-# Save report to file
-pavise app.ipa -o report.json
 
 # HTML report
 pavise app.ipa --format html -o report.html
-
-# PDF report
-pavise app.ipa --format pdf -o report.pdf
-
-# SARIF for IDE / GitHub Code Scanning
-pavise app.ipa --format sarif -o report.sarif
-
-# Network intelligence (DNS + geolocation)
-pavise app.ipa --network
-
-# Filter by severity
-pavise app.ipa --min-severity high
-
-# Compare against a previous scan
-pavise app.ipa --baseline previous-report.json
-
-# Explain a specific finding
-pavise app.ipa --explain QS-BIN-001
-
-# Quiet mode (score line only)
-pavise app.ipa --quiet
-
-# Verbose (timing breakdown)
-pavise app.ipa --verbose
 ```
 
-## Exit Codes
+Or use Docker:
 
-| Code | Meaning |
-|------|---------|
-| 0 | No high-severity findings |
-| 1 | High-severity findings detected |
-| 2 | Scan error (invalid input, parse failure) |
+```bash
+docker run --rm -v "$PWD:/work" ghcr.io/ahmetmutlugun/pavise pavise /work/app.ipa
+```
 
-## CI/CD Integration
+## What It Checks
 
-### GitHub Actions
+| Category | Examples |
+|----------|----------|
+| Binary protections | NX, PIE, ARC, encryption, RPATH, stack canaries |
+| Manifest analysis | Info.plist, entitlements, provisioning profiles |
+| Secret detection | 23 patterns — AWS, GCP, Azure, GitHub, Stripe, Slack, OpenAI, etc. |
+| Dangerous APIs | 15+ risky iOS APIs (strcpy, NSLog, malloc, etc.) |
+| Tracker detection | 30+ advertising/analytics SDKs |
+| Supply chain | Framework inventory with version tracking |
+| Network intel | DNS resolution and IP geolocation (`--network`) |
+
+## Output Formats
+
+JSON (default), SARIF 2.1.0, HTML, and PDF. OWASP-based 0–100 scoring with A–F grades.
+
+```bash
+pavise app.ipa --format sarif -o report.sarif   # IDE / GitHub Code Scanning
+pavise app.ipa --format pdf -o report.pdf
+pavise app.ipa --baseline previous.json          # Diff against previous scan
+pavise app.ipa --min-severity high               # Filter by severity
+pavise app.ipa --explain QS-BIN-001              # Explain a finding
+pavise app.ipa --quiet                           # Score line only
+```
+
+## CI/CD
 
 ```yaml
 - uses: ahmetmutlugun/pavise/.github/actions/pavise@main
@@ -93,17 +61,9 @@ pavise app.ipa --verbose
     fail-on: high
 ```
 
-Upload SARIF results to GitHub's Security tab:
-
-```yaml
-- uses: github/codeql-action/upload-sarif@v3
-  with:
-    sarif_file: pavise-report.sarif
-```
+Exit codes: `0` clean, `1` high-severity findings, `2` scan error.
 
 ## Custom Rules
-
-Rules are YAML files in the `rules/` directory:
 
 ```yaml
 rules:
@@ -117,14 +77,6 @@ rules:
 
 Pass a custom rules directory with `--rules ./my-rules/`.
 
-## Performance
-
-- **Scan time**: 500ms–1s (depends on app size)
-- **Binary size**: ~3 MB (stripped, LTO)
-- **Memory**: ~100–200 MB (in-memory extraction)
-
-Parallel analysis via rayon, single-pass RegexSet scanning, and zero-copy string extraction keep things fast.
-
 ## License
 
-MIT
+[MPL-2.0](LICENSE)
