@@ -3,7 +3,46 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Pavise — iOS Security Analyzer</title>
+        <meta name="description" content="Pavise performs fast static security analysis of iOS IPA files, inspecting binaries, manifests, secrets, and OWASP Mobile Top 10 compliance in under 3 seconds." />
+        <meta name="keywords" content="iOS security scanner, IPA analyzer, mobile app security, static analysis, OWASP Mobile Top 10, binary analysis, secret detection, MobSF alternative" />
+        <link rel="canonical" href="https://pavise.app/" />
+
+        <!-- Open Graph -->
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://pavise.app/" />
+        <meta property="og:title" content="Pavise — Fast iOS IPA Security Analyzer" />
+        <meta property="og:description" content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds. Free and open source." />
+        <meta property="og:site_name" content="Pavise" />
+
+        <!-- Twitter Card -->
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="Pavise — Fast iOS IPA Security Analyzer" />
+        <meta name="twitter:description" content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds." />
+
+        <!-- Structured Data -->
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Pavise",
+            "url": "https://pavise.app",
+            "description": "Fast static security analysis for iOS IPA files. Detects vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 compliance issues.",
+            "applicationCategory": "SecurityApplication",
+            "operatingSystem": "Any",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "creator": {
+                "@type": "Person",
+                "name": "Ahmet Mutlugun",
+                "url": "https://github.com/ahmetmutlugun"
+            },
+            "softwareHelp": {
+                "@type": "WebPage",
+                "url": "https://github.com/ahmetmutlugun/pavise"
+            }
+        }
+        </script>
+
+        <title>Pavise — iOS IPA Security Analyzer | Free Static Analysis</title>
         <!-- Chunked upload handled by vanilla JS -->
         <style>
             *,
@@ -1610,7 +1649,7 @@
                 </div>
 
                 <!-- ── Scan view ── -->
-                <div class="main" id="main-content">
+                <main class="main" id="main-content">
                     <div class="container">
                         <div class="view active" id="view-scan">
                             <div class="scan-hero">
@@ -1674,6 +1713,7 @@
                                             name="file"
                                             accept=".ipa"
                                             id="file-input"
+                                            aria-label="Choose an IPA file to analyze"
                                             required
                                         />
                                         <svg
@@ -1987,7 +2027,7 @@
                             </div>
                         </div>
                     </div>
-                </div>
+                </main>
 
                 <footer>pavise static analysis</footer>
             </div>

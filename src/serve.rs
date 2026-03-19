@@ -216,6 +216,8 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/", get(index))
+        .route("/robots.txt", get(robots_txt))
+        .route("/sitemap.xml", get(sitemap_xml))
         .merge(scan_routes)
         .merge(upload_routes)
         .route("/api/scan/:id", get(get_scan_fragment))
@@ -237,6 +239,27 @@ async fn main() -> Result<()> {
 
 async fn index() -> Html<&'static str> {
     Html(INDEX_HTML)
+}
+
+async fn robots_txt() -> ([(axum::http::header::HeaderName, &'static str); 1], &'static str) {
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /scan/\n\nSitemap: https://pavise.app/sitemap.xml\n",
+    )
+}
+
+async fn sitemap_xml() -> ([(axum::http::header::HeaderName, &'static str); 1], &'static str) {
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/xml; charset=utf-8")],
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://pavise.app/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>"#,
+    )
 }
 
 /// Check per-IP rate limit. Returns an error response if the limit is exceeded.

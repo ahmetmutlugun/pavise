@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pavise — {{ report.app_info.name }}</title>
+<meta name="description" content="Pavise security analysis report for {{ report.app_info.name }} ({{ report.app_info.identifier }}) — Grade {{ report.grade }}, Score {{ report.security_score }}/100.">
+<meta name="robots" content="noindex, nofollow">
+<title>Pavise Report — {{ report.app_info.name }} ({{ report.grade }})</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -228,7 +230,7 @@ details[open] summary::before{content:"▼ "}
 </div>
 </div>
 
-<div class="container" id="main-content" style="padding-top:24px">
+<main class="container" id="main-content" style="padding-top:24px">
 
 <!-- Stats bar -->
 <div class="stats-bar">
@@ -681,7 +683,7 @@ details[open] summary::before{content:"▼ "}
   <div>Scan completed in {{ report.scan_duration_ms }}ms</div>
 </div>
 
-</div><!-- /container -->
+</main><!-- /container -->
 <script data-goatcounter="https://stats.pavise.app/count"
         async src="//stats.pavise.app/count.js"></script>
 </body>
