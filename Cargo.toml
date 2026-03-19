@@ -103,8 +103,8 @@ criterion = { version = "0.5", features = ["html_reports"] }
 
 [profile.release]
 opt-level = 3
-lto = "fat"          # full cross-crate inlining; thin LTO (lto=true) leaves some wins on the table
-codegen-units = 1
+lto = "thin"         # fat LTO requires too much RAM for small VMs; thin is nearly as good
+codegen-units = 4    # 1 maximizes optimization but peaks memory; 4 is a good trade-off
 strip = true
 panic = "abort"      # removes all unwinding machinery — saves ~5-10% binary size, small runtime win
 

@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 WORKDIR /app
 COPY . .
 
-RUN cargo build --release --bin pavise-server
+# Limit parallelism to survive 4GB VM builds
+RUN CARGO_BUILD_JOBS=2 cargo build --release --bin pavise-server
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
