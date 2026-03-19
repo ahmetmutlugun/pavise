@@ -2,7 +2,7 @@ services:
   pavise:
     build: .
     ports:
-      - "3000:3000"
+      - "8081:3000"
     environment:
       - PORT=3000
       - PAVISE_MAX_SCANS=4
