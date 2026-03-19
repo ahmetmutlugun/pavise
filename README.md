@@ -1,110 +1,109 @@
 # Pavise
 
-Fast static security analysis for iOS and Android mobile apps. Scans IPA/APK files in <3 seconds with coverage comparable to MobSF.
+Fast static security analysis for iOS IPA files. Scans apps in under 3 seconds with coverage comparable to MobSF.
 
 ## Features
 
-- **iOS IPA Analysis** (production-ready)
-  - Binary protections: NX, PIE, encryption, RPATH
-  - Manifest analysis: Info.plist, entitlements, provisioning profiles
-  - API usage: 15+ dangerous iOS APIs
-  - Permissions: Keychain, HealthKit, location, camera, contacts, etc.
-  - URL schemes: generic scheme detection
-
-- **Secret Detection** (23 patterns)
-  - AWS, GCP, Azure, GitHub, Stripe, Slack, Mapbox, Twilio, OpenAI, Anthropic, etc.
-  - Scans strings, binary symbols, and metadata files
-
-- **Tracker Detection**
-  - 30+ advertising/analytics libraries (Firebase, Crashlytics, Flurry, etc.)
-
-- **Supply Chain Analysis**
-  - Framework inventory with versions
-  - Dependency tracking
-
-- **Network Intelligence** (optional `--network`)
-  - DNS resolution and geolocation via ip-api.com
-  - OFAC sanctions checking
-
-- **Multiple Report Formats**
-  - JSON (full details)
-  - SARIF 2.1.0 (IDE integration)
-  - HTML (self-contained dark theme)
+- **Binary protections** — NX, PIE, ARC, encryption, RPATH, stack canaries
+- **Manifest analysis** — Info.plist, entitlements, provisioning profiles
+- **Secret detection** — 23 patterns (AWS, GCP, Azure, GitHub, Stripe, Slack, OpenAI, etc.)
+- **Dangerous API usage** — 15+ risky iOS APIs (strcpy, NSLog, malloc, etc.)
+- **Tracker detection** — 30+ advertising/analytics SDKs (Firebase, Crashlytics, Flurry, etc.)
+- **Supply chain analysis** — framework inventory with version tracking
+- **Network intelligence** — DNS resolution and IP geolocation (opt-in `--network`)
+- **Multiple output formats** — JSON, SARIF 2.1.0, HTML, PDF
+- **Baseline diffing** — compare scans to track regressions with `--baseline`
+- **OWASP-based scoring** — 0–100 score with A–F grading
 
 ## Installation
 
+### From source
+
 ```bash
-cargo build --release
-./target/release/pavise --help
+cargo install pavise
+```
+
+### Pre-built binaries
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ahmetmutlugun/pavise/main/install.sh | sh
+```
+
+### Docker
+
+```bash
+docker pull ghcr.io/ahmetmutlugun/pavise:latest
+docker run --rm -v "$PWD:/work" ghcr.io/ahmetmutlugun/pavise pavise /work/app.ipa
 ```
 
 ## Usage
 
-### Basic scan (JSON output to console)
 ```bash
+# Basic scan (JSON to stdout)
 pavise app.ipa
-```
 
-### Save JSON report
-```bash
+# Save report to file
 pavise app.ipa -o report.json
-```
 
-### HTML report
-```bash
+# HTML report
 pavise app.ipa --format html -o report.html
-```
 
-### SARIF (for IDE integration)
-```bash
+# PDF report
+pavise app.ipa --format pdf -o report.pdf
+
+# SARIF for IDE / GitHub Code Scanning
 pavise app.ipa --format sarif -o report.sarif
-```
 
-### Network intelligence (DNS + geolocation)
-```bash
+# Network intelligence (DNS + geolocation)
 pavise app.ipa --network
-```
 
-### Filter to high-severity findings only
-```bash
+# Filter by severity
 pavise app.ipa --min-severity high
-```
 
-### Quiet mode (score line only)
-```bash
+# Compare against a previous scan
+pavise app.ipa --baseline previous-report.json
+
+# Explain a specific finding
+pavise app.ipa --explain QS-BIN-001
+
+# Quiet mode (score line only)
 pavise app.ipa --quiet
-```
 
-### Verbose (timing breakdown)
-```bash
+# Verbose (timing breakdown)
 pavise app.ipa --verbose
 ```
 
-### Custom rules directory
-```bash
-pavise app.ipa --rules ./my-rules/
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | No high-severity findings |
+| 1 | High-severity findings detected |
+| 2 | Scan error (invalid input, parse failure) |
+
+## CI/CD Integration
+
+### GitHub Actions
+
+```yaml
+- uses: ahmetmutlugun/pavise/.github/actions/pavise@main
+  with:
+    ipa-path: build/App.ipa
+    format: sarif
+    fail-on: high
 ```
 
-## Output
+Upload SARIF results to GitHub's Security tab:
 
-### Console (stderr)
-- Security score (0-100) and grade (A-F)
-- High/warning/info finding counts
-- File hashes (MD5, SHA256)
-- Binary protections status
-- Detected trackers
-- Top 10 secrets (truncated)
-- Domain intelligence (if --network used)
-- Audit log (if --verbose used)
+```yaml
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: pavise-report.sarif
+```
 
-### Exit Codes
-- **0**: Scan successful, no high-severity findings
-- **1**: Scan successful, high-severity findings detected
-- **2**: Scan failed (invalid input, parsing error)
+## Custom Rules
 
-## Rules Format
-
-Rules are YAML files in `rules/` directory. Example:
+Rules are YAML files in the `rules/` directory:
 
 ```yaml
 rules:
@@ -116,23 +115,15 @@ rules:
       - "AKIA[0-9A-Z]{16}"
 ```
 
+Pass a custom rules directory with `--rules ./my-rules/`.
+
 ## Performance
 
-- **Typical IPA scan**: 500ms – 1s (depends on app size)
-- **Release build size**: ~3MB (stripped, LTO)
-- **Memory**: ~100-200MB (in-memory IPA extraction)
+- **Scan time**: 500ms–1s (depends on app size)
+- **Binary size**: ~3 MB (stripped, LTO)
+- **Memory**: ~100–200 MB (in-memory extraction)
 
-## Architecture Highlights
-
-- **Parallel analysis**: Binary protections, manifests, and pattern scanning run in parallel (rayon)
-- **Zero-copy strings**: Printable ASCII extraction from binaries without allocating every match
-- **Efficient regex**: Single-pass RegexSet for multi-pattern scanning
-- **Streaming ZIP**: In-memory unzipping with on-demand framework extraction
-
-## Roadmap
-
-- **Phase 2**: Android APK binary manifest parsing, ELF binary analysis
-- **Phase 3**: Expanded rules, HIPAA compliance checks, entitlement validation
+Parallel analysis via rayon, single-pass RegexSet scanning, and zero-copy string extraction keep things fast.
 
 ## License
 

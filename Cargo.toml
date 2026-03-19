@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Fast mobile app static analysis tool for iOS IPA and Android APK files"
-license = "MIT"
+license = "MPL-2.0"
 repository = "https://github.com/ahmetmutlugun/pavise"
 homepage = "https://github.com/ahmetmutlugun/pavise"
 readme = "README.md"
 keywords = ["ios", "ipa", "security", "static-analysis", "mobile"]
 categories = ["command-line-utilities", "development-tools"]
-exclude = ["tests/", "*.ipa", "*.apk", ".github/"]
+exclude = ["tests/", "test-ipas/", "*.ipa", "*.apk", ".github/", "examples/"]
 
 [[bin]]
 name = "pavise"
@@ -25,8 +25,7 @@ name = "pavise"
 path = "src/lib.rs"
 
 [dependencies]
-# Async runtime — only rt-multi-thread is needed; reqwest blocking uses it internally.
-# "full" would also compile timers, fs, process, signal, and net which are all unused.
+# Async runtime (used by pavise-server for networking, timers, spawn_blocking)
 tokio = { version = "1", features = ["full"] }
 
 # Parallelism
