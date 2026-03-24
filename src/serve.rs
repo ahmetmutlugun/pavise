@@ -2,7 +2,8 @@ use anyhow::Result;
 use axum::{
     body::{Body, Bytes},
     extract::{ConnectInfo, DefaultBodyLimit, Multipart, Path, State},
-    http::{header, StatusCode},
+    http::{header, Request, StatusCode},
+    middleware::Next,
     response::{Html, IntoResponse, Response},
     routing::{get, post, put},
     Json, Router,
@@ -17,6 +18,7 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::sync::{RwLock, Semaphore};
+use tower_http::services::ServeDir;
 use uuid::Uuid;
 
 use pavise::{
@@ -26,7 +28,17 @@ use pavise::{
     ScanOptions,
 };
 
-const INDEX_HTML: &str = include_str!("../templates/index.html");
+/// Directory containing the built frontend assets (Vite output).
+fn dist_dir() -> PathBuf {
+    std::env::var("PAVISE_DIST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            let manifest = std::env::var("CARGO_MANIFEST_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|_| PathBuf::from("."));
+            manifest.join("web/dist")
+        })
+}
 
 /// Maximum number of concurrent scans to prevent resource exhaustion.
 fn max_concurrent_scans() -> usize {
@@ -214,8 +226,11 @@ async fn main() -> Result<()> {
         .route("/api/upload/:id/scan", post(upload_scan))
         .layer(DefaultBodyLimit::max(CHUNK_LIMIT));
 
+    let dist = dist_dir();
+
     let app = Router::new()
-        .route("/", get(index))
+        .route("/", get(landing))
+        .route("/scan", get(scan_page))
         .route("/robots.txt", get(robots_txt))
         .route("/sitemap.xml", get(sitemap_xml))
         .merge(scan_routes)
@@ -223,7 +238,9 @@ async fn main() -> Result<()> {
         .route("/api/scan/:id", get(get_scan_fragment))
         .route("/api/scan/:id/json", get(download_json))
         .route("/api/scan/:id/pdf", get(download_pdf))
-        .with_state(state);
+        .nest_service("/assets", ServeDir::new(dist.join("assets")))
+        .with_state(state)
+        .layer(axum::middleware::from_fn(security_headers));
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{}", port);
@@ -237,14 +254,26 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn index() -> Html<&'static str> {
-    Html(INDEX_HTML)
+async fn landing() -> Response {
+    serve_html("index.html").await
+}
+
+async fn scan_page() -> Response {
+    serve_html("scan.html").await
+}
+
+async fn serve_html(name: &str) -> Response {
+    let path = dist_dir().join(name);
+    match tokio::fs::read_to_string(&path).await {
+        Ok(html) => Html(html).into_response(),
+        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Frontend not built: {} not found. Run `npm run build` in web/", path.display())).into_response(),
+    }
 }
 
 async fn robots_txt() -> ([(axum::http::header::HeaderName, &'static str); 1], &'static str) {
     (
         [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /scan/\n\nSitemap: https://pavise.app/sitemap.xml\n",
+        "User-agent: *\nAllow: /\nAllow: /scan\nDisallow: /api/\n\nSitemap: https://pavise.app/sitemap.xml\n",
     )
 }
 
@@ -257,6 +286,11 @@ async fn sitemap_xml() -> ([(axum::http::header::HeaderName, &'static str); 1], 
     <loc>https://pavise.app/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://pavise.app/scan</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
   </url>
 </urlset>"#,
     )
@@ -857,9 +891,25 @@ fn result_fragment(id: &str, report: &ScanReport, cached: bool) -> String {
     )
 }
 
+async fn security_headers(req: Request<Body>, next: Next) -> Response {
+    let mut resp = next.run(req).await;
+    let h = resp.headers_mut();
+    h.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
+    h.insert("X-Frame-Options", "DENY".parse().unwrap());
+    h.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
+    h.insert(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline' stats.pavise.app; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
+            .parse()
+            .unwrap(),
+    );
+    resp
+}
+
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }

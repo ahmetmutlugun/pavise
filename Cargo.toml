@@ -84,7 +84,7 @@ thiserror = "1"
 
 # HTTP server (used by pavise-server binary)
 axum = { version = "0.7", features = ["multipart"] }
-tower-http = { version = "0.5", features = ["cors"] }
+tower-http = { version = "0.5", features = ["cors", "fs"] }
 uuid = { version = "1", features = ["v4"] }
 
 # PDF reports via Typst

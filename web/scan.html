@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content="Pavise performs fast static security analysis of iOS IPA files, inspecting binaries, manifests, secrets, and OWASP Mobile Top 10 compliance in under 3 seconds." />
+        <meta name="keywords" content="iOS security scanner, IPA analyzer, mobile app security, static analysis, OWASP Mobile Top 10, binary analysis, secret detection, MobSF alternative" />
+        <link rel="canonical" href="https://pavise.app/" />
+
+        <!-- Open Graph -->
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://pavise.app/" />
+        <meta property="og:title" content="Pavise — Fast iOS IPA Security Analyzer" />
+        <meta property="og:description" content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds. Free and open source." />
+        <meta property="og:site_name" content="Pavise" />
+
+        <!-- Twitter Card -->
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="Pavise — Fast iOS IPA Security Analyzer" />
+        <meta name="twitter:description" content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds." />
+
+        <!-- Structured Data -->
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Pavise",
+            "url": "https://pavise.app",
+            "description": "Fast static security analysis for iOS IPA files. Detects vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 compliance issues.",
+            "applicationCategory": "SecurityApplication",
+            "operatingSystem": "Any",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "creator": {
+                "@type": "Person",
+                "name": "Ahmet Mutlugun",
+                "url": "https://github.com/ahmetmutlugun"
+            },
+            "softwareHelp": {
+                "@type": "WebPage",
+                "url": "https://github.com/ahmetmutlugun/pavise"
+            }
+        }
+        </script>
+
+        <title>Pavise — iOS IPA Security Analyzer | Free Static Analysis</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+        <script>
+            // Prevent flash of wrong theme
+            (function() {
+                var t = localStorage.getItem('pavise-theme');
+                if (t) document.documentElement.setAttribute('data-theme', t);
+                else if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'dark');
+            })();
+        </script>
+
+        <script type="module" src="/src/scan.ts"></script>
+    </head>
+    <body>
+        <a href="#main-content" class="skip-link">Skip to main content</a>
+        <div class="shell" id="shell">
+            <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-head">
+                    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="sGrad" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stop-color="#3b82f6" />
+                                <stop offset="100%" stop-color="#7c3aed" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#sGrad)" stroke-width="1.5" fill="none" opacity="0.6" />
+                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" fill="url(#sGrad)" opacity="0.1" />
+                        <path d="M10 14.5l3 3 5-5" stroke="url(#sGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                    </svg>
+                    <span class="sidebar-title">Pavise</span>
+                </div>
+
+                <nav class="sidebar-nav">
+                    <button class="nav-item active" data-view="scan" id="nav-scan">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                        Scan
+                    </button>
+                    <button class="nav-item" data-view="about" id="nav-about">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <line x1="12" y1="16" x2="12" y2="12" />
+                            <line x1="12" y1="8" x2="12.01" y2="8" />
+                        </svg>
+                        About
+                    </button>
+                </nav>
+
+                <div class="sidebar-divider"></div>
+                <h2 class="sidebar-section-label">Scan History</h2>
+
+                <div class="history-list" id="history-list">
+                    <div class="history-empty" id="history-empty">
+                        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 3L4 7.5v6.5c0 6.35 4.13 11.1 10 13 5.87-1.9 10-6.65 10-13V7.5L14 3z" />
+                        </svg>
+                        <span class="history-empty-title">No scans yet</span>
+                        <span class="history-empty-hint">Drop an IPA above to run your first analysis. Results and grades appear here.</span>
+                    </div>
+                </div>
+
+                <div class="sidebar-footer">
+                    <a href="https://github.com/ahmetmutlugun" target="_blank" rel="noopener noreferrer">
+                        <svg viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                        </svg>
+                        github.com/ahmetmutlugun
+                    </a>
+                </div>
+            </aside>
+
+            <div class="page" id="page">
+                <div class="topbar">
+                    <button class="toggle-sidebar" id="toggle-sidebar" aria-label="Toggle sidebar">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </button>
+                    <div class="topbar-spacer"></div>
+                    <span style="font-size: 0.65rem; font-family: var(--mono); color: var(--text-xdim); text-transform: uppercase; letter-spacing: 0.08em;">Static Analysis</span>
+                    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+                        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                    </button>
+                </div>
+
+                <main class="main" id="main-content">
+                    <div class="container">
+                        <div class="view active" id="view-scan">
+                            <div class="scan-hero">
+                                <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <defs>
+                                        <linearGradient id="hGrad" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
+                                            <stop offset="0%" stop-color="#3b82f6" />
+                                            <stop offset="100%" stop-color="#7c3aed" />
+                                        </linearGradient>
+                                    </defs>
+                                    <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#hGrad)" stroke-width="1.5" fill="none" opacity="0.6" />
+                                    <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" fill="url(#hGrad)" opacity="0.1" />
+                                    <path d="M10 14.5l3 3 5-5" stroke="url(#hGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                                </svg>
+                                <div>
+                                    <div class="scan-hero-name">Pavise</div>
+                                    <div class="scan-hero-sub">iOS Security Analyzer</div>
+                                </div>
+                            </div>
+                            <p class="scan-hero-desc">Drop an IPA to get binary analysis, secret detection, and OWASP scoring in ~3 seconds.</p>
+                            <div class="upload">
+                                <form id="scan-form">
+                                    <div class="drop-zone" id="drop-zone">
+                                        <input type="file" name="file" accept=".ipa" id="file-input" aria-label="Choose an IPA file to analyze" required />
+                                        <svg class="drop-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                                            <polyline points="17 8 12 3 7 8" />
+                                            <line x1="12" y1="3" x2="12" y2="15" />
+                                        </svg>
+                                        <div class="drop-label">Drop an <strong>.ipa</strong> to analyze</div>
+                                        <div class="file-name" id="file-name"></div>
+                                    </div>
+
+                                    <div class="upload-progress" id="upload-progress">
+                                        <div class="progress-bar-track">
+                                            <div class="progress-bar-fill" id="progress-fill"></div>
+                                        </div>
+                                        <div class="progress-text">
+                                            <span id="progress-label">Uploading...</span>
+                                            <span id="progress-pct">0%</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="controls">
+                                        <button class="btn-scan" type="submit" id="submit-btn">Scan</button>
+                                        <div id="loading" class="scan-loading">
+                                            <div class="scan-loading-row">
+                                                <div class="spinner"></div>
+                                                <div class="scan-phases">
+                                                    <span class="scan-phase" data-phase="0">upload</span>
+                                                    <span class="scan-phase" data-phase="1">extract</span>
+                                                    <span class="scan-phase" data-phase="2">binary</span>
+                                                    <span class="scan-phase" data-phase="3">patterns</span>
+                                                    <span class="scan-phase" data-phase="4">report</span>
+                                                </div>
+                                            </div>
+                                            <div class="scan-msg" id="scan-msg"></div>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <div class="cap-tags">
+                                <span class="cap-tag" style="border-color: var(--accent)">Binary</span>
+                                <span class="cap-tag" style="border-color: var(--high)">Secrets</span>
+                                <span class="cap-tag" style="border-color: var(--warn)">OWASP</span>
+                                <span class="cap-tag" style="border-color: var(--purple)">Trackers</span>
+                                <span class="cap-tag" style="border-color: var(--secure)">Transport</span>
+                                <span class="cap-tag" style="border-color: #f0883e">Supply Chain</span>
+                            </div>
+
+                            <div id="results" aria-live="polite" aria-atomic="true"></div>
+                        </div>
+
+                        <div class="view" id="view-about">
+                            <div class="about-content">
+                                <div class="about-hero">
+                                    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <defs>
+                                            <linearGradient id="aGrad" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
+                                                <stop offset="0%" stop-color="#3b82f6" />
+                                                <stop offset="100%" stop-color="#7c3aed" />
+                                            </linearGradient>
+                                        </defs>
+                                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#aGrad)" stroke-width="1.5" fill="none" opacity="0.6" />
+                                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" fill="url(#aGrad)" opacity="0.1" />
+                                        <path d="M10 14.5l3 3 5-5" stroke="url(#aGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                                    </svg>
+                                    <div class="about-hero-text">
+                                        <h1>Pavise</h1>
+                                        <p>Fast iOS app static security analysis</p>
+                                    </div>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>What it does</h2>
+                                    <p>Pavise performs deep static analysis of iOS IPA files in under 3 seconds. It inspects binaries, manifests, embedded resources, and source patterns to surface security issues before they ship.</p>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>Analysis coverage</h2>
+                                    <div class="about-checks">
+                                        <div class="about-check"><span class="about-check-icon">+</span>Binary protections (PIE, ARC, stack canaries)</div>
+                                        <div class="about-check"><span class="about-check-icon">+</span>Hardcoded secrets and API keys</div>
+                                        <div class="about-check"><span class="about-check-icon">+</span>OWASP Mobile Top 10 mapping</div>
+                                        <div class="about-check"><span class="about-check-icon">+</span>Third-party tracker detection</div>
+                                        <div class="about-check"><span class="about-check-icon">+</span>Transport security (ATS) audit</div>
+                                        <div class="about-check"><span class="about-check-icon">+</span>Framework SCA with CVE lookup</div>
+                                        <div class="about-check"><span class="about-check-icon">+</span>Entitlements and permissions</div>
+                                        <div class="about-check"><span class="about-check-icon">+</span>Firebase and cloud misconfig</div>
+                                        <div class="about-check"><span class="about-check-icon">+</span>URL and email extraction</div>
+                                        <div class="about-check"><span class="about-check-icon">+</span>Provisioning profile analysis</div>
+                                    </div>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>Output formats</h2>
+                                    <p>JSON for automation and CI/CD pipelines. PDF for stakeholder reports. SARIF 2.1.0 for IDE integration. HTML for quick review.</p>
+                                </div>
+
+                                <div class="about-section">
+                                    <h2>Built with</h2>
+                                    <div class="about-tech">
+                                        <span class="about-tech-tag">Rust</span>
+                                        <span class="about-tech-tag">Axum</span>
+                                        <span class="about-tech-tag">Goblin</span>
+                                        <span class="about-tech-tag">Rayon</span>
+                                        <span class="about-tech-tag">Typst</span>
+                                        <span class="about-tech-tag">Tera</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+
+                <footer>pavise static analysis</footer>
+            </div>
+        </div>
+        <script data-goatcounter="https://stats.pavise.app/count" async src="//stats.pavise.app/count.js"></script>
+    </body>
+</html>

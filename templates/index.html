@@ -44,6 +44,20 @@
 
         <title>Pavise — iOS IPA Security Analyzer | Free Static Analysis</title>
         <!-- Chunked upload handled by vanilla JS -->
+
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+        <script>
+            // Prevent flash of wrong theme
+            (function() {
+                var t = localStorage.getItem('pavise-theme');
+                if (t) document.documentElement.setAttribute('data-theme', t);
+                else if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'dark');
+            })();
+        </script>
+
         <style>
             *,
             *::before,
@@ -54,7 +68,52 @@
             }
 
             :root {
+                --bg: #fafaf9;
+                --bg-warm: #f5f3f0;
+                --surface: #ffffff;
+                --surface2: #f5f3f0;
+                --border: #e7e5e0;
+                --border-lt: #d4d1cb;
+                --border-inner: #e7e5e0;
+                --text: #1a1816;
+                --text-heading: #1a1816;
+                --text-body: #44403c;
+                --text-dim: #78716c;
+                --text-xdim: #a8a29e;
+                --accent: #3b82f6;
+                --accent-deep: #2563eb;
+                --accent-dim: rgba(59, 130, 246, 0.08);
+                --high: #dc2626;
+                --high-bg: rgba(220, 38, 38, 0.06);
+                --high-border: rgba(220, 38, 38, 0.2);
+                --high-subtle: rgba(220, 38, 38, 0.03);
+                --high-dim: rgba(220, 38, 38, 0.07);
+                --warn: #d97706;
+                --warn-bg: rgba(217, 119, 6, 0.06);
+                --warn-border: rgba(217, 119, 6, 0.2);
+                --warn-subtle: rgba(217, 119, 6, 0.03);
+                --warn-dim: rgba(217, 119, 6, 0.07);
+                --info: #3b82f6;
+                --info-bg: rgba(59, 130, 246, 0.06);
+                --info-border: rgba(59, 130, 246, 0.2);
+                --info-dim: rgba(59, 130, 246, 0.06);
+                --secure: #16a34a;
+                --secure-bg: rgba(22, 163, 74, 0.06);
+                --secure-border: rgba(22, 163, 74, 0.2);
+                --secure-text: #16a34a;
+                --secure-subtle: rgba(22, 163, 74, 0.03);
+                --secure-dim: rgba(22, 163, 74, 0.07);
+                --purple: #7c3aed;
+                --code-blue: #2563eb;
+                --code-orange: #ea580c;
+                --mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+                --sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                --sidebar-w: 260px;
+            }
+
+            [data-theme="dark"] {
                 --bg: #0d1117;
+                --bg-warm: #161b22;
                 --surface: #161b22;
                 --surface2: #1c2128;
                 --border: #30363d;
@@ -66,6 +125,7 @@
                 --text-dim: #8b949e;
                 --text-xdim: #7a8798;
                 --accent: #58a6ff;
+                --accent-deep: #79b8ff;
                 --accent-dim: rgba(88, 166, 255, 0.12);
                 --high: #f85149;
                 --high-bg: #3d0f0f;
@@ -90,38 +150,23 @@
                 --purple: #8b5cf6;
                 --code-blue: #79c0ff;
                 --code-orange: #f0883e;
-                --mono:
-                    "SF Mono", "Cascadia Code", "JetBrains Mono", Consolas,
-                    monospace;
-                --sans:
-                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                    Helvetica, sans-serif;
-                --sidebar-w: 260px;
             }
 
             html {
                 font-size: 15px;
+                scroll-behavior: smooth;
             }
 
             body {
                 background: var(--bg);
-                background-image:
-                    radial-gradient(
-                        ellipse 80% 50% at 50% -10%,
-                        rgba(74, 158, 255, 0.06),
-                        transparent 70%
-                    ),
-                    radial-gradient(
-                        ellipse 60% 40% at 80% 100%,
-                        rgba(139, 92, 246, 0.04),
-                        transparent 60%
-                    );
                 color: var(--text);
                 font-family: var(--sans);
                 min-height: 100vh;
                 -webkit-font-smoothing: antialiased;
                 -moz-osx-font-smoothing: grayscale;
+                line-height: 1.6;
             }
+
 
             /* ── Shell layout ── */
             .shell {
@@ -165,12 +210,13 @@
                 width: 22px;
                 height: 22px;
                 flex-shrink: 0;
-                filter: drop-shadow(0 0 6px rgba(74, 158, 255, 0.3));
                 transition: filter 0.35s ease;
             }
-            .sidebar-head:hover svg {
-                filter: drop-shadow(0 0 10px rgba(74, 158, 255, 0.55))
-                    drop-shadow(0 0 22px rgba(139, 92, 246, 0.3));
+            [data-theme="dark"] .sidebar-head svg {
+                filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.08));
+            }
+            [data-theme="dark"] .sidebar-head:hover svg {
+                filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.15));
             }
             .sidebar-title {
                 font-size: 0.95rem;
@@ -293,26 +339,7 @@
                 flex-shrink: 0;
                 line-height: 1;
             }
-            .hg-a {
-                background: rgba(34, 197, 94, 0.15);
-                color: #22c55e;
-            }
-            .hg-b {
-                background: rgba(74, 222, 128, 0.15);
-                color: #4ade80;
-            }
-            .hg-c {
-                background: rgba(229, 168, 32, 0.15);
-                color: #e5a820;
-            }
-            .hg-d {
-                background: rgba(240, 136, 62, 0.15);
-                color: #f0883e;
-            }
-            .hg-f {
-                background: rgba(239, 68, 68, 0.15);
-                color: #ef4444;
-            }
+            /* hg-* grade colors are defined near the bottom alongside dark overrides */
 
             .history-meta {
                 flex: 1;
@@ -342,6 +369,18 @@
                 display: block;
                 margin: 0 auto 0.5rem;
                 opacity: 0.3;
+            }
+            .history-empty-title {
+                display: block;
+                font-weight: 600;
+                color: var(--text-dim);
+                margin-bottom: 0.25rem;
+            }
+            .history-empty-hint {
+                display: block;
+                font-size: 0.68rem;
+                color: var(--text-xdim);
+                line-height: 1.45;
             }
 
             .sidebar-footer {
@@ -485,6 +524,8 @@
                 width: 34px;
                 height: 34px;
                 flex-shrink: 0;
+            }
+            [data-theme="dark"] .scan-hero svg {
                 filter: drop-shadow(0 0 8px rgba(74, 158, 255, 0.3));
             }
             .scan-hero-name {
@@ -500,6 +541,14 @@
                 font-family: var(--mono);
                 letter-spacing: 0.01em;
             }
+            .scan-hero-desc {
+                font-size: 0.82rem;
+                color: var(--text-dim);
+                margin-top: -1.25rem;
+                margin-bottom: 1.75rem;
+                max-width: 480px;
+                line-height: 1.5;
+            }
 
             /* ── Upload zone ── */
             .upload {
@@ -508,8 +557,8 @@
 
             .drop-zone {
                 position: relative;
-                border: 1px solid var(--border);
-                border-radius: 6px;
+                border: 2px dashed var(--border);
+                border-radius: 12px;
                 padding: 3.5rem 2rem;
                 text-align: center;
                 cursor: pointer;
@@ -527,20 +576,17 @@
                     var(--surface)
                 );
                 border-color: var(--accent);
-                box-shadow:
-                    0 0 30px rgba(88, 166, 255, 0.08),
-                    0 4px 20px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.06);
             }
             .drop-zone.has-file {
                 border-color: var(--secure);
+                border-style: solid;
                 background: color-mix(
                     in srgb,
                     var(--secure) 4%,
                     var(--surface)
                 );
-                box-shadow:
-                    0 0 30px rgba(34, 197, 94, 0.08),
-                    0 4px 20px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.06);
             }
             .drop-zone.has-file::before {
                 opacity: 0;
@@ -603,33 +649,29 @@
                 font-family: var(--mono);
                 font-size: 0.85rem;
                 font-weight: 700;
-                letter-spacing: 0.06em;
+                letter-spacing: 0.04em;
                 text-transform: uppercase;
-                background: linear-gradient(135deg, var(--accent), #6d8fff);
-                color: var(--bg);
+                background: var(--text);
+                color: var(--surface);
                 border: none;
-                border-radius: 4px;
+                border-radius: 8px;
                 padding: 0.7rem 2.2rem;
                 cursor: pointer;
                 transition:
-                    box-shadow 0.2s,
-                    transform 0.15s,
-                    opacity 0.12s;
-                box-shadow: 0 2px 12px rgba(74, 158, 255, 0.25);
+                    opacity 0.15s,
+                    transform 0.15s;
             }
             .btn-scan:hover:not(:disabled) {
-                box-shadow: 0 4px 20px rgba(74, 158, 255, 0.4);
+                opacity: 0.88;
                 transform: translateY(-1px);
             }
             .btn-scan:active:not(:disabled) {
                 transform: translateY(0);
-                box-shadow: 0 1px 6px rgba(74, 158, 255, 0.2);
             }
             .btn-scan:disabled {
-                opacity: 0.35;
+                opacity: 0.3;
                 cursor: not-allowed;
                 transform: none;
-                box-shadow: none;
             }
 
             /* ── Loading indicator ── */
@@ -655,7 +697,6 @@
                 border-radius: 50%;
                 animation: spin 0.55s linear infinite;
                 flex-shrink: 0;
-                box-shadow: 0 0 8px rgba(74, 158, 255, 0.2);
             }
             @keyframes spin {
                 to {
@@ -702,27 +743,12 @@
                 border-radius: 2px;
                 overflow: hidden;
             }
-            @keyframes shimmerMove {
-                0% {
-                    background-position: 200% 50%;
-                }
-                100% {
-                    background-position: -200% 50%;
-                }
-            }
             .progress-bar-fill {
                 height: 100%;
                 width: 0%;
-                background: linear-gradient(
-                    90deg,
-                    var(--accent) 0%,
-                    var(--purple) 50%,
-                    var(--accent) 100%
-                );
-                background-size: 200% 100%;
+                background: var(--accent);
                 border-radius: 2px;
                 transition: width 0.3s ease;
-                animation: shimmerMove 2s linear infinite;
             }
             .progress-text {
                 display: flex;
@@ -743,68 +769,36 @@
                 letter-spacing: 0.08em;
                 padding: 0.15rem 0.45rem;
                 border-radius: 3px;
-                background: rgba(139, 92, 246, 0.12);
-                color: #a78bfa;
-                border: 1px solid rgba(139, 92, 246, 0.2);
+                background: rgba(124, 58, 237, 0.08);
+                color: var(--purple);
+                border: 1px solid rgba(124, 58, 237, 0.15);
                 vertical-align: middle;
                 margin-left: 0.4rem;
             }
 
-            /* ── Capabilities row ── */
-            .capabilities {
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 6px;
-                margin-top: 1.75rem;
+            /* ── Capability tags ── */
+            .cap-tags {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.4rem;
+                margin-top: 1.25rem;
             }
-            @media (max-width: 560px) {
-                .capabilities {
-                    grid-template-columns: 1fr;
-                }
-            }
-            .cap {
-                padding: 0.75rem 0.9rem;
+            .cap-tag {
+                font-size: 0.68rem;
+                font-family: var(--mono);
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                padding: 0.3rem 0.65rem;
                 background: var(--surface);
                 border: 1px solid var(--border);
-                border-radius: 4px;
-                border-left: 2px solid var(--accent);
-                transition:
-                    border-color 0.2s,
-                    background 0.2s,
-                    transform 0.2s;
-            }
-            .cap:nth-child(2) {
-                border-left-color: var(--high);
-            }
-            .cap:nth-child(3) {
-                border-left-color: var(--warn);
-            }
-            .cap:nth-child(4) {
-                border-left-color: var(--purple);
-            }
-            .cap:nth-child(5) {
-                border-left-color: var(--secure);
-            }
-            .cap:nth-child(6) {
-                border-left-color: #f0883e;
-            }
-            .cap:hover {
-                background: var(--surface2);
-                transform: translateY(-1px);
-            }
-            .cap-name {
-                font-size: 0.68rem;
-                font-weight: 700;
-                font-family: var(--mono);
-                text-transform: uppercase;
-                letter-spacing: 0.06em;
+                border-radius: 100px;
+                border-left: 3px solid var(--accent);
                 color: var(--text-dim);
-                margin-bottom: 0.25rem;
+                transition: background 0.15s;
             }
-            .cap-desc {
-                font-size: 0.78rem;
-                color: var(--text-xdim);
-                line-height: 1.35;
+            .cap-tag:hover {
+                background: var(--surface2);
             }
 
             /* ── Footer ── */
@@ -836,6 +830,8 @@
                 width: 48px;
                 height: 48px;
                 flex-shrink: 0;
+            }
+            [data-theme="dark"] .about-hero svg {
                 filter: drop-shadow(0 0 12px rgba(74, 158, 255, 0.3));
             }
             .about-hero-text h1 {
@@ -853,11 +849,11 @@
                 margin-bottom: 2rem;
             }
             .about-section h2 {
-                font-size: 0.65rem;
+                font-size: 0.82rem;
                 font-weight: 700;
                 font-family: var(--mono);
                 text-transform: uppercase;
-                letter-spacing: 0.1em;
+                letter-spacing: 0.08em;
                 color: var(--text-xdim);
                 margin-bottom: 0.75rem;
                 padding-bottom: 0.4rem;
@@ -920,10 +916,13 @@
             .result-card {
                 margin-top: 2.5rem;
                 border: 1px solid var(--border);
-                border-radius: 6px;
+                border-radius: 10px;
                 background: var(--surface);
                 overflow: hidden;
                 animation: resultIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+                box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+            }
+            [data-theme="dark"] .result-card {
                 box-shadow:
                     0 8px 40px rgba(0, 0, 0, 0.35),
                     0 0 0 1px rgba(74, 158, 255, 0.05);
@@ -1017,25 +1016,42 @@
                 }
             }
             .grade-a {
+                color: #16a34a;
+                animation: gradeReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+            }
+            .grade-b {
+                color: #22c55e;
+            }
+            .grade-c {
+                color: #d97706;
+            }
+            .grade-d {
+                color: #ea580c;
+            }
+            .grade-f {
+                color: #dc2626;
+                animation: gradeReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+            }
+            [data-theme="dark"] .grade-a {
                 color: #22c55e;
                 text-shadow: 0 0 30px rgba(34, 197, 94, 0.3);
                 animation:
                     gradeReveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both,
                     gradeGlowGreen 1.4s ease-out 0.65s;
             }
-            .grade-b {
+            [data-theme="dark"] .grade-b {
                 color: #4ade80;
                 text-shadow: 0 0 30px rgba(74, 222, 128, 0.25);
             }
-            .grade-c {
+            [data-theme="dark"] .grade-c {
                 color: #e5a820;
                 text-shadow: 0 0 30px rgba(229, 168, 32, 0.25);
             }
-            .grade-d {
+            [data-theme="dark"] .grade-d {
                 color: #f0883e;
                 text-shadow: 0 0 30px rgba(240, 136, 62, 0.25);
             }
-            .grade-f {
+            [data-theme="dark"] .grade-f {
                 color: #ef4444;
                 text-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
                 animation:
@@ -1150,7 +1166,7 @@
                 transition: background 0.15s;
             }
             .prot-row:hover {
-                background: color-mix(in srgb, white 2%, var(--surface2));
+                background: var(--bg);
             }
             .prot-icon {
                 font-size: 0.85rem;
@@ -1161,10 +1177,14 @@
             }
             .prot-ok .prot-icon {
                 color: var(--secure);
-                text-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
             }
             .prot-fail .prot-icon {
                 color: var(--high);
+            }
+            [data-theme="dark"] .prot-ok .prot-icon {
+                text-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+            }
+            [data-theme="dark"] .prot-fail .prot-icon {
                 text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
             }
 
@@ -1188,7 +1208,7 @@
                 border-bottom: none;
             }
             .finding-row:hover {
-                background: rgba(255, 255, 255, 0.015);
+                background: var(--bg);
             }
 
             .sev-badge {
@@ -1321,18 +1341,16 @@
             .btn-json:hover {
                 background: color-mix(
                     in srgb,
-                    var(--info) 12%,
+                    var(--info) 8%,
                     var(--surface2)
                 );
-                color: color-mix(in srgb, white 20%, var(--info));
             }
             .btn-pdf {
                 background: var(--surface2);
-                color: #b384f5;
+                color: var(--purple);
             }
             .btn-pdf:hover {
-                background: color-mix(in srgb, #b384f5 12%, var(--surface2));
-                color: color-mix(in srgb, white 20%, #b384f5);
+                background: color-mix(in srgb, var(--purple) 8%, var(--surface2));
             }
 
             /* ── Error ── */
@@ -1380,8 +1398,11 @@
                 display: none;
                 position: fixed;
                 inset: 0;
-                background: rgba(0, 0, 0, 0.5);
+                background: rgba(0, 0, 0, 0.2);
                 z-index: 15;
+            }
+            [data-theme="dark"] .sidebar-overlay {
+                background: rgba(0, 0, 0, 0.5);
             }
 
             @media (max-width: 560px) {
@@ -1426,6 +1447,7 @@
                     animation-iteration-count: 1 !important;
                     transition-duration: 0.01ms !important;
                 }
+                html { scroll-behavior: auto; }
             }
 
             /* ── Scan sub-message ── */
@@ -1476,6 +1498,7 @@
             .btn-scan:focus-visible,
             .btn:focus-visible,
             .toggle-sidebar:focus-visible,
+            .theme-toggle:focus-visible,
             .nav-item:focus-visible,
             .history-item:focus-visible {
                 outline: 2px solid var(--accent);
@@ -1485,6 +1508,46 @@
                 outline: 2px solid var(--accent);
                 outline-offset: 2px;
             }
+
+            /* ── Theme toggle ── */
+            .theme-toggle {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 28px;
+                height: 28px;
+                border: 1px solid var(--border);
+                border-radius: 4px;
+                background: var(--surface);
+                color: var(--text-dim);
+                cursor: pointer;
+                transition: background 0.12s, color 0.12s, border-color 0.12s;
+                flex-shrink: 0;
+            }
+            .theme-toggle:hover {
+                background: var(--surface2);
+                color: var(--text);
+                border-color: var(--border-lt);
+            }
+            .theme-toggle svg {
+                width: 14px;
+                height: 14px;
+            }
+            .theme-toggle .icon-moon { display: none; }
+            [data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+            [data-theme="dark"] .theme-toggle .icon-moon { display: block; }
+
+            /* ── History grade colors (light adjustments) ── */
+            .hg-a { background: rgba(22, 163, 74, 0.1); color: #16a34a; }
+            .hg-b { background: rgba(34, 197, 94, 0.1); color: #22c55e; }
+            .hg-c { background: rgba(217, 119, 6, 0.1); color: #d97706; }
+            .hg-d { background: rgba(234, 88, 12, 0.1); color: #ea580c; }
+            .hg-f { background: rgba(220, 38, 38, 0.1); color: #dc2626; }
+            [data-theme="dark"] .hg-a { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+            [data-theme="dark"] .hg-b { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+            [data-theme="dark"] .hg-c { background: rgba(229, 168, 32, 0.15); color: #e5a820; }
+            [data-theme="dark"] .hg-d { background: rgba(240, 136, 62, 0.15); color: #f0883e; }
+            [data-theme="dark"] .hg-f { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
         </style>
     </head>
     <body>
@@ -1510,8 +1573,8 @@
                                 y2="28"
                                 gradientUnits="userSpaceOnUse"
                             >
-                                <stop offset="0%" stop-color="#4a9eff" />
-                                <stop offset="100%" stop-color="#8b5cf6" />
+                                <stop offset="0%" stop-color="#3b82f6" />
+                                <stop offset="100%" stop-color="#7c3aed" />
                             </linearGradient>
                         </defs>
                         <path
@@ -1594,7 +1657,8 @@
                                 d="M14 3L4 7.5v6.5c0 6.35 4.13 11.1 10 13 5.87-1.9 10-6.65 10-13V7.5L14 3z"
                             />
                         </svg>
-                        No scans yet
+                        <span class="history-empty-title">No scans yet</span>
+                        <span class="history-empty-hint">Drop an IPA above to run your first analysis. Results and grades appear here.</span>
                     </div>
                 </div>
 
@@ -1646,6 +1710,10 @@
                         "
                         >Static Analysis</span
                     >
+                    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+                        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                    </button>
                 </div>
 
                 <!-- ── Scan view ── -->
@@ -1669,11 +1737,11 @@
                                         >
                                             <stop
                                                 offset="0%"
-                                                stop-color="#4a9eff"
+                                                stop-color="#3b82f6"
                                             />
                                             <stop
                                                 offset="100%"
-                                                stop-color="#8b5cf6"
+                                                stop-color="#7c3aed"
                                             />
                                         </linearGradient>
                                     </defs>
@@ -1705,6 +1773,7 @@
                                     </div>
                                 </div>
                             </div>
+                            <p class="scan-hero-desc">Drop an IPA to get binary analysis, secret detection, and OWASP scoring in ~3 seconds.</p>
                             <div class="upload">
                                 <form id="scan-form">
                                     <div class="drop-zone" id="drop-zone">
@@ -1814,43 +1883,13 @@
                                 </form>
                             </div>
 
-                            <div class="capabilities">
-                                <div class="cap">
-                                    <div class="cap-name">Binary</div>
-                                    <div class="cap-desc">
-                                        PIE, ARC, stack canaries, encryption
-                                    </div>
-                                </div>
-                                <div class="cap">
-                                    <div class="cap-name">Secrets</div>
-                                    <div class="cap-desc">
-                                        API keys, tokens, credentials
-                                    </div>
-                                </div>
-                                <div class="cap">
-                                    <div class="cap-name">OWASP</div>
-                                    <div class="cap-desc">
-                                        Mobile Top 10, CWE mapping
-                                    </div>
-                                </div>
-                                <div class="cap">
-                                    <div class="cap-name">Trackers</div>
-                                    <div class="cap-desc">
-                                        SDKs, analytics, ad networks
-                                    </div>
-                                </div>
-                                <div class="cap">
-                                    <div class="cap-name">Transport</div>
-                                    <div class="cap-desc">
-                                        ATS exceptions, insecure domains
-                                    </div>
-                                </div>
-                                <div class="cap">
-                                    <div class="cap-name">Supply Chain</div>
-                                    <div class="cap-desc">
-                                        Framework SCA, known CVEs
-                                    </div>
-                                </div>
+                            <div class="cap-tags">
+                                <span class="cap-tag" style="border-color: var(--accent)">Binary</span>
+                                <span class="cap-tag" style="border-color: var(--high)">Secrets</span>
+                                <span class="cap-tag" style="border-color: var(--warn)">OWASP</span>
+                                <span class="cap-tag" style="border-color: var(--purple)">Trackers</span>
+                                <span class="cap-tag" style="border-color: var(--secure)">Transport</span>
+                                <span class="cap-tag" style="border-color: #f0883e">Supply Chain</span>
                             </div>
 
                             <div
@@ -1880,11 +1919,11 @@
                                             >
                                                 <stop
                                                     offset="0%"
-                                                    stop-color="#4a9eff"
+                                                    stop-color="#3b82f6"
                                                 />
                                                 <stop
                                                     offset="100%"
-                                                    stop-color="#8b5cf6"
+                                                    stop-color="#7c3aed"
                                                 />
                                             </linearGradient>
                                         </defs>
@@ -2060,8 +2099,7 @@
             document
                 .querySelector(".sidebar-head")
                 .addEventListener("click", () => {
-                    switchView("scan");
-                    if (isMobile()) shell.classList.remove("sidebar-open");
+                    window.location.href = "/";
                 });
 
             toggleBtn.addEventListener("click", () => {
@@ -2106,11 +2144,40 @@
                 n.addEventListener("click", () => switchView(n.dataset.view)),
             );
 
+            // ── File validation ──
+            const MAX_FILE_SIZE = 15 * 1024 * 1024 * 1024; // 15 GB
+            function validateFile(file) {
+                if (!file) return null;
+                if (!file.name.toLowerCase().endsWith('.ipa')) {
+                    return 'Only .ipa files are supported.';
+                }
+                if (file.size === 0) {
+                    return 'File is empty.';
+                }
+                if (file.size > MAX_FILE_SIZE) {
+                    return 'File exceeds the 15 GB size limit.';
+                }
+                return null;
+            }
+
+            function setFileState(file) {
+                const name = file?.name ?? '';
+                fileName.textContent = name;
+                dropZone.classList.toggle('has-file', !!name);
+            }
+
             // ── File handling ──
             fileInput.addEventListener("change", () => {
-                const name = fileInput.files[0]?.name ?? "";
-                fileName.textContent = name;
-                dropZone.classList.toggle("has-file", !!name);
+                const file = fileInput.files[0];
+                const err = validateFile(file);
+                if (err) {
+                    results.innerHTML = `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(err)}</span></div>`;
+                    page.classList.add("has-results");
+                    fileInput.value = '';
+                    setFileState(null);
+                    return;
+                }
+                setFileState(file);
             });
 
             dropZone.addEventListener("dragover", (e) => {
@@ -2124,10 +2191,15 @@
                 e.preventDefault();
                 dropZone.classList.remove("drag-over");
                 if (e.dataTransfer.files.length) {
+                    const file = e.dataTransfer.files[0];
+                    const err = validateFile(file);
+                    if (err) {
+                        results.innerHTML = `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(err)}</span></div>`;
+                        page.classList.add("has-results");
+                        return;
+                    }
                     fileInput.files = e.dataTransfer.files;
-                    const name = e.dataTransfer.files[0].name;
-                    fileName.textContent = name;
-                    dropZone.classList.toggle("has-file", !!name);
+                    setFileState(file);
                 }
             });
 
@@ -2232,24 +2304,41 @@
 
             // ── Chunked upload + scan ──
             const CHUNK_SIZE = 50 * 1024 * 1024; // 50 MB
+            const CHUNK_MAX_RETRIES = 3;
+            let activeAbort = null;
 
-            async function uploadChunked(file) {
+            async function fetchWithRetry(url, opts, retries = CHUNK_MAX_RETRIES) {
+                for (let attempt = 0; attempt <= retries; attempt++) {
+                    try {
+                        const res = await fetch(url, opts);
+                        if (res.ok || res.status < 500) return res;
+                        if (attempt === retries) return res;
+                    } catch (err) {
+                        if (err.name === 'AbortError') throw err;
+                        if (attempt === retries) throw new Error('Network error: check your connection and try again.');
+                    }
+                    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                }
+            }
+
+            async function uploadChunked(file, signal) {
                 // 1. Init upload session
-                const initRes = await fetch("/api/upload", { method: "POST" });
+                const initRes = await fetch("/api/upload", { method: "POST", signal });
                 if (!initRes.ok) throw new Error("Failed to init upload");
                 const { upload_id } = await initRes.json();
 
-                // 2. Upload chunks
+                // 2. Upload chunks with retry
                 const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
                 for (let i = 0; i < totalChunks; i++) {
                     const start = i * CHUNK_SIZE;
                     const end = Math.min(start + CHUNK_SIZE, file.size);
                     const chunk = file.slice(start, end);
 
-                    const res = await fetch(`/api/upload/${upload_id}/${i}`, {
+                    const res = await fetchWithRetry(`/api/upload/${upload_id}/${i}`, {
                         method: "PUT",
                         body: chunk,
                         headers: { "Content-Type": "application/octet-stream" },
+                        signal,
                     });
 
                     if (!res.ok) {
@@ -2269,6 +2358,7 @@
                 setProgress(100, "Scanning...");
                 const scanRes = await fetch(`/api/upload/${upload_id}/scan`, {
                     method: "POST",
+                    signal,
                 });
                 if (!scanRes.ok) {
                     const msg = await scanRes.text();
@@ -2278,21 +2368,33 @@
             }
 
             // ── Form submission ──
+            let scanInProgress = false;
             document
                 .getElementById("scan-form")
                 .addEventListener("submit", async (e) => {
                     e.preventDefault();
+                    if (scanInProgress) return;
                     const file = fileInput.files[0];
                     if (!file) return;
 
+                    const fileErr = validateFile(file);
+                    if (fileErr) {
+                        results.innerHTML = `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(fileErr)}</span></div>`;
+                        page.classList.add("has-results");
+                        return;
+                    }
+
+                    scanInProgress = true;
+                    activeAbort = new AbortController();
                     submitBtn.disabled = true;
                     loading.classList.add("active");
                     progressEl.classList.add("active");
+                    results.setAttribute("aria-busy", "true");
                     setProgress(0, "Starting upload...");
                     startPhases();
 
                     try {
-                        const html = await uploadChunked(file);
+                        const html = await uploadChunked(file, activeAbort.signal);
                         results.innerHTML = html;
                         page.classList.add("has-results");
 
@@ -2353,12 +2455,19 @@
                             }
                         }
                     } catch (err) {
-                        results.innerHTML = `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(err.message)}</span></div>`;
+                        if (err.name === 'AbortError') return;
+                        const msg = !navigator.onLine
+                            ? 'You appear to be offline. Check your connection and try again.'
+                            : err.message;
+                        results.innerHTML = `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(msg)}</span></div>`;
                         page.classList.add("has-results");
                     } finally {
+                        scanInProgress = false;
+                        activeAbort = null;
                         submitBtn.disabled = false;
                         loading.classList.remove("active");
                         progressEl.classList.remove("active");
+                        results.removeAttribute("aria-busy");
                         stopPhases();
                     }
                 });
@@ -2451,7 +2560,10 @@
                     '<div style="display:flex;align-items:center;gap:0.65rem;padding:1.5rem 0;color:var(--text-dim);font-size:0.85rem;"><div class="spinner"></div>Loading scan...</div>';
                 page.classList.add("has-results");
 
-                fetch("/api/scan/" + id)
+                const ctrl = new AbortController();
+                const timeout = setTimeout(() => ctrl.abort(), 15000);
+
+                fetch("/api/scan/" + encodeURIComponent(id), { signal: ctrl.signal })
                     .then((r) => {
                         if (!r.ok) throw new Error("Scan expired");
                         return r.text();
@@ -2459,13 +2571,45 @@
                     .then((html) => {
                         results.innerHTML = html;
                     })
-                    .catch(() => {
+                    .catch((err) => {
+                        const msg = err.name === 'AbortError'
+                            ? 'Request timed out. Please try again.'
+                            : !navigator.onLine
+                            ? 'You appear to be offline. Check your connection and try again.'
+                            : 'Scan result has expired. Re-upload the file to scan again.';
                         results.innerHTML =
-                            '<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">Scan result has expired. Re-upload the file to scan again.</span></div>';
-                    });
+                            `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(msg)}</span></div>`;
+                    })
+                    .finally(() => clearTimeout(timeout));
             }
 
             renderHistory();
+
+            // ── Pick up results from landing page ──
+            (function checkLandingResult() {
+                let landingHtml;
+                try { landingHtml = sessionStorage.getItem('pavise-landing-result'); } catch { return; }
+                if (landingHtml) {
+                    try {
+                        sessionStorage.removeItem('pavise-landing-result');
+                        sessionStorage.removeItem('pavise-landing-file');
+                    } catch { /* storage unavailable */ }
+                    results.innerHTML = landingHtml;
+                    page.classList.add('has-results');
+                    // Extract scan info for history
+                    const resultCard = results.querySelector('.result-card');
+                    if (resultCard) {
+                        const appName = resultCard.querySelector('.app-name')?.childNodes[0]?.textContent?.trim() || 'Unknown';
+                        const grade = resultCard.querySelector('.grade')?.textContent?.trim() || '?';
+                        const score = resultCard.querySelector('.score-num')?.childNodes[0]?.textContent?.trim() || '0';
+                        const jsonLink = resultCard.querySelector('.btn-json');
+                        const scanId = jsonLink ? jsonLink.getAttribute('href').split('/')[3] : null;
+                        if (scanId) {
+                            addToHistory({ id: scanId, name: appName, grade, score, ts: Date.now() });
+                        }
+                    }
+                }
+            })();
 
             // ── Keyboard shortcut: U to open file picker ──
             document.addEventListener("keydown", (e) => {
@@ -2488,10 +2632,30 @@
                 }
             });
 
+            // ── Theme toggle ──
+            const themeToggle = document.getElementById("theme-toggle");
+            function setTheme(theme) {
+                document.documentElement.setAttribute("data-theme", theme);
+                localStorage.setItem("pavise-theme", theme);
+            }
+            themeToggle.addEventListener("click", () => {
+                const current = document.documentElement.getAttribute("data-theme");
+                setTheme(current === "dark" ? "light" : "dark");
+            });
+            // Init theme from localStorage or system preference
+            (function() {
+                const stored = localStorage.getItem("pavise-theme");
+                if (stored) {
+                    setTheme(stored);
+                } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+                    setTheme("dark");
+                }
+            })();
+
             // ── Console easter egg ──
             console.log(
                 "%c⬡ Pavise%c  iOS Security Analyzer\n%cParsing Mach-O since 2024. Built with Rust.\ngithub.com/ahmetmutlugun",
-                "color:#4a9eff;font-size:15px;font-weight:900;letter-spacing:-0.02em;",
+                "color:#3b82f6;font-size:15px;font-weight:900;letter-spacing:-0.02em;",
                 "color:#8b949e;font-size:12px;font-weight:600;",
                 "color:#4a5568;font-size:11px;line-height:1.6;",
             );

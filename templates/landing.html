@@ -1,0 +1,1347 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content="Pavise performs fast static security analysis of iOS IPA files, inspecting binaries, manifests, secrets, and OWASP Mobile Top 10 compliance in under 3 seconds." />
+        <meta name="keywords" content="iOS security scanner, IPA analyzer, mobile app security, static analysis, OWASP Mobile Top 10, binary analysis, secret detection, MobSF alternative" />
+        <link rel="canonical" href="https://pavise.app/" />
+
+        <!-- Open Graph -->
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://pavise.app/" />
+        <meta property="og:title" content="Pavise — Fast iOS IPA Security Analyzer" />
+        <meta property="og:description" content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds. Free and open source." />
+        <meta property="og:site_name" content="Pavise" />
+
+        <!-- Twitter Card -->
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="Pavise — Fast iOS IPA Security Analyzer" />
+        <meta name="twitter:description" content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds." />
+
+        <!-- Structured Data -->
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "WebApplication",
+            "name": "Pavise",
+            "url": "https://pavise.app",
+            "description": "Fast static security analysis for iOS IPA files. Detects vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 compliance issues.",
+            "applicationCategory": "SecurityApplication",
+            "operatingSystem": "Any",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "creator": {
+                "@type": "Person",
+                "name": "Ahmet Mutlugun",
+                "url": "https://github.com/ahmetmutlugun"
+            },
+            "softwareHelp": {
+                "@type": "WebPage",
+                "url": "https://github.com/ahmetmutlugun/pavise"
+            }
+        }
+        </script>
+
+        <title>Pavise — iOS IPA Security Analyzer | Free Static Analysis</title>
+
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+        <script>
+            // Prevent flash of wrong theme
+            (function() {
+                var t = localStorage.getItem('pavise-theme');
+                if (t) document.documentElement.setAttribute('data-theme', t);
+                else if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'dark');
+            })();
+        </script>
+
+        <style>
+            *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+            :root {
+                --bg: #fafaf9;
+                --bg-warm: #f5f3f0;
+                --surface: #ffffff;
+                --surface-raised: #ffffff;
+                --border: #e7e5e0;
+                --border-lt: #d4d1cb;
+                --text: #1a1816;
+                --text-body: #44403c;
+                --text-dim: #78716c;
+                --text-xdim: #a8a29e;
+                --accent: #3b82f6;
+                --accent-deep: #2563eb;
+                --accent-dim: rgba(59, 130, 246, 0.08);
+                --purple: #7c3aed;
+                --purple-dim: rgba(124, 58, 237, 0.08);
+                --high: #dc2626;
+                --warn: #d97706;
+                --secure: #16a34a;
+                --sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                --mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Consolas, monospace;
+            }
+
+            [data-theme="dark"] {
+                --bg: #0d1117;
+                --bg-warm: #161b22;
+                --surface: #161b22;
+                --surface-raised: #1c2128;
+                --border: #30363d;
+                --border-lt: #3a424d;
+                --text: #e6edf3;
+                --text-body: #c9d1d9;
+                --text-dim: #8b949e;
+                --text-xdim: #7a8798;
+                --accent: #58a6ff;
+                --accent-deep: #79b8ff;
+                --accent-dim: rgba(88, 166, 255, 0.12);
+                --purple: #8b5cf6;
+                --purple-dim: rgba(139, 92, 246, 0.1);
+                --high: #f85149;
+                --warn: #d29922;
+                --secure: #3fb950;
+            }
+
+            html { font-size: 16px; scroll-behavior: smooth; }
+
+            body {
+                background: var(--bg);
+                color: var(--text);
+                font-family: var(--sans);
+                -webkit-font-smoothing: antialiased;
+                -moz-osx-font-smoothing: grayscale;
+                line-height: 1.6;
+            }
+
+            /* ── Nav ── */
+            .nav {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 100;
+                padding: 0 clamp(1.5rem, 4vw, 3rem);
+                height: 64px;
+                display: flex;
+                align-items: center;
+                background: color-mix(in srgb, var(--bg) 85%, transparent);
+                backdrop-filter: blur(16px) saturate(1.2);
+                -webkit-backdrop-filter: blur(16px) saturate(1.2);
+                border-bottom: 1px solid transparent;
+                transition: border-color 0.3s, box-shadow 0.3s;
+            }
+            .nav.scrolled {
+                border-bottom-color: var(--border);
+                box-shadow: 0 1px 8px rgba(0,0,0,0.04);
+            }
+            .nav-inner {
+                max-width: 1120px;
+                width: 100%;
+                margin: 0 auto;
+                display: flex;
+                align-items: center;
+                gap: 2rem;
+            }
+            .nav-brand {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                text-decoration: none;
+                color: var(--text);
+                font-weight: 800;
+                font-size: 1.05rem;
+                letter-spacing: -0.03em;
+            }
+            .nav-brand svg { width: 24px; height: 24px; flex-shrink: 0; }
+            .nav-links {
+                display: flex;
+                align-items: center;
+                gap: 0.25rem;
+                margin-left: auto;
+            }
+            .nav-link {
+                font-size: 0.82rem;
+                font-weight: 500;
+                color: var(--text-dim);
+                text-decoration: none;
+                padding: 0.4rem 0.7rem;
+                border-radius: 6px;
+                transition: color 0.15s, background 0.15s;
+            }
+            .nav-link:hover { color: var(--text); background: var(--accent-dim); }
+            .nav-cta {
+                font-size: 0.8rem;
+                font-weight: 600;
+                color: var(--surface);
+                background: var(--text);
+                padding: 0.45rem 1rem;
+                border-radius: 6px;
+                text-decoration: none;
+                margin-left: 0.5rem;
+                transition: opacity 0.15s;
+            }
+            .nav-cta:hover { opacity: 0.85; }
+
+            /* ── Hero ── */
+            .hero {
+                padding: calc(64px + clamp(4rem, 8vw, 7rem)) clamp(1.5rem, 4vw, 3rem) clamp(4rem, 8vw, 6rem);
+                text-align: left;
+                max-width: 1120px;
+                margin: 0 auto;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 3rem;
+                align-items: start;
+            }
+            .hero-content { display: contents; }
+            .hero-eyebrow, .hero h1, .hero-sub { grid-column: 1; }
+            .hero-upload {
+                grid-column: 2;
+                grid-row: 1 / -1;
+                align-self: center;
+                margin-top: 0;
+                max-width: none;
+            }
+            .hero-eyebrow {
+                font-size: 0.72rem;
+                font-weight: 700;
+                font-family: var(--mono);
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--accent);
+                margin-bottom: 1rem;
+            }
+            .hero h1 {
+                font-size: clamp(2.5rem, 5.5vw, 4rem);
+                font-weight: 800;
+                letter-spacing: -0.035em;
+                line-height: 1.08;
+                max-width: 700px;
+                color: var(--text);
+            }
+            .hero h1 span {
+                color: var(--accent-deep);
+            }
+            .hero-sub {
+                font-size: clamp(1rem, 1.8vw, 1.2rem);
+                color: var(--text-body);
+                max-width: 540px;
+                margin-top: 1.25rem;
+                line-height: 1.55;
+            }
+            .hero-actions {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                margin-top: 2.5rem;
+                flex-wrap: wrap;
+            }
+            .btn-primary {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-family: var(--sans);
+                font-size: 0.9rem;
+                font-weight: 700;
+                color: var(--surface);
+                background: var(--text);
+                border: none;
+                border-radius: 8px;
+                padding: 0.8rem 1.6rem;
+                cursor: pointer;
+                text-decoration: none;
+                transition: opacity 0.15s, transform 0.15s;
+            }
+            .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+            .btn-primary svg { width: 18px; height: 18px; }
+            .btn-secondary {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+                font-family: var(--sans);
+                font-size: 0.9rem;
+                font-weight: 600;
+                color: var(--text-body);
+                background: none;
+                border: 1px solid var(--border);
+                border-radius: 8px;
+                padding: 0.75rem 1.4rem;
+                cursor: pointer;
+                text-decoration: none;
+                transition: border-color 0.15s, background 0.15s;
+            }
+            .btn-secondary:hover { border-color: var(--border-lt); background: var(--surface); }
+            .btn-secondary svg { width: 18px; height: 18px; }
+
+            .hero-proof {
+                display: flex;
+                align-items: center;
+                gap: 1.25rem;
+                margin-top: 0.75rem;
+                flex-wrap: wrap;
+            }
+            .proof-item {
+                font-size: 0.72rem;
+                color: var(--text-xdim);
+                font-weight: 500;
+            }
+            .proof-item::before {
+                content: "\2714 ";
+                color: var(--secure);
+                font-weight: 700;
+            }
+
+            /* ── Upload hero zone ── */
+            .upload-zone {
+                position: relative;
+                border: 2px dashed var(--border);
+                border-radius: 12px;
+                padding: 2.5rem 2rem;
+                text-align: center;
+                cursor: pointer;
+                transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+                background: var(--surface);
+            }
+            .upload-zone:hover,
+            .upload-zone.drag-over {
+                border-color: var(--accent);
+                background: var(--accent-dim);
+                box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.06);
+            }
+            .upload-zone.has-file {
+                border-color: var(--secure);
+                border-style: solid;
+                background: rgba(22, 163, 74, 0.04);
+                box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.06);
+            }
+            .upload-zone input[type="file"] {
+                position: absolute;
+                inset: 0;
+                opacity: 0;
+                cursor: pointer;
+                width: 100%;
+                height: 100%;
+            }
+            .upload-icon {
+                display: block;
+                margin: 0 auto 0.75rem;
+                color: var(--text-xdim);
+                transition: color 0.2s, transform 0.2s;
+            }
+            .upload-zone:hover .upload-icon,
+            .upload-zone.drag-over .upload-icon {
+                color: var(--accent);
+                transform: translateY(-2px);
+            }
+            .upload-zone.has-file .upload-icon { color: var(--secure); }
+            .upload-label {
+                font-size: 0.9rem;
+                color: var(--text-dim);
+            }
+            .upload-label strong { color: var(--text); font-weight: 600; }
+            .upload-hint {
+                font-size: 0.72rem;
+                color: var(--text-xdim);
+                margin-top: 0.4rem;
+                font-family: var(--mono);
+            }
+            .upload-file-name {
+                margin-top: 0.5rem;
+                font-size: 0.82rem;
+                color: var(--secure);
+                font-family: var(--mono);
+                font-weight: 600;
+                min-height: 1.2em;
+            }
+            .upload-controls {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                margin-top: 0.75rem;
+            }
+            .upload-scan-btn {
+                font-family: var(--mono);
+                font-size: 0.82rem;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                background: var(--text);
+                color: var(--surface);
+                border: none;
+                border-radius: 8px;
+                padding: 0.7rem 2rem;
+                cursor: pointer;
+                transition: opacity 0.15s, transform 0.15s;
+            }
+            .upload-scan-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+            .upload-scan-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+            /* upload progress */
+            .upload-progress { display: none; flex: 1; }
+            .upload-progress.active { display: block; }
+            .upload-progress-track {
+                height: 4px;
+                background: var(--border);
+                border-radius: 2px;
+                overflow: hidden;
+            }
+            .upload-progress-fill {
+                height: 100%;
+                width: 0%;
+                background: var(--accent);
+                border-radius: 2px;
+                transition: width 0.3s ease;
+            }
+            .upload-progress-text {
+                display: flex;
+                justify-content: space-between;
+                font-size: 0.7rem;
+                font-family: var(--mono);
+                color: var(--text-dim);
+                margin-top: 0.3rem;
+            }
+
+            /* scan phases */
+            .scan-loading { display: none; }
+            .scan-loading.active { display: flex; flex-direction: column; gap: 0.3rem; }
+            .scan-loading-row { display: flex; align-items: center; gap: 0.65rem; }
+            .scan-spinner {
+                width: 16px;
+                height: 16px;
+                border: 2px solid var(--border);
+                border-top-color: var(--accent);
+                border-radius: 50%;
+                animation: spin 0.55s linear infinite;
+                flex-shrink: 0;
+            }
+            @keyframes spin { to { transform: rotate(360deg); } }
+            .scan-phases {
+                display: flex;
+                gap: 0.25rem;
+                font-size: 0.72rem;
+                font-family: var(--mono);
+                letter-spacing: 0.02em;
+            }
+            .scan-phase { color: var(--border-lt); transition: color 0.2s; }
+            .scan-phase::after { content: " \2192"; color: var(--border); }
+            .scan-phase:last-child::after { content: ""; }
+            .scan-phase.active { color: var(--accent); }
+            .scan-phase.done { color: var(--secure); }
+            .scan-msg {
+                font-size: 0.67rem;
+                font-family: var(--mono);
+                color: var(--text-xdim);
+                padding-left: calc(16px + 0.65rem);
+                min-height: 1em;
+                opacity: 0;
+                transition: opacity 0.2s;
+            }
+
+            /* error */
+            .upload-error {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                background: rgba(220, 38, 38, 0.06);
+                border: 1px solid rgba(220, 38, 38, 0.15);
+                border-radius: 8px;
+                padding: 0.7rem 1rem;
+                margin-top: 0.75rem;
+                color: var(--high);
+                font-size: 0.82rem;
+            }
+            .upload-error:empty { display: none; }
+
+            /* ── Section shared ── */
+            .section {
+                padding: clamp(4rem, 8vw, 6rem) clamp(1.5rem, 4vw, 3rem);
+                max-width: 1120px;
+                margin: 0 auto;
+            }
+            .section-full {
+                padding: clamp(4rem, 8vw, 6rem) clamp(1.5rem, 4vw, 3rem);
+            }
+            .section-label {
+                font-size: 0.68rem;
+                font-weight: 700;
+                font-family: var(--mono);
+                text-transform: uppercase;
+                letter-spacing: 0.1em;
+                color: var(--accent);
+                margin-bottom: 0.75rem;
+            }
+            .section h2 {
+                font-size: clamp(1.6rem, 3vw, 2.2rem);
+                font-weight: 800;
+                letter-spacing: -0.03em;
+                line-height: 1.15;
+                max-width: 500px;
+            }
+            .section-desc {
+                font-size: 1rem;
+                color: var(--text-body);
+                max-width: 480px;
+                margin-top: 0.75rem;
+                line-height: 1.55;
+            }
+
+            /* ── Features ── */
+            .features-section {
+                background: var(--bg-warm);
+                border-top: 1px solid var(--border);
+                border-bottom: 1px solid var(--border);
+            }
+            .features-inner {
+                max-width: 1120px;
+                margin: 0 auto;
+            }
+            .features-header {
+                margin-bottom: 3rem;
+            }
+            .features-grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1px;
+                background: var(--border);
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                overflow: hidden;
+            }
+            .feature {
+                padding: 1.75rem;
+                background: var(--surface);
+                transition: background 0.2s;
+            }
+            .feature:hover { background: var(--bg); }
+            .feature-icon {
+                width: 32px;
+                height: 32px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin-bottom: 1rem;
+                color: var(--accent);
+            }
+            .feature-icon svg {
+                width: 22px;
+                height: 22px;
+                fill: none;
+                stroke: currentColor;
+                stroke-width: 1.75;
+                stroke-linecap: round;
+                stroke-linejoin: round;
+            }
+            .feature-icon.red { color: var(--high); }
+            .feature-icon.amber { color: var(--warn); }
+            .feature-icon.green { color: var(--secure); }
+            .feature-icon.purple { color: var(--purple); }
+            .feature h3 {
+                font-size: 0.9rem;
+                font-weight: 700;
+                letter-spacing: -0.02em;
+                margin-bottom: 0.35rem;
+            }
+            .feature p {
+                font-size: 0.82rem;
+                color: var(--text-dim);
+                line-height: 1.5;
+            }
+            .owasp-inline-badges {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.3rem;
+                margin-top: 0.6rem;
+            }
+            .owasp-inline-badges span {
+                font-size: 0.65rem;
+                font-family: var(--mono);
+                font-weight: 700;
+                padding: 0.15rem 0.4rem;
+                background: rgba(217, 119, 6, 0.08);
+                color: var(--warn);
+                border-radius: 3px;
+                letter-spacing: 0.02em;
+            }
+
+            /* ── Speed section (full-width dark band) ── */
+            .speed-section {
+                background: var(--text);
+                color: #fafaf9;
+                padding: clamp(5rem, 10vw, 8rem) clamp(1.5rem, 4vw, 3rem);
+                position: relative;
+                overflow: hidden;
+            }
+            .speed-inner {
+                max-width: 1120px;
+                margin: 0 auto;
+                position: relative;
+            }
+            .speed-section .section-label {
+                color: rgba(255,255,255,0.4);
+            }
+            .speed-section h2 {
+                color: #fafaf9;
+                font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+                max-width: 500px;
+            }
+            .speed-section .section-desc {
+                color: rgba(255,255,255,0.55);
+            }
+            .speed-grid {
+                display: grid;
+                grid-template-columns: auto 1fr;
+                gap: 4rem;
+                align-items: center;
+                margin-top: 3.5rem;
+            }
+            .speed-detail {
+                display: flex;
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+            .speed-stat {
+                display: flex;
+                align-items: baseline;
+                gap: 0.6rem;
+            }
+            .speed-stat-num {
+                font-size: clamp(5rem, 10vw, 8rem);
+                font-weight: 800;
+                letter-spacing: -0.06em;
+                line-height: 0.85;
+                color: #fafaf9;
+            }
+            .speed-stat-unit {
+                font-size: clamp(1.2rem, 2vw, 1.6rem);
+                font-weight: 600;
+                color: rgba(255,255,255,0.45);
+            }
+            .speed-stat-desc {
+                font-size: 0.9rem;
+                color: rgba(255,255,255,0.5);
+                line-height: 1.55;
+                max-width: 300px;
+            }
+            .speed-visual {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            .speed-bar {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+            }
+            .speed-bar-label {
+                font-size: 0.75rem;
+                font-weight: 600;
+                font-family: var(--mono);
+                color: rgba(255,255,255,0.45);
+                width: 80px;
+                text-align: right;
+                flex-shrink: 0;
+            }
+            .speed-bar-track {
+                flex: 1;
+                height: 32px;
+                background: rgba(255,255,255,0.06);
+                border-radius: 6px;
+                overflow: hidden;
+                position: relative;
+            }
+            .speed-bar-fill {
+                height: 100%;
+                border-radius: 6px;
+                display: flex;
+                align-items: center;
+                padding-left: 0.75rem;
+                font-size: 0.7rem;
+                font-weight: 700;
+                font-family: var(--mono);
+                white-space: nowrap;
+            }
+            .speed-bar-fill.pavise-bar {
+                width: 7%;
+                background: var(--accent);
+                min-width: 70px;
+                color: #fff;
+            }
+            .speed-bar-fill.other-bar {
+                width: 100%;
+                background: rgba(255,255,255,0.1);
+                color: rgba(255,255,255,0.35);
+            }
+
+            /* ── Output formats (flat list) ── */
+            .formats-row {
+                display: flex;
+                gap: 0;
+                margin-top: 3rem;
+                border-top: 1px solid var(--border);
+            }
+            .format-item {
+                flex: 1;
+                padding: 1.75rem 0;
+                border-right: 1px solid var(--border);
+            }
+            .format-item:last-child { border-right: none; }
+            .format-item:not(:first-child) { padding-left: 2rem; }
+            .format-ext {
+                font-size: 0.88rem;
+                font-family: var(--mono);
+                font-weight: 700;
+                color: var(--text);
+                letter-spacing: -0.01em;
+            }
+            .format-name {
+                font-size: 0.82rem;
+                font-weight: 600;
+                color: var(--text-body);
+                margin-top: 0.5rem;
+            }
+            .format-desc {
+                font-size: 0.75rem;
+                color: var(--text-dim);
+                line-height: 1.5;
+                margin-top: 0.2rem;
+                max-width: 220px;
+            }
+            @media (max-width: 900px) {
+                .format-item { border-right: none; border-bottom: 1px solid var(--border); padding: 1.25rem 0; }
+                .format-item:last-child { border-bottom: none; }
+                .format-item:not(:first-child) { padding-left: 0; }
+            }
+
+            /* ── Footer ── */
+            .site-footer {
+                border-top: 1px solid var(--border);
+                padding: 2.5rem clamp(1.5rem, 4vw, 3rem);
+            }
+            .footer-inner {
+                max-width: 1120px;
+                margin: 0 auto;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1.5rem;
+                flex-wrap: wrap;
+            }
+            .footer-brand {
+                display: flex;
+                align-items: center;
+                gap: 0.4rem;
+                font-size: 0.82rem;
+                font-weight: 700;
+                color: var(--text);
+                letter-spacing: -0.02em;
+            }
+            .footer-brand svg { width: 18px; height: 18px; }
+            .footer-links {
+                display: flex;
+                align-items: center;
+                gap: 1.5rem;
+            }
+            .footer-link {
+                font-size: 0.75rem;
+                color: var(--text-dim);
+                text-decoration: none;
+                transition: color 0.15s;
+            }
+            .footer-link:hover { color: var(--text); }
+            .footer-copy {
+                font-size: 0.7rem;
+                color: var(--text-xdim);
+                font-family: var(--mono);
+            }
+
+            /* ── Responsive ── */
+            @media (max-width: 900px) {
+                .hero { grid-template-columns: 1fr; }
+                .hero-eyebrow, .hero h1, .hero-sub { grid-column: 1; }
+                .hero-upload { grid-column: 1; grid-row: auto; }
+                .features-grid { grid-template-columns: repeat(2, 1fr); }
+                .speed-grid { grid-template-columns: 1fr; gap: 2rem; }
+                .formats-row { flex-direction: column; }
+            }
+            @media (max-width: 640px) {
+                .features-grid { grid-template-columns: 1fr; }
+                .nav-hamburger { display: flex; }
+                .nav-links {
+                    display: none;
+                    position: absolute;
+                    top: 64px;
+                    left: 0;
+                    right: 0;
+                    background: var(--bg);
+                    border-bottom: 1px solid var(--border);
+                    flex-direction: column;
+                    padding: 0.5rem 1rem;
+                }
+                .nav-links.open { display: flex; }
+                .nav-links .nav-link { display: block; padding: 0.6rem 0.5rem; }
+                .nav-cta { margin-left: 0; margin-top: 0.25rem; text-align: center; }
+                .footer-inner { flex-direction: column; text-align: center; }
+                .footer-links { flex-wrap: wrap; justify-content: center; }
+            }
+
+            /* ── Motion ── */
+            @media (prefers-reduced-motion: reduce) {
+                *, *::before, *::after {
+                    animation-duration: 0.01ms !important;
+                    animation-iteration-count: 1 !important;
+                    transition-duration: 0.01ms !important;
+                }
+                html { scroll-behavior: auto; }
+            }
+
+            /* ── Focus ── */
+            .btn-primary:focus-visible,
+            .btn-secondary:focus-visible,
+            .nav-link:focus-visible,
+            .nav-cta:focus-visible,
+            .upload-scan-btn:focus-visible,
+            .theme-toggle:focus-visible {
+                outline: 2px solid var(--accent);
+                outline-offset: 2px;
+            }
+            .upload-zone:focus-within {
+                outline: 2px solid var(--accent);
+                outline-offset: 2px;
+            }
+
+            /* ── Entrance animations ── */
+            .fade-up {
+                opacity: 0;
+                transform: translateY(20px);
+                transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            }
+            .fade-up.visible {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            .stagger-1 { transition-delay: 0.05s; }
+            .stagger-2 { transition-delay: 0.1s; }
+            .stagger-3 { transition-delay: 0.15s; }
+            .stagger-4 { transition-delay: 0.2s; }
+
+            /* ── Theme toggle ── */
+            .theme-toggle {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                background: var(--surface);
+                color: var(--text-dim);
+                cursor: pointer;
+                transition: background 0.15s, color 0.15s, border-color 0.15s;
+                flex-shrink: 0;
+                margin-left: 0.5rem;
+            }
+            .theme-toggle:hover {
+                color: var(--text);
+                border-color: var(--border-lt);
+            }
+            .theme-toggle svg { width: 15px; height: 15px; }
+            .theme-toggle .icon-moon { display: none; }
+            [data-theme="dark"] .theme-toggle .icon-sun { display: none; }
+            [data-theme="dark"] .theme-toggle .icon-moon { display: block; }
+
+            /* ── Hamburger ── */
+            .nav-hamburger {
+                display: none;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                border: 1px solid var(--border);
+                border-radius: 6px;
+                background: var(--surface);
+                color: var(--text-dim);
+                cursor: pointer;
+                margin-left: auto;
+            }
+            .nav-hamburger svg { width: 16px; height: 16px; }
+
+            /* ── Dark mode overrides for speed section ── */
+            [data-theme="dark"] .speed-section {
+                background: #161b22;
+                color: #e6edf3;
+            }
+            [data-theme="dark"] .speed-section h2 { color: #e6edf3; }
+        </style>
+    </head>
+    <body>
+        <!-- ── Nav ── -->
+        <nav class="nav" id="nav">
+            <div class="nav-inner">
+                <a href="/" class="nav-brand">
+                    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="nGrad" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stop-color="#3b82f6" />
+                                <stop offset="100%" stop-color="#7c3aed" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#nGrad)" stroke-width="1.5" fill="none" opacity="0.7"/>
+                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" fill="url(#nGrad)" opacity="0.1"/>
+                        <path d="M10 14.5l3 3 5-5" stroke="url(#nGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                    Pavise
+                </a>
+                <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+                <div class="nav-links">
+                    <a href="#features" class="nav-link">Features</a>
+                    <a href="https://github.com/ahmetmutlugun/pavise" target="_blank" rel="noopener noreferrer" class="nav-link">Docs</a>
+                    <a href="https://github.com/ahmetmutlugun/pavise" target="_blank" rel="noopener noreferrer" class="nav-link nav-link-gh">
+                        <svg viewBox="0 0 16 16" fill="currentColor" width="15" height="15" style="vertical-align:-2px;margin-right:2px"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                        GitHub
+                    </a>
+                    <a href="/scan" class="nav-link">Open Scanner</a>
+                    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
+                        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- ── Hero ── -->
+        <section class="hero">
+            <div class="hero-eyebrow fade-up">Static Security Analysis</div>
+            <h1 class="fade-up stagger-1">Know what ships<br>inside your <span>iOS app</span></h1>
+            <p class="hero-sub fade-up stagger-2">
+                Pavise scans IPA files for hardcoded secrets, binary weaknesses, tracker SDKs,
+                and OWASP Mobile Top 10 issues. Results in under 3 seconds.
+            </p>
+            <!-- Upload zone — the hero's primary action -->
+            <div class="hero-upload fade-up stagger-3">
+                <form id="landing-scan-form">
+                    <div class="upload-zone" id="upload-zone">
+                        <input type="file" name="file" accept=".ipa" id="landing-file-input" aria-label="Choose an IPA file to analyze" required />
+                        <svg class="upload-icon" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <div class="upload-label">Drop an <strong>.ipa</strong> file here or click to browse</div>
+                        <div class="upload-hint">.ipa files</div>
+                        <div class="upload-file-name" id="landing-file-name"></div>
+                    </div>
+                    <div class="upload-controls">
+                        <button class="upload-scan-btn" type="submit" id="landing-submit-btn">Scan</button>
+                        <div id="landing-loading" class="scan-loading">
+                            <div class="scan-loading-row">
+                                <div class="scan-spinner"></div>
+                                <div class="scan-phases">
+                                    <span class="scan-phase" data-phase="0">upload</span>
+                                    <span class="scan-phase" data-phase="1">extract</span>
+                                    <span class="scan-phase" data-phase="2">binary</span>
+                                    <span class="scan-phase" data-phase="3">patterns</span>
+                                    <span class="scan-phase" data-phase="4">report</span>
+                                </div>
+                            </div>
+                            <div class="scan-msg" id="landing-scan-msg"></div>
+                        </div>
+                    </div>
+                    <div class="upload-progress" id="landing-progress">
+                        <div class="upload-progress-track">
+                            <div class="upload-progress-fill" id="landing-progress-fill"></div>
+                        </div>
+                        <div class="upload-progress-text">
+                            <span id="landing-progress-label">Uploading...</span>
+                            <span id="landing-progress-pct">0%</span>
+                        </div>
+                    </div>
+                    <div class="upload-error" id="landing-error"></div>
+                </form>
+                <div class="hero-proof">
+                    <span class="proof-item">Free and open source</span>
+                    <span class="proof-item">No account required</span>
+                    <span class="proof-item">Files never stored</span>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ── Features ── -->
+        <section class="section-full features-section" id="features">
+            <div class="features-inner">
+                <div class="features-header">
+                    <div class="section-label">Analysis Coverage</div>
+                    <h2>Six layers of<br>security inspection</h2>
+                    <p class="section-desc">Every IPA is unpacked and analyzed across binary, manifest, resources, and source-level patterns.</p>
+                </div>
+                <div class="features-grid">
+                    <div class="feature fade-up">
+                        <div class="feature-icon"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="18" rx="3"/><path d="M6 9l3 3-3 3"/><line x1="13" y1="15" x2="18" y2="15"/></svg></div>
+                        <h3>Binary Analysis</h3>
+                        <p>Mach-O parsing for PIE, ARC, stack canaries, encryption flags, and symbol-level inspection.</p>
+                    </div>
+                    <div class="feature fade-up stagger-1">
+                        <div class="feature-icon red"><svg viewBox="0 0 24 24"><path d="M15 7a2 2 0 0 1 2 2m4 0a6 6 0 0 1-7.74 5.74L11 17H9v2H7v2H4a1 1 0 0 1-1-1v-2.59a1 1 0 0 1 .29-.7l6.97-6.97A6 6 0 0 1 21 9z"/><circle cx="16.5" cy="7.5" r="0.5" fill="currentColor" stroke="none"/></svg></div>
+                        <h3>Secret Detection</h3>
+                        <p>Regex-based scanning for hardcoded API keys, tokens, passwords, and embedded credentials.</p>
+                    </div>
+                    <div class="feature fade-up stagger-2">
+                        <div class="feature-icon amber"><svg viewBox="0 0 24 24"><path d="M12 2l8 4v6c0 5.25-3.44 9.15-8 10-4.56-.85-8-4.75-8-10V6l8-4z"/><path d="M9 12l2 2 4-4"/></svg></div>
+                        <h3>OWASP Mobile Top 10</h3>
+                        <p>Full M1-M10 coverage with CWE references for compliance reporting.</p>
+                        <div class="owasp-inline-badges">
+                            <span>M1</span><span>M2</span><span>M3</span><span>M4</span><span>M5</span><span>M6</span><span>M7</span><span>M8</span><span>M9</span><span>M10</span>
+                        </div>
+                    </div>
+                    <div class="feature fade-up stagger-3">
+                        <div class="feature-icon purple"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7" stroke-dasharray="3 3"/><circle cx="12" cy="12" r="10"/></svg></div>
+                        <h3>Tracker SDKs</h3>
+                        <p>Identifies analytics, advertising, and attribution SDKs embedded in the binary.</p>
+                    </div>
+                    <div class="feature fade-up stagger-4">
+                        <div class="feature-icon green"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16.5" r="1.5" fill="currentColor" stroke="none"/></svg></div>
+                        <h3>Transport Security</h3>
+                        <p>ATS exceptions audit, insecure domain detection, and network security configuration review.</p>
+                    </div>
+                    <div class="feature fade-up">
+                        <div class="feature-icon"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><line x1="8.7" y1="10.7" x2="15.3" y2="7.3"/><line x1="8.7" y1="13.3" x2="15.3" y2="16.7"/></svg></div>
+                        <h3>Supply Chain</h3>
+                        <p>Framework software composition analysis with known CVE matching from vulnerability databases.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Speed (full-width dark band) ── -->
+        <section class="speed-section" id="speed">
+            <div class="speed-inner">
+                <div class="section-label">Performance</div>
+                <h2>Built for speed,<br>not patience</h2>
+                <p class="section-desc">Pavise is written in Rust with parallel analysis pipelines. Most scans complete before you can switch tabs.</p>
+                <div class="speed-grid fade-up">
+                    <div class="speed-detail">
+                        <div class="speed-stat">
+                            <span class="speed-stat-num">&lt;3</span>
+                            <span class="speed-stat-unit">seconds</span>
+                        </div>
+                        <p class="speed-stat-desc">
+                            Average scan time for a typical 50 MB IPA. Binary parsing, pattern matching, and OWASP scoring all run concurrently via Rayon thread pools.
+                        </p>
+                    </div>
+                    <div class="speed-visual fade-up stagger-1">
+                        <div class="speed-bar">
+                            <span class="speed-bar-label">Pavise</span>
+                            <div class="speed-bar-track">
+                                <div class="speed-bar-fill pavise-bar">~3s</div>
+                            </div>
+                        </div>
+                        <div class="speed-bar">
+                            <span class="speed-bar-label">MobSF</span>
+                            <div class="speed-bar-track">
+                                <div class="speed-bar-fill other-bar">~45s</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Output formats (flat list) ── -->
+        <section class="section">
+            <div class="section-label">Output</div>
+            <h2>Four formats,<br>zero friction</h2>
+            <p class="section-desc">Every scan produces results you can pipe into CI, attach to a ticket, or present to a client.</p>
+            <div class="formats-row fade-up">
+                <div class="format-item">
+                    <div class="format-ext">.pdf</div>
+                    <div class="format-name">Stakeholder report</div>
+                    <div class="format-desc">Branded pages with executive summary, findings, and OWASP mapping.</div>
+                </div>
+                <div class="format-item">
+                    <div class="format-ext">.json</div>
+                    <div class="format-name">Machine-readable</div>
+                    <div class="format-desc">Structured output for CI/CD pipelines, scripts, and dashboards.</div>
+                </div>
+                <div class="format-item">
+                    <div class="format-ext">.sarif</div>
+                    <div class="format-name">IDE &amp; GitHub</div>
+                    <div class="format-desc">SARIF 2.1.0 for VS Code, GitHub Code Scanning, and review tools.</div>
+                </div>
+                <div class="format-item">
+                    <div class="format-ext">.html</div>
+                    <div class="format-name">Interactive view</div>
+                    <div class="format-desc">Browser-based results with filtering and severity breakdown.</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── Footer ── -->
+        <footer class="site-footer">
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="fGrad" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
+                                <stop offset="0%" stop-color="#3b82f6" />
+                                <stop offset="100%" stop-color="#7c3aed" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#fGrad)" stroke-width="1.5" fill="none" opacity="0.7"/>
+                        <path d="M10 14.5l3 3 5-5" stroke="url(#fGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    </svg>
+                    Pavise
+                </div>
+                <div class="footer-links">
+                    <a href="/scan" class="footer-link">Scanner</a>
+                    <a href="https://github.com/ahmetmutlugun/pavise" target="_blank" rel="noopener noreferrer" class="footer-link">GitHub</a>
+                    <a href="https://github.com/ahmetmutlugun/pavise#readme" target="_blank" rel="noopener noreferrer" class="footer-link">Documentation</a>
+                    <a href="https://github.com/ahmetmutlugun/pavise/issues" target="_blank" rel="noopener noreferrer" class="footer-link">Issues</a>
+                </div>
+                <div class="footer-copy">&copy; 2025 Pavise</div>
+            </div>
+        </footer>
+
+        <script>
+            // ── Nav scroll effect ──
+            const nav = document.getElementById('nav');
+            const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 10);
+            window.addEventListener('scroll', onScroll, { passive: true });
+            onScroll();
+
+            // ── Intersection Observer for fade-up ──
+            const fadeEls = document.querySelectorAll('.fade-up');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+            fadeEls.forEach(el => observer.observe(el));
+
+            // ── Upload handling ──
+            const fileInput = document.getElementById('landing-file-input');
+            const fileNameEl = document.getElementById('landing-file-name');
+            const uploadZone = document.getElementById('upload-zone');
+            const submitBtn = document.getElementById('landing-submit-btn');
+            const loadingEl = document.getElementById('landing-loading');
+            const progressEl = document.getElementById('landing-progress');
+            const progressFill = document.getElementById('landing-progress-fill');
+            const progressLabel = document.getElementById('landing-progress-label');
+            const progressPct = document.getElementById('landing-progress-pct');
+            const scanMsgEl = document.getElementById('landing-scan-msg');
+            const errorEl = document.getElementById('landing-error');
+
+            // ── File validation ──
+            const MAX_FILE_SIZE = 15 * 1024 * 1024 * 1024; // 15 GB
+            function validateFile(file) {
+                if (!file) return null;
+                if (!file.name.toLowerCase().endsWith('.ipa')) return 'Only .ipa files are supported.';
+                if (file.size === 0) return 'File is empty.';
+                if (file.size > MAX_FILE_SIZE) return 'File exceeds the 15 GB size limit.';
+                return null;
+            }
+
+            fileInput.addEventListener('change', () => {
+                const file = fileInput.files[0];
+                const err = validateFile(file);
+                if (err) {
+                    errorEl.textContent = err;
+                    fileInput.value = '';
+                    fileNameEl.textContent = '';
+                    uploadZone.classList.remove('has-file');
+                    return;
+                }
+                fileNameEl.textContent = file?.name ?? '';
+                uploadZone.classList.toggle('has-file', !!file);
+                errorEl.textContent = '';
+            });
+
+            uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+            uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('drag-over');
+                if (e.dataTransfer.files.length) {
+                    const file = e.dataTransfer.files[0];
+                    const err = validateFile(file);
+                    if (err) {
+                        errorEl.textContent = err;
+                        return;
+                    }
+                    fileInput.files = e.dataTransfer.files;
+                    fileNameEl.textContent = file.name;
+                    uploadZone.classList.toggle('has-file', !!file.name);
+                    errorEl.textContent = '';
+                }
+            });
+
+            // ── Helpers ──
+            function formatBytes(bytes) {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+                if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+                return (bytes / 1073741824).toFixed(2) + ' GB';
+            }
+            function setProgress(pct, label) {
+                progressFill.style.width = pct + '%';
+                progressPct.textContent = Math.round(pct) + '%';
+                if (label) progressLabel.textContent = label;
+            }
+            function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+            // ── Phase animation ──
+            let phaseInterval = null, msgInterval = null, currentPhase = 0, currentMsgIdx = 0;
+            const phases = document.querySelectorAll('#landing-loading .scan-phase');
+            const phaseMessages = [
+                ['Streaming IPA to analysis pipeline...', 'Computing SHA-256...'],
+                ['Inflating ZIP archive...', 'Locating Mach-O binaries...', 'Reading Info.plist...'],
+                ['Parsing Mach-O load commands...', 'Checking PIE and stack canaries...', 'Inspecting encryption flags...'],
+                ['Running secret pattern matching...', 'Scanning for hardcoded credentials...', 'Analyzing embedded strings...'],
+                ['Computing OWASP M-series scores...', 'Grading security posture...', 'Building findings summary...'],
+            ];
+            function updateScanMsg(text) {
+                scanMsgEl.style.opacity = '0';
+                setTimeout(() => { scanMsgEl.textContent = text; scanMsgEl.style.opacity = '1'; }, 160);
+            }
+            function startPhases() {
+                currentPhase = 0; currentMsgIdx = 0;
+                phases.forEach(p => p.classList.remove('active', 'done'));
+                phases[0].classList.add('active');
+                updateScanMsg(phaseMessages[0][0]);
+                phaseInterval = setInterval(() => {
+                    if (currentPhase < phases.length) { phases[currentPhase].classList.remove('active'); phases[currentPhase].classList.add('done'); }
+                    currentPhase++; currentMsgIdx = 0;
+                    if (currentPhase < phases.length) { phases[currentPhase].classList.add('active'); const msgs = phaseMessages[currentPhase]; if (msgs?.[0]) updateScanMsg(msgs[0]); }
+                }, 600);
+                msgInterval = setInterval(() => {
+                    const msgs = phaseMessages[currentPhase] || [];
+                    if (msgs.length > 1) { currentMsgIdx = (currentMsgIdx + 1) % msgs.length; updateScanMsg(msgs[currentMsgIdx]); }
+                }, 1500);
+            }
+            function stopPhases() {
+                clearInterval(phaseInterval); clearInterval(msgInterval);
+                phases.forEach(p => { p.classList.remove('active'); p.classList.add('done'); });
+                scanMsgEl.style.opacity = '0';
+            }
+
+            // ── Chunked upload ──
+            const CHUNK_SIZE = 50 * 1024 * 1024;
+            const CHUNK_MAX_RETRIES = 3;
+            let activeAbort = null;
+
+            async function fetchWithRetry(url, opts, retries = CHUNK_MAX_RETRIES) {
+                for (let attempt = 0; attempt <= retries; attempt++) {
+                    try {
+                        const res = await fetch(url, opts);
+                        if (res.ok || res.status < 500) return res;
+                        if (attempt === retries) return res;
+                    } catch (err) {
+                        if (err.name === 'AbortError') throw err;
+                        if (attempt === retries) throw new Error('Network error: check your connection and try again.');
+                    }
+                    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                }
+            }
+
+            async function uploadChunked(file, signal) {
+                const initRes = await fetch('/api/upload', { method: 'POST', signal });
+                if (!initRes.ok) throw new Error('Failed to init upload');
+                const { upload_id } = await initRes.json();
+                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+                for (let i = 0; i < totalChunks; i++) {
+                    const start = i * CHUNK_SIZE;
+                    const end = Math.min(start + CHUNK_SIZE, file.size);
+                    const chunk = file.slice(start, end);
+                    const res = await fetchWithRetry(`/api/upload/${upload_id}/${i}`, { method: 'PUT', body: chunk, headers: { 'Content-Type': 'application/octet-stream' }, signal });
+                    if (!res.ok) { const msg = await res.text(); throw new Error(`Chunk ${i} failed: ${msg}`); }
+                    setProgress((end / file.size) * 100, `Uploading ${formatBytes(end)} / ${formatBytes(file.size)}`);
+                }
+                setProgress(100, 'Scanning...');
+                const scanRes = await fetch(`/api/upload/${upload_id}/scan`, { method: 'POST', signal });
+                if (!scanRes.ok) { const msg = await scanRes.text(); throw new Error(msg); }
+                return { html: await scanRes.text(), upload_id };
+            }
+
+            // ── Form submit: upload, then redirect to /scan with results ──
+            let scanInProgress = false;
+            document.getElementById('landing-scan-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (scanInProgress) return;
+                const file = fileInput.files[0];
+                if (!file) return;
+
+                const fileErr = validateFile(file);
+                if (fileErr) { errorEl.textContent = fileErr; return; }
+
+                scanInProgress = true;
+                activeAbort = new AbortController();
+                submitBtn.disabled = true;
+                loadingEl.classList.add('active');
+                progressEl.classList.add('active');
+                errorEl.textContent = '';
+                setProgress(0, 'Starting upload...');
+                startPhases();
+
+                try {
+                    const { html } = await uploadChunked(file, activeAbort.signal);
+                    // Store result HTML in sessionStorage, then redirect to /scan
+                    try {
+                        sessionStorage.setItem('pavise-landing-result', html);
+                        sessionStorage.setItem('pavise-landing-file', file.name);
+                    } catch { /* storage full or unavailable — fall through to redirect */ }
+                    window.location.href = '/scan';
+                } catch (err) {
+                    if (err.name === 'AbortError') return;
+                    errorEl.textContent = !navigator.onLine
+                        ? 'You appear to be offline. Check your connection and try again.'
+                        : err.message;
+                } finally {
+                    scanInProgress = false;
+                    activeAbort = null;
+                    submitBtn.disabled = false;
+                    loadingEl.classList.remove('active');
+                    progressEl.classList.remove('active');
+                    stopPhases();
+                }
+            });
+
+            // ── Hamburger toggle ──
+            const hamburger = document.getElementById('nav-hamburger');
+            const navLinks = document.querySelector('.nav-links');
+            hamburger.addEventListener('click', () => navLinks.classList.toggle('open'));
+
+            // ── Theme toggle ──
+            const themeToggle = document.getElementById('theme-toggle');
+            function setTheme(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('pavise-theme', theme);
+            }
+            themeToggle.addEventListener('click', () => {
+                const current = document.documentElement.getAttribute('data-theme');
+                setTheme(current === 'dark' ? 'light' : 'dark');
+            });
+            (function() {
+                const stored = localStorage.getItem('pavise-theme');
+                if (stored) setTheme(stored);
+                else if (window.matchMedia('(prefers-color-scheme: dark)').matches) setTheme('dark');
+            })();
+
+            // ── Smooth scroll for anchor links ──
+            document.querySelectorAll('a[href^="#"]').forEach(a => {
+                a.addEventListener('click', (e) => {
+                    const target = document.querySelector(a.getAttribute('href'));
+                    if (target) {
+                        e.preventDefault();
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                });
+            });
+        </script>
+        <script data-goatcounter="https://stats.pavise.app/count"
+                async src="//stats.pavise.app/count.js"></script>
+    </body>
+</html>
