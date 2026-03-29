@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>404 — Page Not Found | Pavise</title>
+        <meta name="robots" content="noindex" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+        <script>
+            (function() {
+                var t = localStorage.getItem('pavise-theme');
+                if (t) document.documentElement.setAttribute('data-theme', t);
+                else if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'dark');
+            })();
+        </script>
+        <style>
+            *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+            :root {
+                --bg: #fafaf9; --surface: #ffffff; --border: #e7e5e0;
+                --text: #1a1816; --text-body: #44403c; --text-dim: #78716c;
+                --accent: #3b82f6; --purple: #7c3aed;
+                --sans: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+                --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+            }
+            [data-theme="dark"] {
+                --bg: #0d1117; --surface: #161b22; --border: #30363d;
+                --text: #e6edf3; --text-body: #c9d1d9; --text-dim: #8b949e;
+                --accent: #58a6ff; --purple: #8b5cf6;
+            }
+            html, body { height: 100%; }
+            body {
+                background: var(--bg); color: var(--text); font-family: var(--sans);
+                display: flex; flex-direction: column; align-items: center;
+                justify-content: center; min-height: 100vh; padding: 2rem; text-align: center;
+            }
+            .brand {
+                display: flex; align-items: center; gap: 0.5rem;
+                font-size: 1.1rem; font-weight: 600; color: var(--text);
+                text-decoration: none; margin-bottom: 3rem;
+            }
+            .code {
+                font-family: var(--mono); font-size: 6rem; font-weight: 500;
+                line-height: 1; letter-spacing: -0.04em;
+                background: linear-gradient(135deg, #3b82f6, #7c3aed);
+                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+                background-clip: text;
+            }
+            h1 { font-size: 1.5rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; }
+            p { color: var(--text-dim); font-size: 1rem; max-width: 36ch; margin: 0 auto 2rem; }
+            .links { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+            .btn {
+                display: inline-block; padding: 0.6rem 1.25rem; border-radius: 8px;
+                font-family: var(--sans); font-size: 0.9rem; font-weight: 500;
+                text-decoration: none; transition: opacity 0.15s;
+            }
+            .btn:hover { opacity: 0.8; }
+            .btn-primary {
+                background: linear-gradient(135deg, #3b82f6, #7c3aed);
+                color: #fff;
+            }
+            .btn-secondary {
+                background: transparent; color: var(--text-dim);
+                border: 1px solid var(--border);
+            }
+        </style>
+    </head>
+    <body>
+        <a href="/" class="brand">
+            <svg width="22" height="22" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="g" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#3b82f6" />
+                        <stop offset="100%" stop-color="#7c3aed" />
+                    </linearGradient>
+                </defs>
+                <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#g)" stroke-width="1.5" fill="none" opacity="0.7"/>
+                <path d="M10 14.5l3 3 5-5" stroke="url(#g)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+            </svg>
+            Pavise
+        </a>
+        <div class="code">404</div>
+        <h1>Page not found</h1>
+        <p>The page you're looking for doesn't exist or has been moved.</p>
+        <div class="links">
+            <a href="/" class="btn btn-primary">Go home</a>
+            <a href="/scan" class="btn btn-secondary">Open scanner</a>
+        </div>
+    </body>
+</html>

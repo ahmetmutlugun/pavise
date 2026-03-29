@@ -13,11 +13,13 @@
         <meta property="og:title" content="Pavise — Fast iOS IPA Security Analyzer" />
         <meta property="og:description" content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds. Free and open source." />
         <meta property="og:site_name" content="Pavise" />
+        <meta property="og:image" content="https://pavise.app/assets/og-image.png" />
 
         <!-- Twitter Card -->
-        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Pavise — Fast iOS IPA Security Analyzer" />
         <meta name="twitter:description" content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds." />
+        <meta name="twitter:image" content="https://pavise.app/assets/og-image.png" />
 
         <!-- Structured Data -->
         <script type="application/ld+json">
@@ -60,6 +62,7 @@
         <script type="module" src="/src/landing.ts"></script>
     </head>
     <body>
+        <header>
         <!-- Nav -->
         <nav class="nav" id="nav">
             <div class="nav-inner">
@@ -93,20 +96,26 @@
                 </div>
             </div>
         </nav>
+        </header>
 
+        <main>
         <!-- Hero -->
         <section class="hero">
             <div class="hero-left">
-                <div class="hero-eyebrow fade-up">Static Security Analysis</div>
-                <h1 class="fade-up stagger-1">Know what ships<br>inside your <span>iOS app</span></h1>
+                <div class="hero-eyebrow fade-up">iOS IPA Security Analyzer</div>
+                <h1 class="fade-up stagger-1">iOS app security<br>in <span>under 3 seconds.</span><br>No account. No cloud.</h1>
                 <p class="hero-sub fade-up stagger-2">
-                    Pavise scans IPA files for hardcoded secrets, binary weaknesses, tracker SDKs,
-                    and OWASP Mobile Top 10 issues. Results in under 3 seconds.
+                    Drop an IPA and get a full security report — hardcoded secrets, binary weaknesses,
+                    tracker SDKs, and OWASP Mobile Top 10 — before you switch tabs.
                 </p>
                 <div class="hero-proof fade-up stagger-3">
-                    <span class="proof-item">Free and open source</span>
+                    <span class="proof-item">Sub-3-second scans</span>
                     <span class="proof-item">No account required</span>
                     <span class="proof-item">Files never stored</span>
+                    <span class="proof-item">Free and open source</span>
+                </div>
+                <div class="fade-up stagger-4" style="margin-top:1.25rem;">
+                    <a href="#sample" class="btn-secondary" style="font-size:0.82rem;padding:0.55rem 1.1rem;">View a sample report &#8594;</a>
                 </div>
             </div>
             <div class="hero-upload fade-up stagger-3">
@@ -123,7 +132,7 @@
                         <div class="upload-file-name" id="landing-file-name"></div>
                     </div>
                     <div class="upload-controls">
-                        <button class="upload-scan-btn" type="submit" id="landing-submit-btn">Scan</button>
+                        <button class="upload-scan-btn" type="submit" id="landing-submit-btn">Scan Now</button>
                         <div id="landing-loading" class="scan-loading">
                             <div class="scan-loading-row">
                                 <div class="scan-spinner"></div>
@@ -260,6 +269,8 @@
                 </div>
             </div>
         </section>
+
+        </main>
 
         <!-- Footer -->
         <footer class="site-footer">
