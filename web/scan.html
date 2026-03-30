@@ -49,7 +49,7 @@
 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet" />
 
         <script>
             // Prevent flash of wrong theme
@@ -189,6 +189,7 @@
 
                                     <div class="controls">
                                         <button class="btn-scan" type="submit" id="submit-btn">Scan</button>
+                                        <button class="btn-cancel" type="button" id="cancel-btn" hidden>Cancel</button>
                                         <div id="loading" class="scan-loading">
                                             <div class="scan-loading-row">
                                                 <div class="spinner"></div>
@@ -283,6 +284,9 @@
                 <footer>pavise static analysis</footer>
             </div>
         </div>
-        <script data-goatcounter="https://stats.pavise.app/count" async src="//stats.pavise.app/count.js"></script>
+        <!-- SRI hash computed from https://stats.pavise.app/count.js on 2026-03-30.
+             Re-run: curl -fsSL https://stats.pavise.app/count.js | openssl dgst -sha384 -binary | openssl base64 -A
+             Update this hash whenever the GoatCounter script changes. -->
+        <script data-goatcounter="https://stats.pavise.app/count" async src="//stats.pavise.app/count.js" crossorigin="anonymous" integrity="sha384-ibA+WLRCY3W4rrf/Qi6Z02iu3FWDJOW41oKXAKzGUka17bnDTswba03X3emshpZS"></script>
     </body>
 </html>

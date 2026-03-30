@@ -333,13 +333,13 @@ details[open] summary::before{content:"▼ "}
   <div class="section-body">
     <div class="protections-grid">
       {% for p in report.main_binary.protections %}
-      <div class="protection-item">
+      <div class="protection-item" aria-label="{{ p.name }}: {% if p.enabled %}enabled{% elif p.severity == "high" %}disabled{% else %}warning{% endif %}">
         {% if p.enabled %}
-        <div class="prot-icon ok">✓</div>
+        <div class="prot-icon ok" aria-hidden="true">✓</div>
         {% elif p.severity == "high" %}
-        <div class="prot-icon bad">✗</div>
+        <div class="prot-icon bad" aria-hidden="true">✗</div>
         {% else %}
-        <div class="prot-icon warn">!</div>
+        <div class="prot-icon warn" aria-hidden="true">!</div>
         {% endif %}
         <div>
           <div class="prot-name">{{ p.name }}</div>
@@ -360,10 +360,10 @@ details[open] summary::before{content:"▼ "}
       <summary>Binary protections — {{ fw.path }} ({{ fw.arch }})</summary>
       <div class="protections-grid" style="border-top:1px solid var(--border-inner)">
         {% for p in fw.protections %}
-        <div class="protection-item">
-          {% if p.enabled %}<div class="prot-icon ok">✓</div>
-          {% elif p.severity == "high" %}<div class="prot-icon bad">✗</div>
-          {% else %}<div class="prot-icon warn">!</div>{% endif %}
+        <div class="protection-item" aria-label="{{ p.name }}: {% if p.enabled %}enabled{% elif p.severity == "high" %}disabled{% else %}warning{% endif %}">
+          {% if p.enabled %}<div class="prot-icon ok" aria-hidden="true">✓</div>
+          {% elif p.severity == "high" %}<div class="prot-icon bad" aria-hidden="true">✗</div>
+          {% else %}<div class="prot-icon warn" aria-hidden="true">!</div>{% endif %}
           <div>
             <div class="prot-name">{{ p.name }}</div>
             <div class="prot-desc">{{ p.description }}</div>
@@ -383,7 +383,9 @@ details[open] summary::before{content:"▼ "}
   <div class="section-title">Security Findings <span class="count">{{ report.findings | length }}</span></div>
   <div class="section-body">
     {% if report.findings %}
+    <ul role="list" style="list-style:none;margin:0;padding:0">
     {% for f in report.findings %}
+    <li role="listitem">
     <div class="finding">
       <div class="finding-header">
         <div>
@@ -414,7 +416,9 @@ details[open] summary::before{content:"▼ "}
         {% if f.owasp_masvs %}<span class="meta-tag">{{ f.owasp_masvs }}</span>{% endif %}
       </div>
     </div>
+    </li>
     {% endfor %}
+    </ul>
     {% else %}
     <div class="empty">No findings at the configured severity threshold.</div>
     {% endif %}

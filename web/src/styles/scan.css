@@ -17,7 +17,7 @@
     --text: #1a1816;
     --text-heading: #1a1816;
     --text-body: #44403c;
-    --text-dim: #78716c;
+    --text-dim: #57534e;
     --text-xdim: #a8a29e;
     --accent: #3b82f6;
     --accent-deep: #2563eb;
@@ -365,6 +365,7 @@ body {
     gap: 0.5rem;
     padding: 0.65rem 1.25rem;
     border-bottom: 1px solid var(--border);
+    background: var(--surface);
     background: color-mix(in srgb, var(--surface) 60%, transparent);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -509,6 +510,7 @@ body {
 }
 .drop-zone:hover,
 .drop-zone.drag-over {
+    background: var(--surface);
     background: color-mix(
         in srgb,
         var(--accent) 4%,
@@ -520,6 +522,7 @@ body {
 .drop-zone.has-file {
     border-color: var(--secure);
     border-style: solid;
+    background: var(--surface);
     background: color-mix(
         in srgb,
         var(--secure) 4%,
@@ -611,6 +614,28 @@ body {
     opacity: 0.3;
     cursor: not-allowed;
     transform: none;
+}
+
+.btn-cancel {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    background: none;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.7rem 1.4rem;
+    cursor: pointer;
+    transition:
+        color 0.15s,
+        border-color 0.15s,
+        background 0.15s;
+}
+.btn-cancel:hover {
+    color: var(--high);
+    border-color: var(--high);
+    background: var(--high-dim);
 }
 
 /* ── Loading indicator ── */
@@ -1164,24 +1189,28 @@ footer {
 .sev-high {
     background: var(--high-dim);
     color: var(--high);
+    border: 1px solid rgba(220, 38, 38, 0.25);
     border: 1px solid
         color-mix(in srgb, var(--high) 25%, transparent);
 }
 .sev-warn {
     background: var(--warn-dim);
     color: var(--warn);
+    border: 1px solid rgba(217, 119, 6, 0.25);
     border: 1px solid
         color-mix(in srgb, var(--warn) 25%, transparent);
 }
 .sev-info {
     background: var(--info-dim);
     color: var(--info);
+    border: 1px solid rgba(59, 130, 246, 0.20);
     border: 1px solid
         color-mix(in srgb, var(--info) 20%, transparent);
 }
 .sev-secure {
     background: var(--secure-dim);
     color: var(--secure);
+    border: 1px solid rgba(22, 163, 74, 0.20);
     border: 1px solid
         color-mix(in srgb, var(--secure) 20%, transparent);
 }
@@ -1278,6 +1307,7 @@ footer {
     border-right: 1px solid var(--border);
 }
 .btn-json:hover {
+    background: var(--surface2);
     background: color-mix(
         in srgb,
         var(--info) 8%,
@@ -1289,6 +1319,7 @@ footer {
     color: var(--purple);
 }
 .btn-pdf:hover {
+    background: var(--surface2);
     background: color-mix(in srgb, var(--purple) 8%, var(--surface2));
 }
 
@@ -1298,6 +1329,7 @@ footer {
     align-items: center;
     gap: 0.65rem;
     background: var(--high-dim);
+    border: 1px solid rgba(220, 38, 38, 0.25);
     border: 1px solid
         color-mix(in srgb, var(--high) 25%, transparent);
     border-radius: 4px;
@@ -1339,6 +1371,7 @@ footer {
     inset: 0;
     background: rgba(0, 0, 0, 0.2);
     z-index: 15;
+    cursor: pointer; /* required for click events to fire on iOS Safari */
 }
 [data-theme="dark"] .sidebar-overlay {
     background: rgba(0, 0, 0, 0.5);

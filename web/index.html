@@ -48,7 +48,7 @@
 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet" />
 
         <script>
             // Prevent flash of wrong theme
@@ -207,6 +207,22 @@
             </div>
         </section>
 
+        <!-- Compliance / PDF Reports -->
+        <section class="section" id="sample">
+            <div class="section-label">Audit Evidence</div>
+            <h2>PDF reports ready for<br>compliance reviews</h2>
+            <p class="section-desc">Every scan generates a structured PDF with an executive summary, OWASP Mobile Top 10 findings, and CWE references — ready to attach to a SOC 2 or ISO 27001 audit package.</p>
+            <div class="owasp-inline-badges" style="margin-top:1.5rem;gap:0.5rem;">
+                <span style="background:rgba(59,130,246,0.08);color:var(--accent);font-size:0.75rem;padding:0.25rem 0.65rem;border-radius:4px;">SOC 2</span>
+                <span style="background:rgba(59,130,246,0.08);color:var(--accent);font-size:0.75rem;padding:0.25rem 0.65rem;border-radius:4px;">ISO 27001</span>
+                <span style="background:rgba(59,130,246,0.08);color:var(--accent);font-size:0.75rem;padding:0.25rem 0.65rem;border-radius:4px;">OWASP MASVS</span>
+                <span style="background:rgba(59,130,246,0.08);color:var(--accent);font-size:0.75rem;padding:0.25rem 0.65rem;border-radius:4px;">GDPR Evidence</span>
+            </div>
+            <div style="margin-top:1.75rem;">
+                <a href="/scan" class="btn-secondary">Scan an IPA and get your report &#8594;</a>
+            </div>
+        </section>
+
         <!-- Speed -->
         <section class="speed-section" id="speed">
             <div class="speed-inner">
@@ -238,6 +254,15 @@
                         </div>
                     </div>
                 </div>
+                <div class="fade-up stagger-2" style="margin-top:3rem;padding-top:2.5rem;border-top:1px solid rgba(255,255,255,0.08);">
+                    <p style="font-size:0.68rem;font-weight:700;font-family:var(--mono);text-transform:uppercase;letter-spacing:0.1em;color:rgba(255,255,255,0.35);margin-bottom:1rem;">Why security teams switch from MobSF</p>
+                    <ul style="list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0.65rem 2.5rem;">
+                        <li style="font-size:0.88rem;color:rgba(255,255,255,0.55);display:flex;align-items:baseline;gap:0.5rem;"><span style="color:var(--accent);flex-shrink:0;">&#10003;</span>No Docker or self-hosting — just a URL</li>
+                        <li style="font-size:0.88rem;color:rgba(255,255,255,0.55);display:flex;align-items:baseline;gap:0.5rem;"><span style="color:var(--accent);flex-shrink:0;">&#10003;</span>15&times; faster scans — seconds, not minutes</li>
+                        <li style="font-size:0.88rem;color:rgba(255,255,255,0.55);display:flex;align-items:baseline;gap:0.5rem;"><span style="color:var(--accent);flex-shrink:0;">&#10003;</span>No account, no data retention, zero cloud upload</li>
+                        <li style="font-size:0.88rem;color:rgba(255,255,255,0.55);display:flex;align-items:baseline;gap:0.5rem;"><span style="color:var(--accent);flex-shrink:0;">&#10003;</span>Open source with a clean, auditable codebase</li>
+                    </ul>
+                </div>
             </div>
         </section>
 
@@ -249,8 +274,8 @@
             <div class="formats-row fade-up">
                 <div class="format-item">
                     <div class="format-ext">.pdf</div>
-                    <div class="format-name">Stakeholder report</div>
-                    <div class="format-desc">Branded pages with executive summary, findings, and OWASP mapping.</div>
+                    <div class="format-name">Audit-ready report</div>
+                    <div class="format-desc">Executive summary, findings, and OWASP mapping. Ready to attach to SOC 2 and ISO 27001 audit packages.</div>
                 </div>
                 <div class="format-item">
                     <div class="format-ext">.json</div>
@@ -298,6 +323,9 @@
             </div>
         </footer>
 
-        <script data-goatcounter="https://stats.pavise.app/count" async src="//stats.pavise.app/count.js"></script>
+        <!-- SRI hash computed from https://stats.pavise.app/count.js on 2026-03-30.
+             Re-run: curl -fsSL https://stats.pavise.app/count.js | openssl dgst -sha384 -binary | openssl base64 -A
+             Update this hash whenever the GoatCounter script changes. -->
+        <script data-goatcounter="https://stats.pavise.app/count" async src="//stats.pavise.app/count.js" crossorigin="anonymous" integrity="sha384-ibA+WLRCY3W4rrf/Qi6Z02iu3FWDJOW41oKXAKzGUka17bnDTswba03X3emshpZS"></script>
     </body>
 </html>

@@ -11,6 +11,7 @@ const toggleBtn = document.getElementById("toggle-sidebar");
 const historyEl = document.getElementById("history-list");
 const emptyEl = document.getElementById("history-empty");
 const submitBtn = document.getElementById("submit-btn");
+const cancelBtn = document.getElementById("cancel-btn");
 const loading = document.getElementById("loading");
 const progressEl = document.getElementById("upload-progress");
 const progressFill = document.getElementById("progress-fill");
@@ -44,6 +45,10 @@ shell.classList.contains("sidebar-collapsed")
 overlay.addEventListener("click", () =>
     shell.classList.remove("sidebar-open"),
 );
+
+cancelBtn.addEventListener("click", () => {
+    if (activeAbort) activeAbort.abort();
+});
 
 if (
     !isMobile() &&
@@ -243,7 +248,7 @@ if (attempt === retries) return res;
 if (err.name === 'AbortError') throw err;
 if (attempt === retries) throw new Error('Network error: check your connection and try again.');
         }
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        await new Promise(r => setTimeout(r, 100 * Math.pow(2, attempt)));
     }
 }
 
@@ -313,6 +318,7 @@ return;
         scanInProgress = true;
         activeAbort = new AbortController();
         submitBtn.disabled = true;
+        cancelBtn.removeAttribute("hidden");
         loading.classList.add("active");
         progressEl.classList.add("active");
         results.setAttribute("aria-busy", "true");
@@ -321,7 +327,7 @@ return;
 
         try {
 const html = await uploadChunked(file, activeAbort.signal);
-results.innerHTML = html;
+results.innerHTML = sanitizeHtml(html);
 page.classList.add("has-results");
 
 // Pulse first few critical/high findings to draw the eye
@@ -391,6 +397,7 @@ page.classList.add("has-results");
 scanInProgress = false;
 activeAbort = null;
 submitBtn.disabled = false;
+cancelBtn.setAttribute("hidden", "");
 loading.classList.remove("active");
 progressEl.classList.remove("active");
 results.removeAttribute("aria-busy");
@@ -449,16 +456,13 @@ function renderHistory() {
     const items = getHistory();
     emptyEl.style.display = items.length ? "none" : "block";
 
-    historyEl
-        .querySelectorAll(".history-item")
-        .forEach((el) => el.remove());
-
+    const frag = document.createDocumentFragment();
     items.forEach((item) => {
         const btn = document.createElement("button");
         btn.className = "history-item";
         btn.setAttribute(
-"aria-label",
-`Grade ${item.grade} — ${item.name}, scanned ${formatTimeAgo(item.ts)}`,
+            "aria-label",
+            `Grade ${item.grade} — ${item.name}, scanned ${formatTimeAgo(item.ts)}`,
         );
         btn.innerHTML = `
           <span class="history-grade ${gradeClass(item.grade)}" aria-hidden="true">${item.grade}</span>
@@ -468,16 +472,35 @@ function renderHistory() {
           </div>
         `;
         btn.addEventListener("click", () =>
-loadHistoryScan(item.id),
+            loadHistoryScan(item.id),
         );
-        historyEl.appendChild(btn);
+        frag.appendChild(btn);
     });
+    historyEl.replaceChildren(emptyEl, frag);
 }
 
 function escapeHtml(s) {
-    const d = document.createElement("div");
-    d.textContent = s;
-    return d.innerHTML;
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Sanitize server-returned HTML before injection to prevent XSS from
+// any attacker-controlled data embedded in scan results (app names, paths, etc.)
+function sanitizeHtml(html: string): string {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('script, object, embed, iframe, base').forEach(el => el.remove());
+    doc.querySelectorAll('*').forEach(el => {
+        for (const attr of Array.from(el.attributes)) {
+            if (/^on/i.test(attr.name) || (attr.name === 'href' && /^\s*javascript:/i.test(attr.value))) {
+                el.removeAttribute(attr.name);
+            }
+        }
+    });
+    return doc.body.innerHTML;
 }
 
 function loadHistoryScan(id) {
@@ -495,7 +518,7 @@ if (!r.ok) throw new Error("Scan expired");
 return r.text();
         })
         .then((html) => {
-results.innerHTML = html;
+results.innerHTML = sanitizeHtml(html);
         })
         .catch((err) => {
 const msg = err.name === 'AbortError'
@@ -520,7 +543,7 @@ renderHistory();
 sessionStorage.removeItem('pavise-landing-result');
 sessionStorage.removeItem('pavise-landing-file');
         } catch { /* storage unavailable */ }
-        results.innerHTML = landingHtml;
+        results.innerHTML = sanitizeHtml(landingHtml);
         page.classList.add('has-results');
         // Extract scan info for history
         const resultCard = results.querySelector('.result-card');
