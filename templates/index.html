@@ -47,7 +47,7 @@
 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet" />
 
         <script>
             // Prevent flash of wrong theme
@@ -2317,7 +2317,7 @@
                         if (err.name === 'AbortError') throw err;
                         if (attempt === retries) throw new Error('Network error: check your connection and try again.');
                     }
-                    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                    await new Promise(r => setTimeout(r, 100 * Math.pow(2, attempt)));
                 }
             }
 
@@ -2523,10 +2523,7 @@
                 const items = getHistory();
                 emptyEl.style.display = items.length ? "none" : "block";
 
-                historyEl
-                    .querySelectorAll(".history-item")
-                    .forEach((el) => el.remove());
-
+                const frag = document.createDocumentFragment();
                 items.forEach((item) => {
                     const btn = document.createElement("button");
                     btn.className = "history-item";
@@ -2544,14 +2541,18 @@
                     btn.addEventListener("click", () =>
                         loadHistoryScan(item.id),
                     );
-                    historyEl.appendChild(btn);
+                    frag.appendChild(btn);
                 });
+                historyEl.replaceChildren(emptyEl, frag);
             }
 
             function escapeHtml(s) {
-                const d = document.createElement("div");
-                d.textContent = s;
-                return d.innerHTML;
+                return s
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
             }
 
             function loadHistoryScan(id) {

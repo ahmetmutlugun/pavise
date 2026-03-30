@@ -1,134 +1,71 @@
 use anyhow::Result;
 use axum::{
     body::{Body, Bytes},
-    extract::{ConnectInfo, DefaultBodyLimit, Multipart, Path, State},
-    http::{header, Request, StatusCode},
+    extract::{ConnectInfo, DefaultBodyLimit, Extension, Multipart, Path, State},
+    http::{header, HeaderMap, Request, StatusCode},
     middleware::Next,
     response::{Html, IntoResponse, Response},
     routing::{get, post, put},
     Json, Router,
 };
 use sha2::{Digest, Sha256};
-use std::{
-    collections::HashMap,
-    io::Write,
-    net::SocketAddr,
-    path::PathBuf,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use tokio::sync::{RwLock, Semaphore};
-use tower_http::services::ServeDir;
+use std::{io::Write, net::SocketAddr, path::PathBuf, sync::Arc, time::Instant};
+use tower_http::{compression::CompressionLayer, services::ServeDir};
 use uuid::Uuid;
 
 use pavise::{
     report::{json, pdf},
     resolve_rules_dir, scan_ipa,
+    server::{
+        config::Config,
+        spawn_eviction_task,
+        state::{AppState, RateLimitEntry, UploadSession},
+        CHUNK_LIMIT, RATE_LIMIT_WINDOW,
+    },
     types::{ScanReport, Severity},
     ScanOptions,
 };
 
-/// Directory containing the built frontend assets (Vite output).
-fn dist_dir() -> PathBuf {
-    std::env::var("PAVISE_DIST_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
-            let manifest = std::env::var("CARGO_MANIFEST_DIR")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| PathBuf::from("."));
-            manifest.join("web/dist")
-        })
-}
-
-/// Maximum number of concurrent scans to prevent resource exhaustion.
-fn max_concurrent_scans() -> usize {
-    std::env::var("PAVISE_MAX_SCANS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(4)
-}
-
-/// Chunk size limit: 52 MB per request (50 MB chunk + overhead, fits under Cloudflare 100 MB).
-const CHUNK_LIMIT: usize = 52 * 1024 * 1024;
-
-/// Scan results are evicted after this duration.
-const RESULT_TTL: Duration = Duration::from_secs(60 * 60); // 1 hour
-
-/// Cache TTL — cached scan results live longer since they're keyed by content hash.
-fn cache_ttl() -> Duration {
-    let hours: u64 = std::env::var("PAVISE_CACHE_TTL_HOURS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(24);
-    Duration::from_secs(hours * 3600)
-}
-
-/// Timeout for PDF generation via Typst.
-const PDF_TIMEOUT: Duration = Duration::from_secs(60);
-
-/// Abandoned uploads are cleaned up after this duration.
-const UPLOAD_TTL: Duration = Duration::from_secs(30 * 60); // 30 minutes
-
-/// Maximum total upload size (default 15 GB, override via PAVISE_MAX_UPLOAD_BYTES).
-fn max_upload_bytes() -> u64 {
-    std::env::var("PAVISE_MAX_UPLOAD_BYTES")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(15 * 1024 * 1024 * 1024) // 15 GB
-}
-
-/// Directory for chunked upload temp files.
-fn upload_dir() -> PathBuf {
-    let dir = std::env::var("PAVISE_UPLOAD_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir().join("pavise-uploads"));
-    std::fs::create_dir_all(&dir).ok();
-    dir
-}
-
-type ScanStore = Arc<RwLock<HashMap<String, (ScanReport, Instant)>>>;
-
-/// In-progress chunked upload session.
-struct UploadSession {
-    path: PathBuf,
-    hasher: Sha256,
-    received: u64,
-    next_index: u32,
-    created_at: Instant,
-}
-
-type UploadStore = Arc<RwLock<HashMap<String, Arc<std::sync::Mutex<UploadSession>>>>>;
-
-/// Scan cache keyed by SHA-256 of the uploaded file.
-type CacheStore = Arc<RwLock<HashMap<String, (ScanReport, Instant)>>>;
-
-/// Per-IP request rate limiter using a sliding window.
-/// Maximum requests per IP within the configured window (default: 20 requests per minute).
-fn rate_limit_max() -> u32 {
-    std::env::var("PAVISE_RATE_LIMIT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(20)
-}
-
-const RATE_LIMIT_WINDOW: Duration = Duration::from_secs(60);
-
-/// Tracks per-IP request timestamps for rate limiting.
-struct RateLimitEntry {
-    count: u32,
-    window_start: Instant,
-}
-
-type RateLimitStore = Arc<RwLock<HashMap<std::net::IpAddr, RateLimitEntry>>>;
+// ── CSP nonce ─────────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
-struct AppState {
-    store: ScanStore,
-    uploads: UploadStore,
-    cache: CacheStore,
-    semaphore: Arc<Semaphore>,
-    rate_limits: RateLimitStore,
+struct CspNonce(String);
+
+fn generate_nonce() -> String {
+    Uuid::new_v4().simple().to_string()
 }
+
+// ── Proxy-aware IP resolution ─────────────────────────────────────────────────
+
+/// Resolve the real client IP, honouring proxy headers only when PAVISE_TRUSTED_PROXY is set.
+fn real_ip(addr: SocketAddr, headers: &HeaderMap) -> std::net::IpAddr {
+    if std::env::var("PAVISE_TRUSTED_PROXY").is_ok() {
+        // Cloudflare sets this to the original visitor IP.
+        if let Some(ip) = headers
+            .get("CF-Connecting-IP")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.trim().parse().ok())
+        {
+            return ip;
+        }
+        // Standard reverse-proxy header; take the leftmost (client) address.
+        if let Some(ip) = headers
+            .get("X-Forwarded-For")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.split(',').next())
+            .and_then(|s| s.trim().parse().ok())
+        {
+            return ip;
+        }
+    }
+    addr.ip()
+}
+
+// ── Timeout ───────────────────────────────────────────────────────────────────
+
+const PDF_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -137,88 +74,29 @@ async fn main() -> Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    let store: ScanStore = Arc::new(RwLock::new(HashMap::new()));
-    let uploads: UploadStore = Arc::new(RwLock::new(HashMap::new()));
-    let cache: CacheStore = Arc::new(RwLock::new(HashMap::new()));
-    let rate_limits: RateLimitStore = Arc::new(RwLock::new(HashMap::new()));
-
-    // Background task: evict expired scan results, uploads, cache, and rate limit entries.
-    {
-        let store = Arc::clone(&store);
-        let uploads = Arc::clone(&uploads);
-        let cache = Arc::clone(&cache);
-        let rate_limits = Arc::clone(&rate_limits);
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(10 * 60));
-            loop {
-                interval.tick().await;
-
-                // Evict expired scan results
-                {
-                    let mut map = store.write().await;
-                    let before = map.len();
-                    map.retain(|_, (_, ts)| ts.elapsed() < RESULT_TTL);
-                    let removed = before - map.len();
-                    if removed > 0 {
-                        tracing::info!("Evicted {} expired scan results", removed);
-                    }
-                }
-
-                // Evict abandoned uploads
-                {
-                    let mut map = uploads.write().await;
-                    let before = map.len();
-                    map.retain(|_, session| {
-                        let keep = session
-                            .lock()
-                            .map(|s| s.created_at.elapsed() < UPLOAD_TTL)
-                            .unwrap_or(false);
-                        if !keep {
-                            if let Ok(s) = session.lock() {
-                                std::fs::remove_file(&s.path).ok();
-                            }
-                        }
-                        keep
-                    });
-                    let removed = before - map.len();
-                    if removed > 0 {
-                        tracing::info!("Evicted {} abandoned uploads", removed);
-                    }
-                }
-
-                // Evict expired cache entries
-                {
-                    let ttl = cache_ttl();
-                    let mut map = cache.write().await;
-                    let before = map.len();
-                    map.retain(|_, (_, ts)| ts.elapsed() < ttl);
-                    let removed = before - map.len();
-                    if removed > 0 {
-                        tracing::info!("Evicted {} expired cache entries", removed);
-                    }
-                }
-
-                // Evict expired rate limit entries
-                {
-                    let mut map = rate_limits.write().await;
-                    map.retain(|_, entry| entry.window_start.elapsed() < RATE_LIMIT_WINDOW);
-                }
+    let config = match Config::from_env() {
+        Ok(c) => Arc::new(c),
+        Err(errors) => {
+            for e in &errors {
+                eprintln!("Config error: {e}");
             }
-        });
-    }
-
-    let state = AppState {
-        store,
-        uploads,
-        cache,
-        semaphore: Arc::new(Semaphore::new(max_concurrent_scans())),
-        rate_limits,
+            anyhow::bail!(
+                "Server startup aborted: {} configuration error(s) — fix the above and retry",
+                errors.len()
+            );
+        }
     };
 
-    // Routes with per-group body limits
+    let state = AppState::new(Arc::clone(&config));
+    spawn_eviction_task(&state);
+
+    let max_upload = config.max_upload_bytes as usize;
+    let dist = config.dist_dir.clone();
+    let port = config.port;
+
     let scan_routes = Router::new()
         .route("/api/scan", post(scan_handler))
-        .layer(DefaultBodyLimit::max(512 * 1024 * 1024)); // 512 MB for direct upload
+        .layer(DefaultBodyLimit::max(max_upload));
 
     let upload_routes = Router::new()
         .route("/api/upload", post(upload_init))
@@ -226,11 +104,10 @@ async fn main() -> Result<()> {
         .route("/api/upload/:id/scan", post(upload_scan))
         .layer(DefaultBodyLimit::max(CHUNK_LIMIT));
 
-    let dist = dist_dir();
-
     let app = Router::new()
         .route("/", get(landing))
         .route("/scan", get(scan_page))
+        .route("/healthz", get(healthz))
         .route("/robots.txt", get(robots_txt))
         .route("/sitemap.xml", get(sitemap_xml))
         .merge(scan_routes)
@@ -240,34 +117,94 @@ async fn main() -> Result<()> {
         .route("/api/scan/:id/pdf", get(download_pdf))
         .nest_service("/assets", ServeDir::new(dist.join("assets")))
         .with_state(state)
-        .layer(axum::middleware::from_fn(security_headers));
+        .layer(axum::middleware::from_fn(cache_control_headers))
+        .layer(axum::middleware::from_fn(security_headers))
+        .layer(CompressionLayer::new());
 
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
-    let addr = format!("0.0.0.0:{}", port);
-    eprintln!("Pavise server listening on http://{}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let addr = format!("0.0.0.0:{port}");
+    eprintln!("Pavise server listening on http://{addr}");
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),
     )
     .await?;
+
     Ok(())
 }
 
-async fn landing() -> Response {
-    serve_html("index.html").await
+// ── Health check ──────────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+struct HealthResponse {
+    active_scans: usize,
+    cache_size: usize,
 }
 
-async fn scan_page() -> Response {
-    serve_html("scan.html").await
+async fn healthz(State(state): State<AppState>) -> Json<HealthResponse> {
+    let available = state.semaphore.available_permits();
+    let active_scans = state.config.max_concurrent_scans.saturating_sub(available);
+    let cache_size = state.cache.read().await.len();
+    Json(HealthResponse {
+        active_scans,
+        cache_size,
+    })
 }
 
-async fn serve_html(name: &str) -> Response {
-    let path = dist_dir().join(name);
+// ── HTML page handlers ────────────────────────────────────────────────────────
+
+async fn landing(Extension(nonce): Extension<CspNonce>) -> Response {
+    serve_html("index.html", &nonce.0).await
+}
+
+async fn scan_page(Extension(nonce): Extension<CspNonce>) -> Response {
+    serve_html("scan.html", &nonce.0).await
+}
+
+async fn serve_html(name: &str, nonce: &str) -> Response {
+    let path = std::env::var("PAVISE_DIST_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| {
+            let manifest = std::env::var("CARGO_MANIFEST_DIR")
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(|_| std::path::PathBuf::from("."));
+            manifest.join("web/dist")
+        })
+        .join(name);
     match tokio::fs::read_to_string(&path).await {
-        Ok(html) => Html(html).into_response(),
-        Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Frontend not built: {} not found. Run `npm run build` in web/", path.display())).into_response(),
+        Ok(html) => Html(inject_nonce(&html, nonce)).into_response(),
+        Err(e) => {
+            tracing::error!("Frontend file not found ({}): {e}", path.display());
+            (StatusCode::INTERNAL_SERVER_ERROR, "Frontend not available").into_response()
+        }
     }
+}
+
+/// Inject a CSP nonce attribute into inline `<script>` tags (those without a `src=` attribute).
+fn inject_nonce(html: &str, nonce: &str) -> String {
+    let mut result = String::with_capacity(html.len() + 128);
+    let mut remaining = html;
+    while let Some(start) = remaining.find("<script") {
+        result.push_str(&remaining[..start]);
+        remaining = &remaining[start..];
+        if let Some(tag_end) = remaining.find('>') {
+            let tag = &remaining[..tag_end];
+            if !tag.contains("src=") {
+                result.push_str(tag);
+                result.push_str(&format!(" nonce=\"{nonce}\""));
+                result.push('>');
+            } else {
+                result.push_str(tag);
+                result.push('>');
+            }
+            remaining = &remaining[tag_end + 1..];
+        } else {
+            result.push_str(remaining);
+            return result;
+        }
+    }
+    result.push_str(remaining);
+    result
 }
 
 async fn robots_txt() -> ([(axum::http::header::HeaderName, &'static str); 1], &'static str) {
@@ -296,17 +233,23 @@ async fn sitemap_xml() -> ([(axum::http::header::HeaderName, &'static str); 1], 
     )
 }
 
-/// Check per-IP rate limit. Returns an error response if the limit is exceeded.
-async fn check_rate_limit(state: &AppState, addr: SocketAddr) -> Option<Response> {
-    let ip = addr.ip();
-    let max = rate_limit_max();
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+
+/// Returns a `429 Too Many Requests` response if the caller has exceeded the
+/// per-IP sliding-window limit, otherwise returns `None`.
+async fn check_rate_limit(
+    state: &AppState,
+    addr: SocketAddr,
+    headers: &HeaderMap,
+) -> Option<Response> {
+    let ip = real_ip(addr, headers);
+    let max = state.config.rate_limit_max;
     let mut limits = state.rate_limits.write().await;
     let entry = limits.entry(ip).or_insert(RateLimitEntry {
         count: 0,
         window_start: Instant::now(),
     });
 
-    // Reset window if expired
     if entry.window_start.elapsed() >= RATE_LIMIT_WINDOW {
         entry.count = 0;
         entry.window_start = Instant::now();
@@ -314,6 +257,12 @@ async fn check_rate_limit(state: &AppState, addr: SocketAddr) -> Option<Response
 
     entry.count += 1;
     if entry.count > max {
+        tracing::warn!(
+            ip = %ip,
+            count = entry.count,
+            limit = max,
+            "Rate limit exceeded"
+        );
         Some(
             (
                 StatusCode::TOO_MANY_REQUESTS,
@@ -329,40 +278,44 @@ async fn check_rate_limit(state: &AppState, addr: SocketAddr) -> Option<Response
     }
 }
 
-// ── Direct multipart upload (streaming to disk) ─────────────────────────────
+// ── Direct multipart upload ───────────────────────────────────────────────────
 
 async fn scan_handler(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Response {
-    if let Some(resp) = check_rate_limit(&state, addr).await {
+    if let Some(resp) = check_rate_limit(&state, addr, &headers).await {
         return resp;
     }
 
+    let max_scans = state.config.max_concurrent_scans;
     let sem = Arc::clone(&state.semaphore);
     let _permit = match sem.try_acquire() {
         Ok(p) => p,
         Err(_) => {
             return error_fragment(&format!(
-                "Server busy: maximum {} concurrent scans in progress. Try again shortly.",
-                max_concurrent_scans()
+                "Server busy: maximum {max_scans} concurrent scans in progress. Try again shortly."
             ))
         }
     };
 
-    // Stream multipart to disk while computing SHA-256
     let tmp = match tempfile::Builder::new()
         .suffix(".ipa")
-        .tempfile_in(upload_dir())
+        .tempfile_in(&state.config.upload_dir)
     {
         Ok(f) => f,
-        Err(e) => return error_fragment(&format!("Failed to create temp file: {e}")),
+        Err(e) => {
+            tracing::error!("Failed to create temp file: {e}");
+            return error_fragment("Upload failed due to a server error");
+        }
     };
 
     let mut writer = std::io::BufWriter::new(tmp.as_file());
     let mut hasher = Sha256::new();
     let mut received = 0u64;
+    let max_bytes = state.config.max_upload_bytes;
 
     loop {
         match multipart.next_field().await {
@@ -371,22 +324,37 @@ async fn scan_handler(
                     loop {
                         match field.chunk().await {
                             Ok(Some(chunk)) => {
+                                received += chunk.len() as u64;
+                                if received > max_bytes {
+                                    return (
+                                        StatusCode::PAYLOAD_TOO_LARGE,
+                                        format!(
+                                            "Upload exceeds maximum size of {} MiB",
+                                            max_bytes / (1024 * 1024)
+                                        ),
+                                    )
+                                        .into_response();
+                                }
                                 if let Err(e) = writer.write_all(&chunk) {
-                                    return error_fragment(&format!("Failed to write upload: {e}"));
+                                    tracing::error!("Failed to write upload chunk: {e}");
+                                    return error_fragment("Upload failed due to a server error");
                                 }
                                 hasher.update(&chunk);
-                                received += chunk.len() as u64;
                             }
                             Ok(None) => break,
                             Err(e) => {
-                                return error_fragment(&format!("Failed to read upload: {e}"))
+                                tracing::error!("Failed to read upload data: {e}");
+                                return error_fragment("Upload failed due to a server error");
                             }
                         }
                     }
                 }
             }
             Ok(None) => break,
-            Err(e) => return error_fragment(&format!("Multipart error: {e}")),
+            Err(e) => {
+                tracing::error!("Multipart parse error: {e}");
+                return error_fragment("Upload failed due to a server error");
+            }
         }
     }
 
@@ -395,23 +363,22 @@ async fn scan_handler(
     }
 
     if let Err(e) = writer.flush() {
-        return error_fragment(&format!("Failed to flush upload: {e}"));
+        tracing::error!("Failed to flush upload: {e}");
+        return error_fragment("Upload failed due to a server error");
     }
     drop(writer);
 
     let hash = hex::encode(hasher.finalize());
 
-    // Check cache
     if let Some(response) = try_cache_hit(&state, &hash).await {
         return response;
     }
 
-    // Run scan
     let path = tmp.path().to_path_buf();
     run_scan(state, path, hash, Some(tmp)).await
 }
 
-// ── Chunked upload endpoints ────────────────────────────────────────────────
+// ── Chunked upload endpoints ──────────────────────────────────────────────────
 
 #[derive(serde::Serialize)]
 struct UploadInitResponse {
@@ -419,21 +386,26 @@ struct UploadInitResponse {
     chunk_size: usize,
 }
 
+/// `POST /api/upload` — initialise a new chunked upload session.
+///
+/// Rate-limited with the same per-IP limiter applied to scan endpoints.
 async fn upload_init(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
 ) -> Response {
-    if let Some(resp) = check_rate_limit(&state, addr).await {
+    if let Some(resp) = check_rate_limit(&state, addr, &headers).await {
         return resp;
     }
 
     let upload_id = Uuid::new_v4().to_string();
-    let file_path = upload_dir().join(format!("{upload_id}.ipa"));
+    let file_path = state.config.upload_dir.join(format!("{upload_id}.ipa"));
 
     if let Err(e) = std::fs::File::create(&file_path) {
+        tracing::error!("Failed to create upload file: {e}");
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to create upload file: {e}"),
+            "Upload initialization failed",
         )
             .into_response();
     }
@@ -482,7 +454,22 @@ async fn upload_chunk(
     if index != session.next_index {
         return (
             StatusCode::BAD_REQUEST,
-            format!("Expected chunk index {}, got {}", session.next_index, index),
+            format!(
+                "Expected chunk index {}, got {}",
+                session.next_index, index
+            ),
+        )
+            .into_response();
+    }
+
+    let new_total = session.received + body.len() as u64;
+    if new_total > state.config.max_upload_bytes {
+        return (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!(
+                "Upload exceeds maximum size of {} MiB",
+                state.config.max_upload_bytes / (1024 * 1024)
+            ),
         )
             .into_response();
     }
@@ -490,33 +477,14 @@ async fn upload_chunk(
     let mut file = match std::fs::OpenOptions::new().append(true).open(&session.path) {
         Ok(f) => f,
         Err(e) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to open upload file: {e}"),
-            )
-                .into_response()
+            tracing::error!("Failed to open upload file: {e}");
+            return (StatusCode::INTERNAL_SERVER_ERROR, "Upload failed").into_response();
         }
     };
 
-    // Enforce total upload size limit
-    let new_total = session.received + body.len() as u64;
-    if new_total > max_upload_bytes() {
-        return (
-            StatusCode::PAYLOAD_TOO_LARGE,
-            format!(
-                "Upload exceeds maximum size of {} GB",
-                max_upload_bytes() / (1024 * 1024 * 1024)
-            ),
-        )
-            .into_response();
-    }
-
     if let Err(e) = file.write_all(&body) {
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to write chunk: {e}"),
-        )
-            .into_response();
+        tracing::error!("Failed to write chunk: {e}");
+        return (StatusCode::INTERNAL_SERVER_ERROR, "Upload failed").into_response();
     }
 
     session.hasher.update(&body);
@@ -529,13 +497,13 @@ async fn upload_chunk(
 async fn upload_scan(
     State(state): State<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> Response {
-    if let Some(resp) = check_rate_limit(&state, addr).await {
+    if let Some(resp) = check_rate_limit(&state, addr, &headers).await {
         return resp;
     }
 
-    // Remove the session (finalize)
     let session = {
         let mut uploads = state.uploads.write().await;
         match uploads.remove(&id) {
@@ -559,19 +527,17 @@ async fn upload_scan(
         (session.path.clone(), hash)
     };
 
-    // Acquire scan permit
+    let max_scans = state.config.max_concurrent_scans;
     let sem = Arc::clone(&state.semaphore);
     let _permit = match sem.try_acquire() {
         Ok(p) => p,
         Err(_) => {
             return error_fragment(&format!(
-                "Server busy: maximum {} concurrent scans in progress. Try again shortly.",
-                max_concurrent_scans()
+                "Server busy: maximum {max_scans} concurrent scans in progress. Try again shortly."
             ))
         }
     };
 
-    // Check cache
     if let Some(response) = try_cache_hit(&state, &hash).await {
         std::fs::remove_file(&path).ok();
         return response;
@@ -580,9 +546,8 @@ async fn upload_scan(
     run_scan(state, path, hash, None::<tempfile::NamedTempFile>).await
 }
 
-// ── Shared scan + cache logic ───────────────────────────────────────────────
+// ── Shared scan + cache logic ─────────────────────────────────────────────────
 
-/// Check cache for a previous scan of the same file (by SHA-256).
 async fn try_cache_hit(state: &AppState, hash: &str) -> Option<Response> {
     let cache = state.cache.read().await;
     let (report, _) = cache.get(hash)?;
@@ -596,17 +561,26 @@ async fn try_cache_hit(state: &AppState, hash: &str) -> Option<Response> {
         .await
         .insert(id.clone(), (report.clone(), Instant::now()));
 
-    tracing::info!("Cache hit for SHA-256 {}", &hash[..16]);
+    tracing::info!(hash = &hash[..16], scan_id = %id, "Cache hit");
     Some(Html(result_fragment(&id, &report, true)).into_response())
 }
 
-/// Run scan_ipa, store results, populate cache, return HTML fragment.
+/// Run scan_ipa in a blocking thread, store and cache results, return an HTML fragment.
+///
+/// A `scan_id` is generated per invocation and attached to every log line so
+/// concurrent scan requests can be correlated in structured logs.
 async fn run_scan<T: Send + 'static>(
     state: AppState,
     path: PathBuf,
     hash: String,
     _keep_alive: Option<T>,
 ) -> Response {
+    let scan_id = Uuid::new_v4().to_string();
+    let span = tracing::info_span!("scan", scan_id = %scan_id, hash = &hash[..16]);
+    let _enter = span.enter();
+
+    tracing::info!("Starting IPA scan");
+
     let scan_path = path.clone();
     let report = match tokio::task::spawn_blocking(move || {
         let _keep = _keep_alive;
@@ -617,7 +591,6 @@ async fn run_scan<T: Send + 'static>(
             show_progress: false,
         };
         let result = scan_ipa(&scan_path, &opts);
-        // Clean up chunked upload files (tempfile handles cleanup for NamedTempFile)
         if scan_path
             .file_name()
             .and_then(|n| n.to_str())
@@ -629,9 +602,23 @@ async fn run_scan<T: Send + 'static>(
     })
     .await
     {
-        Ok(Ok(r)) => r,
-        Ok(Err(e)) => return error_fragment(&format!("Scan failed: {e}")),
-        Err(e) => return error_fragment(&format!("Internal error: {e}")),
+        Ok(Ok(r)) => {
+            tracing::info!(
+                duration_ms = r.scan_duration_ms,
+                grade = %r.grade,
+                score = r.security_score,
+                "Scan complete"
+            );
+            r
+        }
+        Ok(Err(e)) => {
+            tracing::error!(error = %e, "Scan failed");
+            return error_fragment("Scan failed due to a server error");
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Scan task panicked");
+            return error_fragment("Internal server error");
+        }
     };
 
     let id = Uuid::new_v4().to_string();
@@ -642,7 +629,6 @@ async fn run_scan<T: Send + 'static>(
         .await
         .insert(id.clone(), (report.clone(), Instant::now()));
 
-    // Populate cache
     state
         .cache
         .write()
@@ -652,7 +638,7 @@ async fn run_scan<T: Send + 'static>(
     Html(result_fragment(&id, &report, false)).into_response()
 }
 
-// ── Existing result/download handlers ───────────────────────────────────────
+// ── Download handlers ─────────────────────────────────────────────────────────
 
 async fn get_scan_fragment(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     let store = state.store.read().await;
@@ -678,8 +664,14 @@ async fn download_json(State(state): State<AppState>, Path(id): Path<String>) ->
                 format!("attachment; filename=\"pavise-{}.json\"", &id[..8]),
             )
             .body(Body::from(s))
-            .unwrap_or_else(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to build JSON response: {e}");
+                (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate report").into_response()
+            }),
+        Err(e) => {
+            tracing::error!("Failed to serialize JSON report: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate report").into_response()
+        }
     }
 }
 
@@ -702,14 +694,68 @@ async fn download_pdf(State(state): State<AppState>, Path(id): Path<String>) -> 
                 format!("attachment; filename=\"pavise-{}.pdf\"", &id[..8]),
             )
             .body(Body::from(bytes))
-            .unwrap_or_else(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()),
-        Ok(Ok(Err(e))) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
-        Ok(Err(e)) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+            .unwrap_or_else(|e| {
+                tracing::error!("Failed to build PDF response: {e}");
+                (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate report").into_response()
+            }),
+        Ok(Ok(Err(e))) => {
+            tracing::error!("PDF generation failed: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate PDF report").into_response()
+        }
+        Ok(Err(e)) => {
+            tracing::error!("PDF generation task panicked: {e}");
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate PDF report").into_response()
+        }
         Err(_) => (StatusCode::GATEWAY_TIMEOUT, "PDF generation timed out").into_response(),
     }
 }
 
-// ── HTML helpers ────────────────────────────────────────────────────────────
+// ── Middleware ────────────────────────────────────────────────────────────────
+
+async fn cache_control_headers(req: Request<Body>, next: Next) -> Response {
+    let path = req.uri().path().to_owned();
+    let mut resp = next.run(req).await;
+    let value = if path.starts_with("/assets/") {
+        "public, max-age=31536000, immutable"
+    } else if matches!(path.as_str(), "/" | "/scan") {
+        "no-cache"
+    } else {
+        return resp;
+    };
+    resp.headers_mut()
+        .insert(header::CACHE_CONTROL, value.parse().unwrap());
+    resp
+}
+
+async fn security_headers(mut req: Request<Body>, next: Next) -> Response {
+    let nonce = generate_nonce();
+    req.extensions_mut().insert(CspNonce(nonce.clone()));
+    let mut resp = next.run(req).await;
+    let h = resp.headers_mut();
+    h.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
+    h.insert("X-Frame-Options", "DENY".parse().unwrap());
+    h.insert(
+        "Referrer-Policy",
+        "strict-origin-when-cross-origin".parse().unwrap(),
+    );
+    h.insert(
+        "Content-Security-Policy",
+        format!(
+            "default-src 'self'; \
+             script-src 'self' 'nonce-{nonce}' stats.pavise.app; \
+             style-src 'self' 'unsafe-inline' fonts.googleapis.com; \
+             font-src fonts.gstatic.com; \
+             connect-src 'self'; \
+             img-src 'self' data:; \
+             frame-ancestors 'none'"
+        )
+        .parse()
+        .unwrap(),
+    );
+    resp
+}
+
+// ── HTML helpers ──────────────────────────────────────────────────────────────
 
 fn error_fragment(msg: &str) -> Response {
     Html(format!(
@@ -779,7 +825,10 @@ fn result_fragment(id: &str, report: &ScanReport, cached: bool) -> String {
                 .first()
                 .map(|e| {
                     let t = if e.len() > 90 { &e[..90] } else { e.as_str() };
-                    format!(r#"<div class="finding-evidence">{}</div>"#, html_escape(t))
+                    format!(
+                        r#"<div class="finding-evidence">{}</div>"#,
+                        html_escape(t)
+                    )
                 })
                 .unwrap_or_default();
             format!(
@@ -789,10 +838,10 @@ fn result_fragment(id: &str, report: &ScanReport, cached: bool) -> String {
     <div class="finding-title">{title}</div>
     {evidence}
   </div>
-  <code class="finding-id">{id}</code>
+  <code class="finding-id">{fid}</code>
 </div>"#,
                 title = html_escape(&f.title),
-                id = html_escape(&f.id),
+                fid = html_escape(&f.id),
             )
         })
         .collect();
@@ -889,21 +938,6 @@ fn result_fragment(id: &str, report: &ScanReport, cached: bool) -> String {
         more_note = more_note,
         id = id,
     )
-}
-
-async fn security_headers(req: Request<Body>, next: Next) -> Response {
-    let mut resp = next.run(req).await;
-    let h = resp.headers_mut();
-    h.insert("X-Content-Type-Options", "nosniff".parse().unwrap());
-    h.insert("X-Frame-Options", "DENY".parse().unwrap());
-    h.insert("Referrer-Policy", "strict-origin-when-cross-origin".parse().unwrap());
-    h.insert(
-        "Content-Security-Policy",
-        "default-src 'self'; script-src 'self' 'unsafe-inline' stats.pavise.app; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
-            .parse()
-            .unwrap(),
-    );
-    resp
 }
 
 fn html_escape(s: &str) -> String {

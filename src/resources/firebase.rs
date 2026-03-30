@@ -33,8 +33,12 @@ pub fn parse_google_service_info(data: &[u8]) -> Option<FirebaseInfo> {
         .map(|s| s.to_string());
 
     debug!(
-        "Firebase detected: project_id={:?}, database_url={:?}",
-        project_id, database_url
+        "Firebase detected: project_id={}, database_url={}, api_key={}, bundle_id={}, google_app_id={}",
+        project_id.is_some(),
+        database_url.is_some(),
+        api_key.is_some(),
+        bundle_id.is_some(),
+        google_app_id.is_some(),
     );
 
     Some(FirebaseInfo {

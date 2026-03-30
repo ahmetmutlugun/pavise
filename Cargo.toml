@@ -84,7 +84,7 @@ thiserror = "1"
 
 # HTTP server (used by pavise-server binary)
 axum = { version = "0.7", features = ["multipart"] }
-tower-http = { version = "0.5", features = ["cors", "fs"] }
+tower-http = { version = "0.5", features = ["cors", "fs", "compression-gzip", "compression-br"] }
 uuid = { version = "1", features = ["v4"] }
 
 # PDF reports via Typst
@@ -99,6 +99,9 @@ tempfile = "3"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+# Integration test helpers for the HTTP server
+tower = { version = "0.4", features = ["util"] }
+http-body-util = "0.1"
 
 [profile.release]
 opt-level = 3

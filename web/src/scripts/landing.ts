@@ -86,7 +86,14 @@ function setProgress(pct, label) {
     progressPct.textContent = Math.round(pct) + '%';
     if (label) progressLabel.textContent = label;
 }
-function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escapeHtml(s) {
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 
 // ── Phase animation ──
 let phaseInterval = null, msgInterval = null, currentPhase = 0, currentMsgIdx = 0;
@@ -138,7 +145,7 @@ if (attempt === retries) return res;
 if (err.name === 'AbortError') throw err;
 if (attempt === retries) throw new Error('Network error: check your connection and try again.');
         }
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        await new Promise(r => setTimeout(r, 100 * Math.pow(2, attempt)));
     }
 }
 

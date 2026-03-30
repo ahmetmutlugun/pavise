@@ -8,6 +8,7 @@ pub mod patterns;
 pub mod report;
 pub mod resources;
 pub mod scoring;
+pub mod server;
 pub mod types;
 pub mod unpacker;
 
