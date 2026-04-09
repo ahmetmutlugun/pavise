@@ -50,7 +50,13 @@ const SYMBOL_PREFIXES: &[&str] = &[
 ];
 
 /// Return true if `s` is likely a false-positive and should NOT be flagged.
-fn is_false_positive(s: &str) -> bool {
+fn is_false_positive(s: &str, source_path: &str) -> bool {
+    // Copyright strings often have high entropy due to names, years, and symbols (c) (r)
+    let lower = s.to_lowercase();
+    if lower.contains("copyright") || lower.contains("(c)") || lower.contains("©") {
+        return true;
+    }
+
     // UUID pattern: 8-4-4-4-12
     if uuid_re().is_match(s) {
         return true;
@@ -60,6 +66,13 @@ fn is_false_positive(s: &str) -> bool {
 
     // Pure hex hash (MD5=32, SHA1=40, SHA256=64)
     if (len == 32 || len == 40 || len == 64) && hex_re().is_match(s) {
+        return true;
+    }
+
+    // Ignore high entropy in CSS/HTML if it looks like Base64 (common for embedded icons/images)
+    if (source_path.ends_with(".css") || source_path.ends_with(".html"))
+        && (s.contains("data:image/") || (s.len() > 32 && s.contains('=')))
+    {
         return true;
     }
 
@@ -145,7 +158,7 @@ pub fn scan_for_high_entropy(strings: &[&str], source_path: &str) -> Vec<SecretM
         if !(20..=128).contains(&len) {
             continue;
         }
-        if is_false_positive(trimmed) {
+        if is_false_positive(trimmed, source_path) {
             continue;
         }
         let entropy = shannon_entropy(trimmed);
@@ -269,6 +282,26 @@ mod tests {
         assert!(
             results.is_empty(),
             "Sequential ASCII charset should be filtered, got: {results:?}"
+        );
+    }
+
+    #[test]
+    fn test_copyright_filtered() {
+        let copyright = "Copyright © 1996-2017 VideoLAN and VLC Authors";
+        let results = scan_for_high_entropy(&[copyright], "About.html");
+        assert!(
+            results.is_empty(),
+            "Copyright string should be filtered, got: {results:?}"
+        );
+    }
+
+    #[test]
+    fn test_css_base64_filtered() {
+        let base64_asset = "7Awh4rh28ygQCR6ISg8Awh4rh28ygQCR6ISg==";
+        let results = scan_for_high_entropy(&[base64_asset], "style.css");
+        assert!(
+            results.is_empty(),
+            "Base64 asset in CSS should be filtered, got: {results:?}"
         );
     }
 }

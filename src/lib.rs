@@ -451,12 +451,31 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     ));
 
     // Flag hardcoded IP address literals (unusual for legitimate backend communication).
-    // Skip loopback/unspecified addresses — these are used for local development.
-    const BENIGN_IPS: &[&str] = &["127.0.0.1", "0.0.0.0", "255.255.255.255"];
+    // Skip loopback/unspecified and common local/multicast addresses.
+    fn is_benign_ip(ip: &str) -> bool {
+        let benign = ["127.0.0.1", "0.0.0.0", "255.255.255.255", "239.255.255.250"];
+        if benign.contains(&ip) {
+            return true;
+        }
+        // Private IP ranges (RFC 1918)
+        if ip.starts_with("192.168.") || ip.starts_with("10.") {
+            return true;
+        }
+        if ip.starts_with("172.") {
+            // 172.16.0.0 – 172.31.255.255
+            let parts: Vec<&str> = ip.split('.').collect();
+            if parts.len() >= 2 {
+                if let Ok(second) = parts[1].parse::<u8>() {
+                    return (16..=31).contains(&second);
+                }
+            }
+        }
+        false
+    }
 
     // 1. URL-embedded IPs (http://x.x.x.x/...)
     for d in &all_domains {
-        if is_ip_literal(&d.domain) && !BENIGN_IPS.contains(&d.domain.as_str()) {
+        if is_ip_literal(&d.domain) && !is_benign_ip(&d.domain) {
             all_findings.push(Finding {
                 id: "QS-NET-003".to_string(),
                 title: "Hardcoded IP Address".to_string(),
@@ -484,7 +503,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         .map(|d| d.domain.as_str())
         .collect();
     for ip in &all_bare_ips {
-        if !BENIGN_IPS.contains(&ip.as_str()) && !url_ips.contains(ip.as_str()) {
+        if !is_benign_ip(ip) && !url_ips.contains(ip.as_str()) {
             all_findings.push(Finding {
                 id: "QS-NET-003".to_string(),
                 title: "Hardcoded IP Address".to_string(),

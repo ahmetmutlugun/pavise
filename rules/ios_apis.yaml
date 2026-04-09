@@ -43,11 +43,11 @@
     - _CC_SHA1_Final
     - _MD5_Init
     - _SHA1_Init
-  severity: high
+  severity: warning
   cwe: "CWE-327"
   owasp_mobile: "M5"
   owasp_masvs: "MSTG-CRYPTO-4"
-  remediation: "Use SHA-256 or stronger hash functions (CC_SHA256, CC_SHA384, CC_SHA512)"
+  remediation: "Use SHA-256 or stronger hash functions (CC_SHA256, CC_SHA384, CC_SHA512). If these are used for checksums/legacy compatibility (not security/auth), this may be a false positive."
 
 - id: QS-API-005
   title: "Use of ptrace (anti-debugging / tampering detection)"
@@ -135,10 +135,10 @@
   symbols:
     - _fork
     - _posix_spawn
-  severity: warning
+  severity: info
   cwe: "CWE-78"
   owasp_masvs: "MSTG-PLATFORM-9"
-  remediation: "fork/posix_spawn are prohibited in App Store binaries. Presence may indicate anti-debug bypass or a rejected submission"
+  remediation: "fork/posix_spawn are generally prohibited in App Store binaries. Presence in the symbol table of a cross-platform C library is common and may be benign if not called at runtime."
 
 - id: QS-API-014
   title: "NSUserDefaults used for data storage"

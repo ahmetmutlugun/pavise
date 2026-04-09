@@ -21,8 +21,11 @@ const NOISE_URL_PATTERNS: &[&str] = &[
     "xmlpull.org/",          // XML pull parser schema
     "schemas.android.com/",  // Android XML namespace
     "schemas.microsoft.com/",
-    "example.invalid", // RFC 2606 — used in gRPC and other test code
-    "example.com",     // Generic test URLs in third-party libraries
+    "schemas.xmlsoap.org/", // SOAP namespaces
+    "videolan.org",         // VLC-related links (About UI, etc.)
+    "jquery.org/license",   // Documentation/License links
+    "example.invalid",      // RFC 2606 — used in gRPC and other test code
+    "example.com",          // Generic test URLs in third-party libraries
     "example.org",
     "www.google.com/", // gRPC test URLs
     "localhost",

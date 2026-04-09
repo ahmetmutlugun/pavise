@@ -371,6 +371,12 @@ fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
         "redirect", "link", "handle", "action",
     ];
 
+    // Standard protocol schemes that are common in media players/file managers
+    const STANDARD_SCHEMES: &[&str] = &[
+        "ftp", "sftp", "ftps", "smb", "afp", "nfs", "rtsp", "rtmp", "mms", "udp", "tcp", "webdav",
+        "dav", "vlc",
+    ];
+
     for item in url_types {
         let type_dict = match item.as_dictionary() {
             Some(d) => d,
@@ -396,7 +402,9 @@ fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
                 continue;
             }
 
-            let is_generic = GENERIC_SCHEMES.iter().any(|g| scheme == *g) || scheme.len() <= 3;
+            let is_standard = STANDARD_SCHEMES.iter().any(|s| scheme == *s);
+            let is_generic = !is_standard
+                && (GENERIC_SCHEMES.iter().any(|g| scheme == *g) || scheme.len() <= 3);
 
             let (severity, title, description) = if is_generic {
                 (
