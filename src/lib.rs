@@ -29,7 +29,7 @@ use crate::patterns::{
     trackers::TrackerDetector,
     urls,
 };
-use crate::resources::{firebase, sca, vulns::VulnDatabase};
+use crate::resources::{firebase, sca};
 use crate::scoring::owasp::compute_score;
 use crate::types::{
     AuditEntry, BinaryInfo, DomainGeoInfo, DomainInfo, Finding, ScanReport, SecretMatch, Severity,
@@ -104,19 +104,6 @@ pub fn resolve_rules_dir(custom: Option<&Path>) -> PathBuf {
     std::env::current_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
         .join("rules")
-}
-
-/// Resolve the `data/` directory alongside the binary, then alongside CWD.
-pub fn resolve_data_dir() -> PathBuf {
-    if let Ok(exe) = std::env::current_exe() {
-        let candidate = exe.parent().unwrap_or(Path::new(".")).join("data");
-        if candidate.is_dir() {
-            return candidate;
-        }
-    }
-    std::env::current_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join("data")
 }
 
 /// Configuration for a single IPA scan invocation.
@@ -754,24 +741,6 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         lockfile_count
     ));
 
-    // 3f-ii. CVE matching against detected framework versions
-    let data_dir = resolve_data_dir();
-    match VulnDatabase::load(&data_dir) {
-        Ok(vuln_db) => {
-            let cve_findings = vuln_db.check(&framework_components);
-            let cve_count = cve_findings.len();
-            all_findings.extend(cve_findings);
-            log.record(format!(
-                "CVE scan: {} vulnerable framework versions found",
-                cve_count
-            ));
-        }
-        Err(e) => {
-            debug!("CVE database unavailable: {}", e);
-            log.record(format!("CVE scan: skipped ({})", e));
-        }
-    }
-
     // 3g. Provisioning profile
     let provisioning_info = unpacked
         .archive
@@ -972,6 +941,21 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         );
         Vec::new()
     };
+
+    // 5b. OSV.dev CVE lookup (optional — requires --network flag)
+    if opts.network {
+        let osv_findings = network::osv::query_components(&framework_components);
+        let osv_count = osv_findings.len();
+        all_findings.extend(osv_findings);
+        log.record(format!(
+            "OSV.dev CVE lookup: {} CVE-backed findings",
+            osv_count
+        ));
+    } else {
+        log.record(
+            "OSV.dev CVE lookup: skipped (use --network to enable)".to_string(),
+        );
+    }
 
     // ------------------------------------------------------------------ //
     // 6. Filter by minimum severity

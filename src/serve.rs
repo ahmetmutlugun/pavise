@@ -233,6 +233,25 @@ async fn sitemap_xml() -> ([(axum::http::header::HeaderName, &'static str); 1], 
     )
 }
 
+// ── Response format detection ─────────────────────────────────────────────────
+
+/// Returns true when the caller wants a JSON response rather than an HTML fragment.
+/// Triggered by `curl/*` User-Agent (default curl behaviour) or an explicit
+/// `Accept: application/json` header.
+fn wants_json(headers: &HeaderMap) -> bool {
+    if headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ua| ua.starts_with("curl/"))
+    {
+        return true;
+    }
+    headers
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|a| a.contains("application/json"))
+}
+
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 
 /// Returns a `429 Too Many Requests` response if the caller has exceeded the
@@ -290,6 +309,7 @@ async fn scan_handler(
         return resp;
     }
 
+    let json_response = wants_json(&headers);
     let max_scans = state.config.max_concurrent_scans;
     let sem = Arc::clone(&state.semaphore);
     let _permit = match sem.try_acquire() {
@@ -370,12 +390,12 @@ async fn scan_handler(
 
     let hash = hex::encode(hasher.finalize());
 
-    if let Some(response) = try_cache_hit(&state, &hash).await {
+    if let Some(response) = try_cache_hit(&state, &hash, json_response).await {
         return response;
     }
 
     let path = tmp.path().to_path_buf();
-    run_scan(state, path, hash, Some(tmp)).await
+    run_scan(state, path, hash, Some(tmp), json_response).await
 }
 
 // ── Chunked upload endpoints ──────────────────────────────────────────────────
@@ -503,6 +523,7 @@ async fn upload_scan(
     if let Some(resp) = check_rate_limit(&state, addr, &headers).await {
         return resp;
     }
+    let json_response = wants_json(&headers);
 
     let session = {
         let mut uploads = state.uploads.write().await;
@@ -538,17 +559,17 @@ async fn upload_scan(
         }
     };
 
-    if let Some(response) = try_cache_hit(&state, &hash).await {
+    if let Some(response) = try_cache_hit(&state, &hash, json_response).await {
         std::fs::remove_file(&path).ok();
         return response;
     }
 
-    run_scan(state, path, hash, None::<tempfile::NamedTempFile>).await
+    run_scan(state, path, hash, None::<tempfile::NamedTempFile>, json_response).await
 }
 
 // ── Shared scan + cache logic ─────────────────────────────────────────────────
 
-async fn try_cache_hit(state: &AppState, hash: &str) -> Option<Response> {
+async fn try_cache_hit(state: &AppState, hash: &str, json_response: bool) -> Option<Response> {
     let cache = state.cache.read().await;
     let (report, _) = cache.get(hash)?;
     let report = report.clone();
@@ -562,10 +583,10 @@ async fn try_cache_hit(state: &AppState, hash: &str) -> Option<Response> {
         .insert(id.clone(), (report.clone(), Instant::now()));
 
     tracing::info!(hash = &hash[..16], scan_id = %id, "Cache hit");
-    Some(Html(result_fragment(&id, &report, true)).into_response())
+    Some(format_scan_response(&id, &report, true, json_response))
 }
 
-/// Run scan_ipa in a blocking thread, store and cache results, return an HTML fragment.
+/// Run scan_ipa in a blocking thread, store and cache results, return a response.
 ///
 /// A `scan_id` is generated per invocation and attached to every log line so
 /// concurrent scan requests can be correlated in structured logs.
@@ -574,6 +595,7 @@ async fn run_scan<T: Send + 'static>(
     path: PathBuf,
     hash: String,
     _keep_alive: Option<T>,
+    json_response: bool,
 ) -> Response {
     let scan_id = Uuid::new_v4().to_string();
     let span = tracing::info_span!("scan", scan_id = %scan_id, hash = &hash[..16]);
@@ -635,7 +657,29 @@ async fn run_scan<T: Send + 'static>(
         .await
         .insert(hash, (report.clone(), Instant::now()));
 
-    Html(result_fragment(&id, &report, false)).into_response()
+    format_scan_response(&id, &report, false, json_response)
+}
+
+// ── Response formatting ───────────────────────────────────────────────────────
+
+fn format_scan_response(id: &str, report: &ScanReport, cached: bool, json_response: bool) -> Response {
+    if json_response {
+        match json::to_string(report) {
+            Ok(s) => Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(s))
+                .unwrap_or_else(|_| {
+                    (StatusCode::INTERNAL_SERVER_ERROR, "Failed to serialize report").into_response()
+                }),
+            Err(e) => {
+                tracing::error!("Failed to serialize JSON report: {e}");
+                (StatusCode::INTERNAL_SERVER_ERROR, "Failed to serialize report").into_response()
+            }
+        }
+    } else {
+        Html(result_fragment(id, report, cached)).into_response()
+    }
 }
 
 // ── Download handlers ─────────────────────────────────────────────────────────
