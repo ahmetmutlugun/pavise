@@ -18,6 +18,10 @@ Fast iOS IPA static security analyzer
 - **src/network/**: DNS via ip-api.com (--network flag)
 - **rules/**: YAML files
 
+## Benchmarks
+
+- [MobSF comparison](docs/mobsf-comparison.md): performance + accuracy vs MobSF on DVIA/Navic/VLC (2026-05-22)
+
 ## Development Patterns
 
 1. **Parallel**: Use `rayon` for independent checks

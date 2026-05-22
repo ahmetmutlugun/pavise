@@ -3,16 +3,36 @@ services:
     build: .
     ports:
       - "8081:3000"
+    # Auto-restart on crash/OOM/normal exit. Use 'unless-stopped' so a manual
+    # `docker compose stop` is respected and not undone on host reboot.
+    restart: unless-stopped
     environment:
       - PORT=3000
       - PAVISE_MAX_SCANS=4
       - PAVISE_UPLOAD_DIR=/app/uploads
+      - PAVISE_LOG_DIR=/app/logs
       - PAVISE_CACHE_TTL_HOURS=24
     volumes:
       # Persistent volume for large uploads and temp scan files.
       # Size this for: (max concurrent uploads * max file size) + unpacked headroom.
       # e.g., 4 concurrent 10 GB uploads × 3x unpack expansion = ~120 GB.
       - pavise-uploads:/app/uploads
+      # Persistent log volume — survives container restart / recreate so crashes
+      # can be diagnosed after the container is gone.
+      - pavise-logs:/app/logs
+    # Bound docker's own json-file driver so /var/lib/docker/containers/<id>/*.log
+    # cannot fill the host disk and crash other services.
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "--tries=1", "--timeout=4", "http://127.0.0.1:3000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     deploy:
       resources:
         limits:
@@ -22,3 +42,4 @@ services:
 
 volumes:
   pavise-uploads:
+  pavise-logs:

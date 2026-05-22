@@ -65,14 +65,52 @@ fn real_ip(addr: SocketAddr, headers: &HeaderMap) -> std::net::IpAddr {
 
 const PDF_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
 
+// ── Tracing setup ─────────────────────────────────────────────────────────────
+
+/// Initialise tracing.
+///
+/// Writes structured logs to stderr (captured by `docker logs`) and — when
+/// `PAVISE_LOG_DIR` is set — also to a daily-rotated file under that directory
+/// so logs survive container restarts when the directory is volume-mounted.
+fn init_tracing() -> Option<tracing_appender::non_blocking::WorkerGuard> {
+    use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("pavise=info,pavise_server=info,tower_http=info"));
+
+    let stderr_layer = fmt::layer().with_writer(std::io::stderr);
+
+    let (file_layer, guard) = match std::env::var("PAVISE_LOG_DIR") {
+        Ok(dir) if !dir.is_empty() => {
+            if let Err(e) = std::fs::create_dir_all(&dir) {
+                eprintln!("Could not create PAVISE_LOG_DIR='{dir}': {e}; file logging disabled");
+                (None, None)
+            } else {
+                let appender = tracing_appender::rolling::daily(&dir, "pavise.log");
+                let (nb, guard) = tracing_appender::non_blocking(appender);
+                let layer = fmt::layer().with_ansi(false).with_writer(nb);
+                (Some(layer), Some(guard))
+            }
+        }
+        _ => (None, None),
+    };
+
+    tracing_subscriber::registry()
+        .with(filter)
+        .with(stderr_layer)
+        .with(file_layer)
+        .init();
+
+    guard
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter("pavise=warn,pavise_server=info,tower_http=info")
-        .with_writer(std::io::stderr)
-        .init();
+    // Keep guard alive for the lifetime of the program; dropping it flushes any
+    // buffered log lines to disk.
+    let _log_guard = init_tracing();
 
     let config = match Config::from_env() {
         Ok(c) => Arc::new(c),
