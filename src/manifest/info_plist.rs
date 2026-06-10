@@ -208,75 +208,234 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
         None => return Some(findings),
     };
 
-    // Check NSAllowsArbitraryLoads
-    if let Some(val) = ats_dict.get("NSAllowsArbitraryLoads") {
-        if val.as_boolean() == Some(true) {
-            findings.push(Finding {
-                id: "QS-ATS-002".to_string(),
-                title: "ATS: Arbitrary Loads Allowed".to_string(),
-                description: "NSAllowsArbitraryLoads is true, disabling ATS protection for all network connections. The app can communicate over insecure HTTP.".to_string(),
-                severity: Severity::High,
-                category: "network".to_string(),
-                cwe: Some("CWE-319".to_string()),
-                owasp_mobile: Some("M5".to_string()),
-                owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
-                evidence: vec!["NSAllowsArbitraryLoads: true".to_string()],
-                remediation: Some("Remove NSAllowsArbitraryLoads or set it to false. Ensure all endpoints use HTTPS with valid TLS certificates.".to_string()),
-            });
-        }
+    // ------------------------------------------------------------------ //
+    // Top-level ATS flags
+    // ------------------------------------------------------------------ //
+    if ats_dict.get("NSAllowsArbitraryLoads").and_then(|v| v.as_boolean()) == Some(true) {
+        findings.push(Finding {
+            id: "QS-ATS-002".to_string(),
+            title: "ATS: Arbitrary Loads Allowed".to_string(),
+            description: "NSAllowsArbitraryLoads is true, disabling ATS protection for all network connections. The app can communicate over insecure HTTP.".to_string(),
+            severity: Severity::High,
+            category: "network".to_string(),
+            cwe: Some("CWE-319".to_string()),
+            owasp_mobile: Some("M5".to_string()),
+            owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
+            evidence: vec!["NSAllowsArbitraryLoads: true".to_string()],
+            remediation: Some("Remove NSAllowsArbitraryLoads or set it to false. Ensure all endpoints use HTTPS with valid TLS certificates.".to_string()),
+        });
     }
 
-    // Check NSAllowsArbitraryLoadsInWebContent
-    if let Some(val) = ats_dict.get("NSAllowsArbitraryLoadsInWebContent") {
-        if val.as_boolean() == Some(true) {
-            findings.push(Finding {
-                id: "QS-ATS-003".to_string(),
-                title: "ATS: Arbitrary Loads Allowed in Web Content".to_string(),
-                description: "NSAllowsArbitraryLoadsInWebContent is true, allowing WKWebView to load insecure HTTP content.".to_string(),
-                severity: Severity::Warning,
-                category: "network".to_string(),
-                cwe: Some("CWE-319".to_string()),
-                owasp_mobile: Some("M5".to_string()),
-                owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
-                evidence: vec!["NSAllowsArbitraryLoadsInWebContent: true".to_string()],
-                remediation: Some("Remove NSAllowsArbitraryLoadsInWebContent. Ensure all web content is loaded over HTTPS.".to_string()),
-            });
-        }
+    if ats_dict.get("NSAllowsArbitraryLoadsInWebContent").and_then(|v| v.as_boolean()) == Some(true) {
+        findings.push(Finding {
+            id: "QS-ATS-003".to_string(),
+            title: "ATS: Arbitrary Loads Allowed in Web Content".to_string(),
+            description: "NSAllowsArbitraryLoadsInWebContent is true, allowing WKWebView to load insecure HTTP content.".to_string(),
+            severity: Severity::Warning,
+            category: "network".to_string(),
+            cwe: Some("CWE-319".to_string()),
+            owasp_mobile: Some("M5".to_string()),
+            owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
+            evidence: vec!["NSAllowsArbitraryLoadsInWebContent: true".to_string()],
+            remediation: Some("Remove NSAllowsArbitraryLoadsInWebContent. Ensure all web content is loaded over HTTPS.".to_string()),
+        });
     }
 
-    // Check exception domains
+    if ats_dict.get("NSAllowsArbitraryLoadsForMedia").and_then(|v| v.as_boolean()) == Some(true) {
+        findings.push(Finding {
+            id: "QS-ATS-005".to_string(),
+            title: "ATS: Arbitrary Loads Allowed for Media".to_string(),
+            description: "NSAllowsArbitraryLoadsForMedia is true, allowing AV Foundation to load media over insecure HTTP. Streamed media is not encrypted in transit and is susceptible to MITM substitution.".to_string(),
+            severity: Severity::Warning,
+            category: "network".to_string(),
+            cwe: Some("CWE-319".to_string()),
+            owasp_mobile: Some("M5".to_string()),
+            owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
+            evidence: vec!["NSAllowsArbitraryLoadsForMedia: true".to_string()],
+            remediation: Some("Remove NSAllowsArbitraryLoadsForMedia. Serve media over HTTPS.".to_string()),
+        });
+    }
+
+    if ats_dict.get("NSAllowsLocalNetworking").and_then(|v| v.as_boolean()) == Some(true) {
+        findings.push(Finding {
+            id: "QS-ATS-006".to_string(),
+            title: "ATS: Local Networking Allowed".to_string(),
+            description: "NSAllowsLocalNetworking is true, exempting local-network connections (unqualified hostnames, .local mDNS, link-local) from ATS. Legitimate for apps that talk to LAN devices, but verify the local protocol is itself authenticated and integrity-protected.".to_string(),
+            severity: Severity::Info,
+            category: "network".to_string(),
+            cwe: Some("CWE-319".to_string()),
+            owasp_mobile: Some("M5".to_string()),
+            owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
+            evidence: vec!["NSAllowsLocalNetworking: true".to_string()],
+            remediation: Some("Only set when communicating with local-network devices. Authenticate and integrity-check local traffic at the application layer.".to_string()),
+        });
+    }
+
+    // ------------------------------------------------------------------ //
+    // Per-domain exception sub-flags. Each (rule, domain) tuple produces a
+    // separate finding; rule IDs are stable across domains, so the global
+    // dedup pass in lib.rs rolls multiple-domain matches into a single finding
+    // whose evidence lists every affected domain.
+    // ------------------------------------------------------------------ //
     if let Some(exceptions) = ats_dict
         .get("NSExceptionDomains")
         .and_then(|v| v.as_dictionary())
     {
         for (domain, config) in exceptions {
-            if let Some(cfg_dict) = config.as_dictionary() {
-                if cfg_dict
-                    .get("NSExceptionAllowsInsecureHTTPLoads")
-                    .and_then(|v| v.as_boolean())
-                    == Some(true)
-                {
+            let cfg = match config.as_dictionary() {
+                Some(d) => d,
+                None => continue,
+            };
+
+            // NSExceptionAllowsInsecureHTTPLoads
+            if cfg.get("NSExceptionAllowsInsecureHTTPLoads").and_then(|v| v.as_boolean())
+                == Some(true)
+            {
+                findings.push(Finding {
+                    id: "QS-ATS-004".to_string(),
+                    title: "ATS: Insecure HTTP Allowed for Exception Domain".to_string(),
+                    description: "NSExceptionAllowsInsecureHTTPLoads is true for one or more domains in NSExceptionDomains. This permits unencrypted HTTP communication with the listed hosts.".to_string(),
+                    severity: Severity::Warning,
+                    category: "network".to_string(),
+                    cwe: Some("CWE-319".to_string()),
+                    owasp_mobile: Some("M5".to_string()),
+                    owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
+                    evidence: vec![format!("{}: NSExceptionAllowsInsecureHTTPLoads = true", domain)],
+                    remediation: Some("Remove the insecure HTTP exception for the listed domain(s). Update the upstream servers to support HTTPS with valid TLS certificates.".to_string()),
+                });
+            }
+
+            // NSExceptionMinimumTLSVersion (anything below TLSv1.2)
+            if let Some(ver) = cfg.get("NSExceptionMinimumTLSVersion").and_then(|v| v.as_string()) {
+                if is_weak_tls_version(ver) {
                     findings.push(Finding {
-                        id: "QS-ATS-004".to_string(),
-                        title: format!("ATS: Insecure HTTP Allowed for Domain '{}'", domain),
-                        description: format!(
-                            "NSExceptionAllowsInsecureHTTPLoads is true for domain '{}'. This allows unencrypted HTTP communication with this host.",
-                            domain
-                        ),
+                        id: "QS-ATS-007".to_string(),
+                        title: "ATS: Weak Minimum TLS Version for Exception Domain".to_string(),
+                        description: "NSExceptionMinimumTLSVersion is set below TLSv1.2 for one or more domains. TLS 1.0 and 1.1 are deprecated (RFC 8996) and vulnerable to known downgrade and chosen-plaintext attacks.".to_string(),
                         severity: Severity::Warning,
                         category: "network".to_string(),
-                        cwe: Some("CWE-319".to_string()),
+                        cwe: Some("CWE-326".to_string()),
                         owasp_mobile: Some("M5".to_string()),
                         owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
-                        evidence: vec![format!("NSExceptionDomains.{}.NSExceptionAllowsInsecureHTTPLoads: true", domain)],
-                        remediation: Some(format!("Remove the insecure HTTP exception for '{}'. Update the server to support HTTPS.", domain)),
+                        evidence: vec![format!("{}: NSExceptionMinimumTLSVersion = {}", domain, ver)],
+                        remediation: Some("Remove the override or raise the minimum TLS version to TLSv1.2 (TLSv1.3 preferred). Upgrade the upstream server if it cannot negotiate modern TLS.".to_string()),
                     });
                 }
+            }
+
+            // NSExceptionRequiresForwardSecrecy: false
+            if cfg.get("NSExceptionRequiresForwardSecrecy").and_then(|v| v.as_boolean())
+                == Some(false)
+            {
+                findings.push(Finding {
+                    id: "QS-ATS-008".to_string(),
+                    title: "ATS: Forward Secrecy Disabled for Exception Domain".to_string(),
+                    description: "NSExceptionRequiresForwardSecrecy is false for one or more domains. This permits TLS cipher suites that do not provide perfect forward secrecy — past session traffic can be decrypted if the server's long-term key is later compromised.".to_string(),
+                    severity: Severity::Info,
+                    category: "network".to_string(),
+                    cwe: Some("CWE-326".to_string()),
+                    owasp_mobile: Some("M5".to_string()),
+                    owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
+                    evidence: vec![format!("{}: NSExceptionRequiresForwardSecrecy = false", domain)],
+                    remediation: Some("Re-enable forward secrecy. Configure the upstream server to offer ECDHE-based cipher suites.".to_string()),
+                });
+            }
+
+            // NSRequiresCertificateTransparency: false
+            if cfg.get("NSRequiresCertificateTransparency").and_then(|v| v.as_boolean())
+                == Some(false)
+            {
+                findings.push(Finding {
+                    id: "QS-ATS-009".to_string(),
+                    title: "ATS: Certificate Transparency Not Required for Exception Domain".to_string(),
+                    description: "NSRequiresCertificateTransparency is false for one or more domains. CT logs are not consulted for these hosts, weakening detection of mis-issued certificates.".to_string(),
+                    severity: Severity::Info,
+                    category: "network".to_string(),
+                    cwe: Some("CWE-295".to_string()),
+                    owasp_mobile: Some("M5".to_string()),
+                    owasp_masvs: Some("MSTG-NETWORK-3".to_string()),
+                    evidence: vec![format!("{}: NSRequiresCertificateTransparency = false", domain)],
+                    remediation: Some("Enable CT enforcement (the iOS default). If the certificate cannot be CT-logged, replace it with one that can.".to_string()),
+                });
+            }
+
+            // NSThirdPartyExceptionAllowsInsecureHTTPLoads
+            if cfg.get("NSThirdPartyExceptionAllowsInsecureHTTPLoads").and_then(|v| v.as_boolean())
+                == Some(true)
+            {
+                findings.push(Finding {
+                    id: "QS-ATS-010".to_string(),
+                    title: "ATS: Insecure HTTP Allowed for Third-Party Exception Domain".to_string(),
+                    description: "NSThirdPartyExceptionAllowsInsecureHTTPLoads is true for one or more third-party domains. Third-party SDKs are pulling traffic in cleartext through this app.".to_string(),
+                    severity: Severity::Warning,
+                    category: "network".to_string(),
+                    cwe: Some("CWE-319".to_string()),
+                    owasp_mobile: Some("M5".to_string()),
+                    owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
+                    evidence: vec![format!("{}: NSThirdPartyExceptionAllowsInsecureHTTPLoads = true", domain)],
+                    remediation: Some("Pressure the upstream third party to enable HTTPS, or drop the dependency. Removing the override only forces failure — it does not encrypt the third party's endpoint.".to_string()),
+                });
+            }
+
+            // NSThirdPartyExceptionMinimumTLSVersion (anything below TLSv1.2)
+            if let Some(ver) = cfg
+                .get("NSThirdPartyExceptionMinimumTLSVersion")
+                .and_then(|v| v.as_string())
+            {
+                if is_weak_tls_version(ver) {
+                    findings.push(Finding {
+                        id: "QS-ATS-011".to_string(),
+                        title: "ATS: Weak Minimum TLS Version for Third-Party Exception Domain".to_string(),
+                        description: "NSThirdPartyExceptionMinimumTLSVersion is set below TLSv1.2 for one or more third-party domains.".to_string(),
+                        severity: Severity::Warning,
+                        category: "network".to_string(),
+                        cwe: Some("CWE-326".to_string()),
+                        owasp_mobile: Some("M5".to_string()),
+                        owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
+                        evidence: vec![format!("{}: NSThirdPartyExceptionMinimumTLSVersion = {}", domain, ver)],
+                        remediation: Some("Pressure the upstream third party to support modern TLS, or drop the dependency.".to_string()),
+                    });
+                }
+            }
+
+            // NSThirdPartyExceptionRequiresForwardSecrecy: false
+            if cfg
+                .get("NSThirdPartyExceptionRequiresForwardSecrecy")
+                .and_then(|v| v.as_boolean())
+                == Some(false)
+            {
+                findings.push(Finding {
+                    id: "QS-ATS-012".to_string(),
+                    title: "ATS: Forward Secrecy Disabled for Third-Party Exception Domain".to_string(),
+                    description: "NSThirdPartyExceptionRequiresForwardSecrecy is false for one or more third-party domains.".to_string(),
+                    severity: Severity::Info,
+                    category: "network".to_string(),
+                    cwe: Some("CWE-326".to_string()),
+                    owasp_mobile: Some("M5".to_string()),
+                    owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
+                    evidence: vec![format!("{}: NSThirdPartyExceptionRequiresForwardSecrecy = false", domain)],
+                    remediation: Some("Push the upstream third party to enable forward-secrecy cipher suites.".to_string()),
+                });
             }
         }
     }
 
     Some(findings)
+}
+
+/// True for "TLSv1.0" / "TLSv1.1" (Apple's NSExceptionMinimumTLSVersion strings).
+/// Anything that parses to ≥ 1.2 is considered acceptable.
+fn is_weak_tls_version(s: &str) -> bool {
+    let trimmed = s.trim().trim_start_matches("TLSv").trim_start_matches("TLS");
+    // Compare as (major, minor) tuple to avoid floating-point surprises.
+    let mut parts = trimmed.split('.');
+    let major = parts.next().and_then(|p| p.parse::<u32>().ok());
+    let minor = parts.next().and_then(|p| p.parse::<u32>().ok()).unwrap_or(0);
+    match major {
+        Some(1) => minor < 2,
+        Some(m) if m >= 1 => false,
+        _ => false, // unparseable — don't flag
+    }
 }
 
 fn analyze_sandbox(dict: &plist::Dictionary) -> Vec<Finding> {
@@ -452,4 +611,117 @@ fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
     }
 
     findings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use plist::Value;
+
+    fn ats_findings_from_plist(xml: &str) -> Vec<Finding> {
+        let value: Value = plist::from_bytes(xml.as_bytes()).expect("parse plist");
+        let dict = value.as_dictionary().expect("root dict");
+        analyze_ats(dict).unwrap_or_default()
+    }
+
+    fn ids(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.id.as_str()).collect()
+    }
+
+    #[test]
+    fn test_weak_tls_version() {
+        assert!(is_weak_tls_version("TLSv1.0"));
+        assert!(is_weak_tls_version("TLSv1.1"));
+        assert!(!is_weak_tls_version("TLSv1.2"));
+        assert!(!is_weak_tls_version("TLSv1.3"));
+        assert!(!is_weak_tls_version("garbage"));
+    }
+
+    #[test]
+    fn test_arbitrary_loads_for_media() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsArbitraryLoadsForMedia</key><true/>
+  </dict>
+</dict></plist>"#;
+        let findings = ats_findings_from_plist(xml);
+        assert!(ids(&findings).contains(&"QS-ATS-005"), "got: {:?}", ids(&findings));
+    }
+
+    #[test]
+    fn test_allows_local_networking() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key><true/>
+  </dict>
+</dict></plist>"#;
+        let findings = ats_findings_from_plist(xml);
+        assert!(ids(&findings).contains(&"QS-ATS-006"));
+    }
+
+    #[test]
+    fn test_per_domain_exception_subflags() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSExceptionDomains</key>
+    <dict>
+      <key>legacy.example.com</key>
+      <dict>
+        <key>NSExceptionAllowsInsecureHTTPLoads</key><true/>
+        <key>NSExceptionMinimumTLSVersion</key><string>TLSv1.0</string>
+        <key>NSExceptionRequiresForwardSecrecy</key><false/>
+        <key>NSRequiresCertificateTransparency</key><false/>
+        <key>NSThirdPartyExceptionAllowsInsecureHTTPLoads</key><true/>
+        <key>NSThirdPartyExceptionMinimumTLSVersion</key><string>TLSv1.1</string>
+        <key>NSThirdPartyExceptionRequiresForwardSecrecy</key><false/>
+      </dict>
+    </dict>
+  </dict>
+</dict></plist>"#;
+        let findings = ats_findings_from_plist(xml);
+        let got = ids(&findings);
+        for expected in &[
+            "QS-ATS-004",
+            "QS-ATS-007",
+            "QS-ATS-008",
+            "QS-ATS-009",
+            "QS-ATS-010",
+            "QS-ATS-011",
+            "QS-ATS-012",
+        ] {
+            assert!(got.contains(expected), "missing {} in {:?}", expected, got);
+        }
+        // Domain must appear in evidence so dedup can roll up multi-domain hits.
+        assert!(findings.iter().any(|f| f.id == "QS-ATS-004"
+            && f.evidence.iter().any(|e| e.contains("legacy.example.com"))));
+    }
+
+    #[test]
+    fn test_modern_tls_not_flagged() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSExceptionDomains</key>
+    <dict>
+      <key>api.example.com</key>
+      <dict>
+        <key>NSExceptionMinimumTLSVersion</key><string>TLSv1.3</string>
+      </dict>
+    </dict>
+  </dict>
+</dict></plist>"#;
+        let findings = ats_findings_from_plist(xml);
+        assert!(!ids(&findings).contains(&"QS-ATS-007"));
+    }
 }

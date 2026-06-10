@@ -2,6 +2,7 @@
   categories:
     - Analytics
     - Backend
+  website: "https://firebase.google.com"
   domains:
     - firebaseinstallations.googleapis.com
     - firebaseremoteconfig.googleapis.com
@@ -35,6 +36,7 @@
 - name: "Google Crashlytics"
   categories:
     - Crash Reporting
+  website: "https://firebase.google.com/products/crashlytics"
   domains:
     - reports.crashlytics.com
     - firebase-settings.crashlytics.com
@@ -49,6 +51,7 @@
 - name: "gRPC (Google)"
   categories:
     - Networking
+  website: "https://grpc.io"
   domains: []
   framework_names:
     - grpc
@@ -61,6 +64,7 @@
 - name: "Google Analytics"
   categories:
     - Analytics
+  website: "https://marketingplatform.google.com/about/analytics/"
   domains:
     - google-analytics.com
     - ssl.google-analytics.com
@@ -71,6 +75,7 @@
 - name: "Google Ads / AdMob"
   categories:
     - Advertising
+  website: "https://admob.google.com"
   domains:
     - googleadservices.com
     - googlesyndication.com
@@ -86,6 +91,7 @@
     - Analytics
     - Advertising
     - Social
+  website: "https://developers.facebook.com/docs/ios/"
   domains:
     - graph.facebook.com
     - graph.instagram.com
@@ -100,6 +106,7 @@
 - name: "Mixpanel"
   categories:
     - Analytics
+  website: "https://mixpanel.com"
   domains:
     - api.mixpanel.com
     - cdn.mxpnl.com
@@ -110,6 +117,7 @@
 - name: "Amplitude"
   categories:
     - Analytics
+  website: "https://amplitude.com"
   domains:
     - api.amplitude.com
     - api2.amplitude.com
@@ -120,6 +128,7 @@
 - name: "Segment"
   categories:
     - Analytics
+  website: "https://segment.com"
   domains:
     - api.segment.io
     - cdn.segment.com
@@ -132,6 +141,7 @@
   categories:
     - Customer Support
     - Analytics
+  website: "https://www.intercom.com"
   domains:
     - api.intercom.io
     - nexus-websocket-b.intercom.io
@@ -144,6 +154,7 @@
   categories:
     - Attribution
     - Analytics
+  website: "https://www.appsflyer.com"
   domains:
     - appsflyer.com
     - t.appsflyer.com
@@ -156,6 +167,7 @@
   categories:
     - Marketing
     - Analytics
+  website: "https://www.braze.com"
   domains:
     - sdk.iad-01.braze.com
     - sdk.iad-02.braze.com
@@ -174,6 +186,7 @@
 - name: "Sentry"
   categories:
     - Crash Reporting
+  website: "https://sentry.io"
   domains:
     - sentry.io
     - o0.ingest.sentry.io
@@ -183,6 +196,7 @@
 - name: "Bugsnag"
   categories:
     - Crash Reporting
+  website: "https://www.bugsnag.com"
   domains:
     - notify.bugsnag.com
     - sessions.bugsnag.com
@@ -193,6 +207,7 @@
 - name: "New Relic"
   categories:
     - Performance Monitoring
+  website: "https://newrelic.com"
   domains:
     - mobile-collector.newrelic.com
     - newrelic.com
@@ -204,6 +219,7 @@
   categories:
     - Performance Monitoring
     - Analytics
+  website: "https://www.datadoghq.com"
   domains:
     - browser-intake-datadoghq.com
     - logs.browser-intake-datadoghq.com
@@ -217,6 +233,7 @@
 - name: "Adjust"
   categories:
     - Attribution
+  website: "https://www.adjust.com"
   domains:
     - app.adjust.com
     - adjust.com
@@ -227,6 +244,7 @@
   categories:
     - Attribution
     - Deep Linking
+  website: "https://www.branch.io"
   domains:
     - api2.branch.io
     - api.branch.io
@@ -238,6 +256,7 @@
   categories:
     - Marketing
     - Analytics
+  website: "https://clevertap.com"
   domains:
     - clevertap.com
     - clevertap.com
@@ -248,6 +267,7 @@
 - name: "Singular"
   categories:
     - Attribution
+  website: "https://www.singular.net"
   domains:
     - sdk-api-v1.singular.net
     - singular.net

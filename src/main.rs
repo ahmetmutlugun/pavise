@@ -54,9 +54,17 @@ struct Cli {
     min_severity: SeverityArg,
 
     /// Perform DNS resolution and IP geolocation for extracted domains.
-    /// Requires network access. Uses ip-api.com (free, no key needed).
+    /// Requires network access. Uses a local IP2Location LITE BIN if available
+    /// (see --geoip-db), otherwise falls back to ip-api.com (free, no key needed).
     #[arg(long)]
     network: bool,
+
+    /// Path to an IP2Location LITE BIN file (DB1–DB11). When supplied or
+    /// auto-discovered, IP geolocation runs entirely offline.
+    /// Search order: --geoip-db → $PAVISE_GEOIP_DB →
+    /// ~/.pavise/IP2LOCATION-LITE-DB5.IPV6.BIN → <exe_dir>/data/geoip/...
+    #[arg(long, value_name = "FILE")]
+    geoip_db: Option<PathBuf>,
 
     /// Path to a previous scan JSON report to diff against.
     /// Emits [NEW] and [FIXED] prefixes in the summary and adds a baseline_diff
@@ -126,6 +134,11 @@ fn main() -> Result<()> {
     }
 
     let min_severity = Severity::from(cli.min_severity.clone());
+
+    // Initialize the offline IP2Location handle before any scan runs. If the
+    // explicit path doesn't resolve, lookups silently fall back to the remote
+    // provider — geoip_local logs the reason at debug/warn level.
+    pavise::network::geoip_local::init(cli.geoip_db.clone());
 
     let opts = ScanOptions {
         rules_dir,

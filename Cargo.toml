@@ -79,6 +79,10 @@ hex = "0.4"
 # Semantic version comparison (used for CVE framework matching)
 semver = "1"
 
+# Offline IP geolocation against IP2Location LITE BIN databases (mmap reader).
+# Pinned to 0.5.x; 0.6 requires edition 2024 which exceeds our rust-version floor.
+ip2location = "0.5"
+
 # Error handling
 anyhow = "1"
 thiserror = "1"

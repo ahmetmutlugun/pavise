@@ -72,6 +72,19 @@ fn is_valid_email(email: &str) -> bool {
         return false;
     }
 
+    // Reject '%' in the local part: real addresses essentially never use it,
+    // but it is the ObjC/Swift format specifier ("%@", "%d"), so binary string
+    // scans produce false positives like "share%@somewhere".
+    if local.contains('%') {
+        return false;
+    }
+
+    // Real domains never contain consecutive dots; "host...thing" is binary noise
+    // (e.g. mangled Swift symbols) that slipped past the regex.
+    if domain.contains("..") {
+        return false;
+    }
+
     // Local part entropy check: reject high-entropy strings (binary noise)
     if shannon_entropy(local) > 4.5 {
         return false;
@@ -149,6 +162,19 @@ mod tests {
     fn test_rejects_fake_tld() {
         let text = "user@domain.pb";
         let emails = extract_emails(text, "some/file.txt");
+        assert!(emails.is_empty());
+    }
+
+    #[test]
+    fn test_rejects_format_specifier_local_part() {
+        // "%@" is an ObjC/Swift format specifier, common in binary strings.
+        let emails = extract_emails("share%@linkxshare.com", "App/MainBinary");
+        assert!(emails.is_empty());
+    }
+
+    #[test]
+    fn test_rejects_consecutive_dots_domain() {
+        let emails = extract_emails("foo@linkxshare...ushort", "App/MainBinary");
         assert!(emails.is_empty());
     }
 

@@ -382,8 +382,13 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                 secrets.extend(entropy_hits);
             }
 
-            // Email extraction on text files only (skip large binary files)
-            let emails = if is_text_like(&f.path) {
+            // Email extraction on text files and Mach-O binaries. The main
+            // executable and embedded frameworks have no text-like extension but
+            // routinely embed support/developer addresses in __cstring; MobSF
+            // surfaces these. emails::extract_emails applies its own entropy and
+            // fake-TLD filtering, so binary noise is rejected without the
+            // false-positive blowup that entropy secret scanning suffers from.
+            let emails = if is_text_like(&f.path) || is_macho(&f.data) {
                 extract_emails(&text, &f.path)
             } else {
                 Vec::new()
@@ -957,6 +962,12 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         );
     }
 
+    // Final dedup pass — merges findings emitted after the mid-scan pass at
+    // line 431 (hardcoded IPs, OFAC, OSV, etc.). Without this, QS-NET-003
+    // produces one finding per IP and dominates the warning count on apps
+    // like Orbot/OnionBrowser. Idempotent for already-merged ids.
+    all_findings = deduplicate_findings(all_findings);
+
     // ------------------------------------------------------------------ //
     // 6. Filter by minimum severity
     // ------------------------------------------------------------------ //
@@ -1005,7 +1016,11 @@ fn compute_owasp_summary(findings: &[Finding]) -> HashMap<String, Vec<String>> {
     for f in findings {
         if let Some(m) = &f.owasp_mobile {
             if let Some(list) = summary.get_mut(m.as_str()) {
-                list.push(f.id.clone());
+                // Per-instance rules (e.g. QS-CERT-001) fire once per file and
+                // share a ruleId; record each ruleId only once per category.
+                if !list.contains(&f.id) {
+                    list.push(f.id.clone());
+                }
             }
         }
     }
@@ -1019,10 +1034,21 @@ fn compute_owasp_summary(findings: &[Finding]) -> HashMap<String, Vec<String>> {
 /// count appended to the description.  This keeps the report focused while
 /// preserving full forensic detail in the evidence array.
 fn deduplicate_findings(findings: Vec<Finding>) -> Vec<Finding> {
+    // Rules whose every firing is a distinct real-world artifact (one embedded
+    // file each) and must stay as separate per-file hotspots rather than being
+    // collapsed into one merged finding. Mirrors how MobSF lists each cert/key
+    // file individually. These share a ruleId (one SARIF rule, many results).
+    const PER_INSTANCE_RULES: &[&str] = &["QS-CERT-001"];
+
+    let mut per_instance: Vec<Finding> = Vec::new();
     let mut by_id: HashMap<String, Vec<Finding>> = HashMap::new();
     let mut order: Vec<String> = Vec::new();
 
     for f in findings {
+        if PER_INSTANCE_RULES.contains(&f.id.as_str()) {
+            per_instance.push(f);
+            continue;
+        }
         if !by_id.contains_key(&f.id) {
             order.push(f.id.clone());
         }
@@ -1045,19 +1071,37 @@ fn deduplicate_findings(findings: Vec<Finding>) -> Vec<Finding> {
                 .unwrap_or(0);
             let template = group.remove(template_idx);
 
-            // Collect all evidence, deduplicate, cap at 20 items
+            // Collect all evidence, deduplicate, cap at 25 items per rule.
+            const EVIDENCE_CAP: usize = 25;
             let mut all_evidence: Vec<String> = std::iter::once(template.evidence.clone())
                 .chain(group.iter().map(|f| f.evidence.clone()))
                 .flatten()
                 .collect();
+            // dedup() only removes adjacent duplicates; sort first so identical
+            // evidence strings collapse regardless of source order.
+            all_evidence.sort();
             all_evidence.dedup();
-            all_evidence.truncate(20);
+            let unique_evidence_count = all_evidence.len();
+            let truncated = unique_evidence_count > EVIDENCE_CAP;
+            if truncated {
+                all_evidence.truncate(EVIDENCE_CAP);
+            }
 
-            let description = format!(
-                "{} ({} instances detected.)",
-                template.description.trim_end_matches('.'),
-                n
-            );
+            let description = if truncated {
+                format!(
+                    "{} ({} instances detected; showing {} of {} unique.)",
+                    template.description.trim_end_matches('.'),
+                    n,
+                    EVIDENCE_CAP,
+                    unique_evidence_count,
+                )
+            } else {
+                format!(
+                    "{} ({} instances detected.)",
+                    template.description.trim_end_matches('.'),
+                    n
+                )
+            };
 
             result.push(Finding {
                 id,
@@ -1073,6 +1117,10 @@ fn deduplicate_findings(findings: Vec<Finding>) -> Vec<Finding> {
             });
         }
     }
+
+    // Per-instance findings are appended unmerged so each embedded file remains
+    // its own hotspot in the report.
+    result.extend(per_instance);
     result
 }
 
@@ -1087,6 +1135,24 @@ fn filter_by_severity(findings: Vec<Finding>, min: &Severity) -> Vec<Finding> {
 fn is_ip_literal(s: &str) -> bool {
     let parts: Vec<&str> = s.split('.').collect();
     parts.len() == 4 && parts.iter().all(|p| p.parse::<u8>().is_ok())
+}
+
+/// True if `data` begins with a Mach-O thin or universal (fat) binary magic
+/// number. Used to opt binary executables and frameworks into string-based
+/// email extraction even though they have no text-like file extension.
+fn is_macho(data: &[u8]) -> bool {
+    if data.len() < 4 {
+        return false;
+    }
+    matches!(
+        [data[0], data[1], data[2], data[3]],
+        [0xfe, 0xed, 0xfa, 0xce]   // MH_MAGIC (32-bit)
+            | [0xce, 0xfa, 0xed, 0xfe]   // MH_CIGAM (32-bit, swapped)
+            | [0xfe, 0xed, 0xfa, 0xcf]   // MH_MAGIC_64
+            | [0xcf, 0xfa, 0xed, 0xfe]   // MH_CIGAM_64 (swapped)
+            | [0xca, 0xfe, 0xba, 0xbe]   // FAT_MAGIC (universal)
+            | [0xbe, 0xba, 0xfe, 0xca] // FAT_CIGAM (universal, swapped)
+    )
 }
 
 fn is_text_like(path: &str) -> bool {
@@ -1142,4 +1208,74 @@ fn is_text_like(path: &str) -> bool {
     }
     // Allow files with text-like extensions, or no extension (could be source)
     TEXT_EXTENSIONS.iter().any(|ext| lower.ends_with(ext)) || !lower.contains('.')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn finding(id: &str, owasp: &str, evidence: &str) -> Finding {
+        Finding {
+            id: id.to_string(),
+            title: "t".to_string(),
+            description: "d".to_string(),
+            severity: Severity::High,
+            category: "secrets".to_string(),
+            cwe: None,
+            owasp_mobile: Some(owasp.to_string()),
+            owasp_masvs: None,
+            evidence: vec![evidence.to_string()],
+            remediation: None,
+        }
+    }
+
+    #[test]
+    fn test_is_macho_magics() {
+        // 64-bit thin Mach-O and universal/fat headers are recognized.
+        assert!(is_macho(&[0xcf, 0xfa, 0xed, 0xfe, 0x00]));
+        assert!(is_macho(&[0xfe, 0xed, 0xfa, 0xce]));
+        assert!(is_macho(&[0xca, 0xfe, 0xba, 0xbe, 0x00, 0x00]));
+        // Non-Mach-O / too short are rejected.
+        assert!(!is_macho(b"PK\x03\x04")); // zip
+        assert!(!is_macho(b"<?xml"));
+        assert!(!is_macho(&[0xfe, 0xed]));
+        assert!(!is_macho(&[]));
+    }
+
+    #[test]
+    fn test_cert_findings_stay_per_file() {
+        // Two embedded cert files must remain two separate hotspots, not be
+        // collapsed into a single merged QS-CERT-001 finding.
+        let findings = vec![
+            finding("QS-CERT-001", "M9", ".der file: Payload/A.app/a.der"),
+            finding("QS-CERT-001", "M9", ".p12 file: Payload/A.app/b.p12"),
+        ];
+        let deduped = deduplicate_findings(findings);
+        assert_eq!(deduped.len(), 2);
+        assert!(deduped.iter().all(|f| f.id == "QS-CERT-001"));
+        // Descriptions are not rewritten with an "(N instances detected)" suffix.
+        assert!(deduped.iter().all(|f| !f.description.contains("instances")));
+    }
+
+    #[test]
+    fn test_non_per_instance_findings_still_merge() {
+        let findings = vec![
+            finding("QS-NET-003", "M5", "http://a.com"),
+            finding("QS-NET-003", "M5", "http://b.com"),
+        ];
+        let deduped = deduplicate_findings(findings);
+        assert_eq!(deduped.len(), 1);
+        assert!(deduped[0].description.contains("instances"));
+    }
+
+    #[test]
+    fn test_owasp_summary_dedups_shared_ruleids() {
+        // Repeated per-instance ruleIds appear only once per OWASP category.
+        let findings = vec![
+            finding("QS-CERT-001", "M9", "a"),
+            finding("QS-CERT-001", "M9", "b"),
+        ];
+        let summary = compute_owasp_summary(&findings);
+        assert_eq!(summary["M9"], vec!["QS-CERT-001".to_string()]);
+    }
 }

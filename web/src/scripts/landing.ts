@@ -1,244 +1,158 @@
 // @ts-nocheck
+import { initDitheringShader } from './dithering-shader';
+
 // ── Nav scroll effect ──
 const nav = document.getElementById('nav');
-const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 10);
+const onScroll = () => nav?.classList.toggle('scrolled', window.scrollY > 10);
 window.addEventListener('scroll', onScroll, { passive: true });
 onScroll();
 
-// ── Intersection Observer for fade-up ──
-const fadeEls = document.querySelectorAll('.fade-up');
-const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-entry.target.classList.add('visible');
-observer.unobserve(entry.target);
+// ── Halftone shield ──
+(function renderHalftoneShield() {
+    const svg = document.getElementById('halftone-shield');
+    if (!svg) return;
+    const accent = '#6fe3a8';
+    const color = '#1c1b2a';
+    const shieldPath = "M 70 30 Q 70 22 78 22 L 282 22 Q 290 22 290 30 L 290 260 Q 290 360 180 446 Q 70 360 70 260 Z";
+    const step = 9;
+    const lightX = 130, lightY = 100;
+    const dots = [];
+    for (let y = 24; y < 444; y += step) {
+        for (let x = 70; x < 292; x += step) {
+            const ox = (Math.floor((y - 24) / step) % 2 === 0) ? 0 : step / 2;
+            const px = x + ox;
+            const dx = px - lightX, dy = y - lightY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const t = Math.min(1, dist / 280);
+            const r = 0.3 + Math.pow(t, 1.05) * 3.6;
+            dots.push(`<circle cx="${px}" cy="${y}" r="${r.toFixed(2)}" fill="${color}"/>`);
         }
+    }
+    svg.innerHTML = `
+        <defs><clipPath id="ps-shield"><path d="${shieldPath}"/></clipPath></defs>
+        <path d="${shieldPath}" fill="none" stroke="${accent}" stroke-width="2" transform="translate(8,8)" opacity="0.85"/>
+        <g clip-path="url(#ps-shield)">
+            <rect x="70" y="22" width="220" height="424" fill="${accent}" opacity="0.04"/>
+            ${dots.join('')}
+        </g>
+        <path d="${shieldPath}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.95"/>
+        <line x1="180" y1="38" x2="180" y2="440" stroke="${color}" stroke-width="1" opacity="0.15" stroke-dasharray="2 3"/>
+        <g transform="translate(180,200)">
+            <line x1="0" y1="-30" x2="0" y2="30" stroke="${accent}" stroke-width="3"/>
+            <circle cx="0" cy="0" r="5" fill="${accent}"/>
+        </g>
+    `;
+})();
+
+// ── CTA decorative wave lines ──
+(function renderCtaLines() {
+    const svg = document.getElementById('cta-lines');
+    if (!svg) return;
+    const W = 1440;
+    const H = 600;
+    const paths: string[] = [];
+    const N = 32;
+    for (let i = 0; i < N; i++) {
+        const offset = i * 7;
+        const baseY = 200 + offset;
+        const amp1 = 70 - (i % 5) * 8;
+        const amp2 = 35 + (i % 4) * 6;
+        const phase = (i * 0.7) % (Math.PI * 2);
+        const segs = 8;
+        const pts: string[] = [];
+        for (let s = 0; s <= segs; s++) {
+            const x = (W / segs) * s;
+            const y = baseY + Math.sin((s / segs) * Math.PI * 2 + phase) * amp1 + Math.cos((s / segs) * Math.PI * 5 + phase * 1.3) * amp2;
+            pts.push(`${s === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`);
+        }
+        const opacity = (0.08 + (i % 4) * 0.05).toFixed(3);
+        const stroke = i % 6 === 0 ? '#6fe3a8' : i % 6 === 3 ? '#ece6d8' : '#6fe3a8';
+        const width = i % 6 === 0 ? 1.4 : 0.8;
+        paths.push(`<path d="${pts.join(' ')}" fill="none" stroke="${stroke}" stroke-width="${width}" opacity="${opacity}" stroke-linecap="round"/>`);
+    }
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = paths.join('');
+})();
+
+// ── Compliance marquee ──
+(function renderComplianceStrip() {
+    const el = document.getElementById('compliance-strip');
+    if (!el) return;
+    const items = [
+        ['OWASP MASVS', 'L1·L2'],
+        ['CWE', 'v4.13'],
+        ['SOC 2', 'TYPE II'],
+        ['ISO 27001', 'ANNEX A'],
+        ['GDPR', 'ART. 32'],
+        ['NIST', '800-218'],
+        ['PCI DSS', 'v4.0'],
+        ['HIPAA', 'TECH SAFEGUARDS'],
+    ];
+    const seq = () => {
+        let out = '<span class="tag">▸ EVIDENCE READY FOR</span>';
+        for (const [t, v] of items) {
+            out += `<span><b>${t}</b>&nbsp;&nbsp;<i>${v}</i></span><span class="sep">/</span>`;
+        }
+        return out;
+    };
+    el.innerHTML = seq() + seq();
+})();
+
+// ── Dithering wave band ──
+(function initWaveBand() {
+    const canvas = document.getElementById('wave-shader') as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const handle = initDitheringShader({
+        canvas,
+        colorBack: '#1c1b2a',
+        colorFront: '#6fe3a8',
+        shape: 'wave',
+        type: '8x8',
+        params: { speed: 0.55, pxSize: 3, waveAmp: 1.0, bandWidth: 1.4 },
     });
-}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
-fadeEls.forEach(el => observer.observe(el));
 
-// ── Upload handling ──
-const fileInput = document.getElementById('landing-file-input');
-const fileNameEl = document.getElementById('landing-file-name');
-const uploadZone = document.getElementById('upload-zone');
-const submitBtn = document.getElementById('landing-submit-btn');
-const loadingEl = document.getElementById('landing-loading');
-const progressEl = document.getElementById('landing-progress');
-const progressFill = document.getElementById('landing-progress-fill');
-const progressLabel = document.getElementById('landing-progress-label');
-const progressPct = document.getElementById('landing-progress-pct');
-const scanMsgEl = document.getElementById('landing-scan-msg');
-const errorEl = document.getElementById('landing-error');
+    const panel = document.getElementById('wave-panel');
+    if (!panel) return;
 
-// ── File validation ──
-const MAX_FILE_SIZE = 15 * 1024 * 1024 * 1024; // 15 GB
-function validateFile(file) {
-    if (!file) return null;
-    if (!file.name.toLowerCase().endsWith('.ipa')) return 'Only .ipa files are supported.';
-    if (file.size === 0) return 'File is empty.';
-    if (file.size > MAX_FILE_SIZE) return 'File exceeds the 15 GB size limit.';
-    return null;
-}
+    const format = (key: string, v: number) => key === 'pxSize' ? String(Math.round(v)) : v.toFixed(2);
 
-fileInput.addEventListener('change', () => {
-    const file = fileInput.files[0];
-    const err = validateFile(file);
-    if (err) {
-        errorEl.textContent = err;
-        fileInput.value = '';
-        fileNameEl.textContent = '';
-        uploadZone.classList.remove('has-file');
-        return;
-    }
-    fileNameEl.textContent = file?.name ?? '';
-    uploadZone.classList.toggle('has-file', !!file);
-    errorEl.textContent = '';
-});
+    panel.querySelectorAll<HTMLInputElement>('input[type="range"][data-param]').forEach((input) => {
+        const key = input.dataset.param as keyof typeof handle.params;
+        const valEl = panel.querySelector<HTMLElement>(`[data-val="${key}"]`);
+        const sync = () => {
+            const v = parseFloat(input.value);
+            handle.params[key] = v;
+            if (valEl) valEl.textContent = format(key, v);
+        };
+        input.addEventListener('input', sync);
+        sync();
+    });
 
-uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
-uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-uploadZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    uploadZone.classList.remove('drag-over');
-    if (e.dataTransfer.files.length) {
-        const file = e.dataTransfer.files[0];
-        const err = validateFile(file);
-        if (err) {
-errorEl.textContent = err;
-return;
-        }
-        fileInput.files = e.dataTransfer.files;
-        fileNameEl.textContent = file.name;
-        uploadZone.classList.toggle('has-file', !!file.name);
-        errorEl.textContent = '';
-    }
-});
-
-// ── Helpers ──
-function formatBytes(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
-    return (bytes / 1073741824).toFixed(2) + ' GB';
-}
-function setProgress(pct, label) {
-    progressFill.style.width = pct + '%';
-    progressPct.textContent = Math.round(pct) + '%';
-    if (label) progressLabel.textContent = label;
-}
-function escapeHtml(s) {
-    return s
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-// ── Phase animation ──
-let phaseInterval = null, msgInterval = null, currentPhase = 0, currentMsgIdx = 0;
-const phases = document.querySelectorAll('#landing-loading .scan-phase');
-const phaseMessages = [
-    ['Streaming IPA to analysis pipeline...', 'Computing SHA-256...'],
-    ['Inflating ZIP archive...', 'Locating Mach-O binaries...', 'Reading Info.plist...'],
-    ['Parsing Mach-O load commands...', 'Checking PIE and stack canaries...', 'Inspecting encryption flags...'],
-    ['Running secret pattern matching...', 'Scanning for hardcoded credentials...', 'Analyzing embedded strings...'],
-    ['Computing OWASP M-series scores...', 'Grading security posture...', 'Building findings summary...'],
-];
-function updateScanMsg(text) {
-    scanMsgEl.style.opacity = '0';
-    setTimeout(() => { scanMsgEl.textContent = text; scanMsgEl.style.opacity = '1'; }, 160);
-}
-function startPhases() {
-    currentPhase = 0; currentMsgIdx = 0;
-    phases.forEach(p => p.classList.remove('active', 'done'));
-    phases[0].classList.add('active');
-    updateScanMsg(phaseMessages[0][0]);
-    phaseInterval = setInterval(() => {
-        if (currentPhase < phases.length) { phases[currentPhase].classList.remove('active'); phases[currentPhase].classList.add('done'); }
-        currentPhase++; currentMsgIdx = 0;
-        if (currentPhase < phases.length) { phases[currentPhase].classList.add('active'); const msgs = phaseMessages[currentPhase]; if (msgs?.[0]) updateScanMsg(msgs[0]); }
-    }, 600);
-    msgInterval = setInterval(() => {
-        const msgs = phaseMessages[currentPhase] || [];
-        if (msgs.length > 1) { currentMsgIdx = (currentMsgIdx + 1) % msgs.length; updateScanMsg(msgs[currentMsgIdx]); }
-    }, 1500);
-}
-function stopPhases() {
-    clearInterval(phaseInterval); clearInterval(msgInterval);
-    phases.forEach(p => { p.classList.remove('active'); p.classList.add('done'); });
-    scanMsgEl.style.opacity = '0';
-}
-
-// ── Chunked upload ──
-const CHUNK_SIZE = 50 * 1024 * 1024;
-const CHUNK_MAX_RETRIES = 3;
-let activeAbort = null;
-
-async function fetchWithRetry(url, opts, retries = CHUNK_MAX_RETRIES) {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-const res = await fetch(url, opts);
-if (res.ok || res.status < 500) return res;
-if (attempt === retries) return res;
-        } catch (err) {
-if (err.name === 'AbortError') throw err;
-if (attempt === retries) throw new Error('Network error: check your connection and try again.');
-        }
-        await new Promise(r => setTimeout(r, 100 * Math.pow(2, attempt)));
-    }
-}
-
-async function uploadChunked(file, signal) {
-    const initRes = await fetch('/api/upload', { method: 'POST', signal });
-    if (!initRes.ok) throw new Error('Failed to init upload');
-    const { upload_id } = await initRes.json();
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-        const res = await fetchWithRetry(`/api/upload/${upload_id}/${i}`, { method: 'PUT', body: chunk, headers: { 'Content-Type': 'application/octet-stream' }, signal });
-        if (!res.ok) { const msg = await res.text(); throw new Error(`Chunk ${i} failed: ${msg}`); }
-        setProgress((end / file.size) * 100, `Uploading ${formatBytes(end)} / ${formatBytes(file.size)}`);
-    }
-    setProgress(100, 'Scanning...');
-    const scanRes = await fetch(`/api/upload/${upload_id}/scan`, { method: 'POST', signal });
-    if (!scanRes.ok) { const msg = await scanRes.text(); throw new Error(msg); }
-    return { html: await scanRes.text(), upload_id };
-}
-
-// ── Form submit: upload, then redirect to /scan with results ──
-let scanInProgress = false;
-document.getElementById('landing-scan-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (scanInProgress) return;
-    const file = fileInput.files[0];
-    if (!file) return;
-
-    const fileErr = validateFile(file);
-    if (fileErr) { errorEl.textContent = fileErr; return; }
-
-    scanInProgress = true;
-    activeAbort = new AbortController();
-    submitBtn.disabled = true;
-    loadingEl.classList.add('active');
-    progressEl.classList.add('active');
-    errorEl.textContent = '';
-    setProgress(0, 'Starting upload...');
-    startPhases();
-
-    try {
-        const { html } = await uploadChunked(file, activeAbort.signal);
-        // Store result HTML in sessionStorage, then redirect to /scan
-        try {
-sessionStorage.setItem('pavise-landing-result', html);
-sessionStorage.setItem('pavise-landing-file', file.name);
-        } catch { /* storage full or unavailable — fall through to redirect */ }
-        window.location.href = '/scan';
-    } catch (err) {
-        if (err.name === 'AbortError') return;
-        errorEl.textContent = !navigator.onLine
-? 'You appear to be offline. Check your connection and try again.'
-: err.message;
-    } finally {
-        scanInProgress = false;
-        activeAbort = null;
-        submitBtn.disabled = false;
-        loadingEl.classList.remove('active');
-        progressEl.classList.remove('active');
-        stopPhases();
-    }
-});
+    const toggle = document.getElementById('wave-panel-toggle');
+    const body = document.getElementById('wave-panel-body');
+    toggle?.addEventListener('click', () => {
+        const collapsed = panel.classList.toggle('collapsed');
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        if (body) body.style.display = collapsed ? 'none' : '';
+    });
+})();
 
 // ── Hamburger toggle ──
 const hamburger = document.getElementById('nav-hamburger');
 const navLinks = document.querySelector('.nav-links');
-hamburger.addEventListener('click', () => navLinks.classList.toggle('open'));
-
-// ── Theme toggle ──
-const themeToggle = document.getElementById('theme-toggle');
-function setTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('pavise-theme', theme);
+if (hamburger && navLinks) {
+    hamburger.addEventListener('click', () => navLinks.classList.toggle('open'));
 }
-themeToggle.addEventListener('click', () => {
-    const current = document.documentElement.getAttribute('data-theme');
-    setTheme(current === 'dark' ? 'light' : 'dark');
-});
-(function() {
-    const stored = localStorage.getItem('pavise-theme');
-    if (stored) setTheme(stored);
-    else if (window.matchMedia('(prefers-color-scheme: dark)').matches) setTheme('dark');
-})();
 
 // ── Smooth scroll for anchor links ──
 document.querySelectorAll('a[href^="#"]').forEach(a => {
     a.addEventListener('click', (e) => {
-        const target = document.querySelector(a.getAttribute('href'));
+        const href = a.getAttribute('href');
+        if (!href || href === '#') return;
+        const target = document.querySelector(href);
         if (target) {
-e.preventDefault();
-target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            e.preventDefault();
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     });
 });

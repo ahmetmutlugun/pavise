@@ -3,3 +3,7 @@
 test-ipas/
 .claude/
 *impec*
+/benchmarks/corpus/*.ipa
+/benchmarks/corpus/*.ipa.zip
+/benchmarks/corpus/_cache/
+/benchmarks/runs/
