@@ -3,52 +3,83 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="description" content="Pavise performs fast static security analysis of iOS IPA files, inspecting binaries, manifests, secrets, and OWASP Mobile Top 10 compliance in under 3 seconds." />
-        <meta name="keywords" content="iOS security scanner, IPA analyzer, mobile app security, static analysis, OWASP Mobile Top 10, binary analysis, secret detection, MobSF alternative" />
+        <meta
+            name="description"
+            content="Pavise performs fast static security analysis of iOS IPA files, inspecting binaries, manifests, secrets, and OWASP Mobile Top 10 compliance in under 3 seconds."
+        />
+        <meta
+            name="keywords"
+            content="iOS security scanner, IPA analyzer, mobile app security, static analysis, OWASP Mobile Top 10, binary analysis, secret detection, MobSF alternative"
+        />
         <link rel="canonical" href="https://pavise.app/" />
 
         <!-- Open Graph -->
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://pavise.app/" />
-        <meta property="og:title" content="Pavise — Fast iOS IPA Security Analyzer" />
-        <meta property="og:description" content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds. Free and open source." />
+        <meta
+            property="og:title"
+            content="Pavise — Fast iOS IPA Security Analyzer"
+        />
+        <meta
+            property="og:description"
+            content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds. Free and open source."
+        />
         <meta property="og:site_name" content="Pavise" />
-        <meta property="og:image" content="https://pavise.app/assets/og-image.png" />
+        <meta
+            property="og:image"
+            content="https://pavise.app/assets/og-image.png"
+        />
 
         <!-- Twitter Card -->
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Pavise — Fast iOS IPA Security Analyzer" />
-        <meta name="twitter:description" content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds." />
-        <meta name="twitter:image" content="https://pavise.app/assets/og-image.png" />
+        <meta
+            name="twitter:title"
+            content="Pavise — Fast iOS IPA Security Analyzer"
+        />
+        <meta
+            name="twitter:description"
+            content="Scan iOS IPA files for vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 issues in under 3 seconds."
+        />
+        <meta
+            name="twitter:image"
+            content="https://pavise.app/assets/og-image.png"
+        />
 
         <!-- Structured Data -->
         <script type="application/ld+json">
-        {
-            "@context": "https://schema.org",
-            "@type": "WebApplication",
-            "name": "Pavise",
-            "url": "https://pavise.app",
-            "description": "Fast static security analysis for iOS IPA files. Detects vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 compliance issues.",
-            "applicationCategory": "SecurityApplication",
-            "operatingSystem": "Any",
-            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-            "creator": {
-                "@type": "Person",
-                "name": "Ahmet Mutlugun",
-                "url": "https://github.com/ahmetmutlugun"
-            },
-            "softwareHelp": {
-                "@type": "WebPage",
-                "url": "https://github.com/ahmetmutlugun/pavise"
+            {
+                "@context": "https://schema.org",
+                "@type": "WebApplication",
+                "name": "Pavise",
+                "url": "https://pavise.app",
+                "description": "Fast static security analysis for iOS IPA files. Detects vulnerabilities, hardcoded secrets, tracker SDKs, and OWASP Mobile Top 10 compliance issues.",
+                "applicationCategory": "SecurityApplication",
+                "operatingSystem": "Any",
+                "offers": {
+                    "@type": "Offer",
+                    "price": "0",
+                    "priceCurrency": "USD"
+                },
+                "creator": {
+                    "@type": "Person",
+                    "name": "Ahmet Mutlugun",
+                    "url": "https://github.com/ahmetmutlugun"
+                },
+                "softwareHelp": {
+                    "@type": "WebPage",
+                    "url": "https://github.com/ahmetmutlugun/pavise"
+                }
             }
-        }
         </script>
 
         <title>Pavise — iOS app security in under 3 seconds</title>
 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+            rel="stylesheet"
+        />
 
         <script type="module" src="/src/landing.ts"></script>
     </head>
@@ -57,24 +88,67 @@
         <nav class="nav" id="nav">
             <div class="nav-inner">
                 <a href="/" class="nav-logo">
-                    <svg width="26" height="33" viewBox="0 0 100 128" fill="none" aria-hidden="true">
-                        <path d="M 16 8 Q 16 4 20 4 L 80 4 Q 84 4 84 8 L 84 76 Q 84 104 50 124 Q 16 104 16 76 Z" fill="#1c1b2a"/>
-                        <line x1="50" y1="16" x2="50" y2="112" stroke="#6fe3a8" stroke-width="2"/>
-                        <circle cx="50" cy="56" r="6" fill="#6fe3a8"/>
+                    <svg
+                        width="26"
+                        height="33"
+                        viewBox="0 0 100 128"
+                        fill="none"
+                        aria-hidden="true"
+                    >
+                        <path
+                            d="M 16 8 Q 16 4 20 4 L 80 4 Q 84 4 84 8 L 84 76 Q 84 104 50 124 Q 16 104 16 76 Z"
+                            fill="#1c1b2a"
+                        />
+                        <line
+                            x1="50"
+                            y1="16"
+                            x2="50"
+                            y2="112"
+                            stroke="#6fe3a8"
+                            stroke-width="2"
+                        />
+                        <circle cx="50" cy="56" r="6" fill="#6fe3a8" />
                     </svg>
                     <span>Pavise</span>
                 </a>
-                <button class="nav-hamburger" id="nav-hamburger" aria-label="Toggle menu">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                <button
+                    class="nav-hamburger"
+                    id="nav-hamburger"
+                    aria-label="Toggle menu"
+                >
+                    <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <line x1="3" y1="6" x2="21" y2="6" />
+                        <line x1="3" y1="12" x2="21" y2="12" />
+                        <line x1="3" y1="18" x2="21" y2="18" />
+                    </svg>
                 </button>
                 <div class="nav-links">
                     <a href="#coverage">Features</a>
-                    <a href="https://github.com/ahmetmutlugun/pavise#readme" target="_blank" rel="noopener noreferrer">Docs</a>
-                    <a href="https://github.com/ahmetmutlugun/pavise" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
+                    <a
+                        href="https://github.com/ahmetmutlugun/pavise#readme"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        >Docs</a
+                    >
+                    <a
+                        href="https://github.com/ahmetmutlugun/pavise"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        >GitHub ↗</a
+                    >
                 </div>
                 <div class="nav-cta">
                     <a href="#sample" class="btn btn-ghost btn-sm">Sample</a>
-                    <a href="/scan" class="btn btn-primary btn-sm">Open Scanner →</a>
+                    <a href="/scan" class="btn btn-primary btn-sm"
+                        >Open Scanner →</a
+                    >
                 </div>
             </div>
         </nav>
@@ -86,12 +160,14 @@
                     <div class="hero-content">
                         <h1>
                             iOS app security<br />
-                            in <em>under 3 seconds<span class="punct">.</span></em>
+                            in
+                            <em>under 3 seconds<span class="punct">.</span></em>
                         </h1>
                         <p class="hero-sub">
-                            Drop an IPA and get a full security report — hardcoded secrets, binary
-                            weaknesses, tracker SDKs, and OWASP Mobile Top 10 — before you switch tabs.
-                            No account. Files deleted immediately after scan.
+                            Drop an IPA and get a full security report —
+                            hardcoded secrets, binary weaknesses, tracker SDKs,
+                            and OWASP Mobile Top 10 — before you switch tabs. No
+                            account. Files deleted immediately after scan.
                         </p>
                         <ul class="hero-bullets">
                             <li>Sub-3-second scans</li>
@@ -104,25 +180,45 @@
                             <a href="/scan" class="btn btn-primary btn-lg">
                                 Scan an IPA <span class="arrow">→</span>
                             </a>
-                            <a class="hero-sample" href="#sample">View sample report →</a>
+                            <a class="hero-sample" href="#sample"
+                                >View sample report →</a
+                            >
                         </div>
 
                         <a href="/scan" class="dropzone-card">
-                            <span class="regmark" style="top:-7px;left:-7px"></span>
-                            <span class="regmark" style="top:-7px;right:-7px"></span>
-                            <span class="regmark" style="bottom:-7px;left:-7px"></span>
-                            <span class="regmark" style="bottom:-7px;right:-7px"></span>
+                            <span
+                                class="regmark"
+                                style="top: -7px; left: -7px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: -7px; right: -7px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="bottom: -7px; left: -7px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="bottom: -7px; right: -7px"
+                            ></span>
 
                             <div class="dz-left">
                                 <div class="dz-glyph">.IPA</div>
                                 <div class="dz-body">
-                                    <div class="dz-line-1">Drop an .ipa file in the scanner</div>
-                                    <div class="dz-line-2">Max 15 GB · processed and deleted immediately</div>
+                                    <div class="dz-line-1">
+                                        Drop an .ipa file in the scanner
+                                    </div>
+                                    <div class="dz-line-2">
+                                        Max 15 GB · processed and deleted
+                                        immediately
+                                    </div>
                                 </div>
                             </div>
 
                             <div class="mono dz-status">
-                                OPEN SCANNER · <span style="color:var(--mint-deep)">→</span>
+                                OPEN SCANNER ·
+                                <span style="color: var(--mint-deep)">→</span>
                             </div>
                         </a>
                     </div>
@@ -135,7 +231,10 @@
                                 CHECKSUM&nbsp;·&nbsp;a3f1
                             </div>
                             <div class="hero-shield-meta hsm-tr">
-                                <span class="line" style="margin-left:auto"></span>
+                                <span
+                                    class="line"
+                                    style="margin-left: auto"
+                                ></span>
                                 MACH-O&nbsp;·&nbsp;ARM64<br />
                                 PIE&nbsp;·&nbsp;TRUE
                             </div>
@@ -145,11 +244,18 @@
                                 CRITICAL&nbsp;·&nbsp;0
                             </div>
                             <div class="hero-shield-meta hsm-br">
-                                <span class="line" style="margin-left:auto"></span>
+                                <span
+                                    class="line"
+                                    style="margin-left: auto"
+                                ></span>
                                 SCAN&nbsp;·&nbsp;2.4s<br />
                                 SCORE&nbsp;·&nbsp;A−
                             </div>
-                            <svg viewBox="0 0 360 460" aria-hidden="true" id="halftone-shield"></svg>
+                            <svg
+                                viewBox="0 0 360 460"
+                                aria-hidden="true"
+                                id="halftone-shield"
+                            ></svg>
                         </div>
                     </div>
                 </div>
@@ -165,108 +271,258 @@
                 <div class="wrap">
                     <div class="sec-head">
                         <div>
-                            <span class="bracket-label"><span class="brk">[</span>Analysis coverage<span class="brk">]</span></span>
-                            <h2>Six layers of<br /><em>security inspection.</em></h2>
+                            <span class="bracket-label"
+                                ><span class="brk">[</span>Analysis
+                                coverage<span class="brk">]</span></span
+                            >
+                            <h2>
+                                Six layers of<br /><em>security inspection.</em>
+                            </h2>
                         </div>
                         <p class="sec-sub">
-                            Every IPA is unpacked and analyzed across binary, manifest, resources,
-                            and source-level patterns — in parallel, in milliseconds.
+                            Every IPA is unpacked and analyzed across binary,
+                            manifest, resources, and source-level patterns — in
+                            parallel, in milliseconds.
                         </p>
                     </div>
 
                     <div class="coverage-grid">
                         <div class="cov-card">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
                             <span class="cov-num">01 / 06</span>
-                            <svg viewBox="0 0 36 36" class="glyph" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <rect x="3" y="3" width="30" height="30"/>
-                                <text x="8" y="16" font-family="JetBrains Mono" font-size="6" fill="currentColor" stroke="none">10110</text>
-                                <text x="8" y="24" font-family="JetBrains Mono" font-size="6" fill="currentColor" stroke="none">01001</text>
-                                <rect x="22" y="20" width="8" height="8" fill="currentColor"/>
+                            <svg
+                                viewBox="0 0 36 36"
+                                class="glyph"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <rect x="3" y="3" width="30" height="30" />
+                                <text
+                                    x="8"
+                                    y="16"
+                                    font-family="JetBrains Mono"
+                                    font-size="6"
+                                    fill="currentColor"
+                                    stroke="none"
+                                >
+                                    10110
+                                </text>
+                                <text
+                                    x="8"
+                                    y="24"
+                                    font-family="JetBrains Mono"
+                                    font-size="6"
+                                    fill="currentColor"
+                                    stroke="none"
+                                >
+                                    01001
+                                </text>
+                                <rect
+                                    x="22"
+                                    y="20"
+                                    width="8"
+                                    height="8"
+                                    fill="currentColor"
+                                />
                             </svg>
                             <span class="cov-tag">01 · BINARY</span>
                             <h3>Mach-O analysis</h3>
-                            <p>Parses every Mach-O binary for PIE, ARC, stack canaries, encryption flags, and symbol-level findings.</p>
+                            <p>
+                                Parses every Mach-O binary for PIE, ARC, stack
+                                canaries, encryption flags, and symbol-level
+                                findings.
+                            </p>
                         </div>
 
                         <div class="cov-card">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
                             <span class="cov-num">02 / 06</span>
-                            <svg viewBox="0 0 36 36" class="glyph" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <rect x="6" y="14" width="24" height="18"/>
-                                <path d="M 10 14 V 9 Q 10 4 18 4 Q 26 4 26 9 V 14"/>
-                                <circle cx="18" cy="22" r="3" fill="currentColor"/>
-                                <line x1="18" y1="22" x2="18" y2="28"/>
+                            <svg
+                                viewBox="0 0 36 36"
+                                class="glyph"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <rect x="6" y="14" width="24" height="18" />
+                                <path
+                                    d="M 10 14 V 9 Q 10 4 18 4 Q 26 4 26 9 V 14"
+                                />
+                                <circle
+                                    cx="18"
+                                    cy="22"
+                                    r="3"
+                                    fill="currentColor"
+                                />
+                                <line x1="18" y1="22" x2="18" y2="28" />
                             </svg>
                             <span class="cov-tag">02 · SECRETS</span>
                             <h3>Hardcoded credentials</h3>
-                            <p>Regex + entropy scanning across binaries, plists, and embedded resources for API keys, tokens, and passwords.</p>
+                            <p>
+                                Regex + entropy scanning across binaries,
+                                plists, and embedded resources for API keys,
+                                tokens, and passwords.
+                            </p>
                         </div>
 
                         <div class="cov-card">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
                             <span class="cov-num">03 / 06</span>
-                            <svg viewBox="0 0 36 36" class="glyph" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M 18 3 L 32 9 V 19 Q 32 28 18 33 Q 4 28 4 19 V 9 Z"/>
-                                <path d="M 12 18 L 17 23 L 25 13"/>
+                            <svg
+                                viewBox="0 0 36 36"
+                                class="glyph"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <path
+                                    d="M 18 3 L 32 9 V 19 Q 32 28 18 33 Q 4 28 4 19 V 9 Z"
+                                />
+                                <path d="M 12 18 L 17 23 L 25 13" />
                             </svg>
                             <span class="cov-tag">03 · OWASP</span>
                             <h3>OWASP Mobile Top 10</h3>
-                            <p>Full M1–M10 coverage with CWE references — every finding mapped for compliance reporting.</p>
+                            <p>
+                                Full M1–M10 coverage with CWE references — every
+                                finding mapped for compliance reporting.
+                            </p>
                             <div class="owasp-chips">
-                                <span>M1</span><span>M2</span><span>M3</span><span>M4</span><span>M5</span><span>M6</span><span>M7</span><span>M8</span><span>M9</span><span>M10</span>
+                                <span>M1</span><span>M2</span><span>M3</span
+                                ><span>M4</span><span>M5</span><span>M6</span
+                                ><span>M7</span><span>M8</span><span>M9</span
+                                ><span>M10</span>
                             </div>
                         </div>
 
                         <div class="cov-card">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
                             <span class="cov-num">04 / 06</span>
-                            <svg viewBox="0 0 36 36" class="glyph" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <circle cx="18" cy="18" r="4" fill="currentColor"/>
-                                <circle cx="18" cy="18" r="10"/>
-                                <circle cx="18" cy="18" r="15" stroke-dasharray="3 3"/>
+                            <svg
+                                viewBox="0 0 36 36"
+                                class="glyph"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <circle
+                                    cx="18"
+                                    cy="18"
+                                    r="4"
+                                    fill="currentColor"
+                                />
+                                <circle cx="18" cy="18" r="10" />
+                                <circle
+                                    cx="18"
+                                    cy="18"
+                                    r="15"
+                                    stroke-dasharray="3 3"
+                                />
                             </svg>
                             <span class="cov-tag">04 · TRACKERS</span>
                             <h3>Tracker SDKs</h3>
-                            <p>Identifies analytics, advertising, and attribution SDKs embedded in the binary against a curated registry.</p>
+                            <p>
+                                Identifies analytics, advertising, and
+                                attribution SDKs embedded in the binary against
+                                a curated registry.
+                            </p>
                         </div>
 
                         <div class="cov-card">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
                             <span class="cov-num">05 / 06</span>
-                            <svg viewBox="0 0 36 36" class="glyph" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M 4 24 Q 12 14 18 14 Q 24 14 32 24"/>
-                                <path d="M 8 28 Q 14 22 18 22 Q 22 22 28 28"/>
-                                <circle cx="18" cy="32" r="1.5" fill="currentColor"/>
-                                <line x1="14" y1="6" x2="22" y2="6"/>
-                                <line x1="18" y1="2" x2="18" y2="10"/>
+                            <svg
+                                viewBox="0 0 36 36"
+                                class="glyph"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <path d="M 4 24 Q 12 14 18 14 Q 24 14 32 24" />
+                                <path d="M 8 28 Q 14 22 18 22 Q 22 22 28 28" />
+                                <circle
+                                    cx="18"
+                                    cy="32"
+                                    r="1.5"
+                                    fill="currentColor"
+                                />
+                                <line x1="14" y1="6" x2="22" y2="6" />
+                                <line x1="18" y1="2" x2="18" y2="10" />
                             </svg>
                             <span class="cov-tag">05 · ATS</span>
                             <h3>Transport security</h3>
-                            <p>ATS exception audit, insecure domain detection, and network-security configuration review.</p>
+                            <p>
+                                ATS exception audit, insecure domain detection,
+                                and network-security configuration review.
+                            </p>
                         </div>
 
                         <div class="cov-card">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
                             <span class="cov-num">06 / 06</span>
-                            <svg viewBox="0 0 36 36" class="glyph" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <rect x="4" y="4" width="11" height="11"/>
-                                <rect x="21" y="4" width="11" height="11"/>
-                                <rect x="12" y="21" width="11" height="11"/>
-                                <line x1="9" y1="15" x2="9" y2="21"/>
-                                <line x1="9" y1="21" x2="17" y2="21"/>
-                                <line x1="26" y1="15" x2="26" y2="24"/>
-                                <line x1="26" y1="24" x2="23" y2="24"/>
+                            <svg
+                                viewBox="0 0 36 36"
+                                class="glyph"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                            >
+                                <rect x="4" y="4" width="11" height="11" />
+                                <rect x="21" y="4" width="11" height="11" />
+                                <rect x="12" y="21" width="11" height="11" />
+                                <line x1="9" y1="15" x2="9" y2="21" />
+                                <line x1="9" y1="21" x2="17" y2="21" />
+                                <line x1="26" y1="15" x2="26" y2="24" />
+                                <line x1="26" y1="24" x2="23" y2="24" />
                             </svg>
                             <span class="cov-tag">06 · SCA</span>
                             <h3>Supply chain</h3>
-                            <p>Framework SCA with CVE matching against the GitHub Advisory and OSV vulnerability databases.</p>
+                            <p>
+                                Framework SCA with CVE matching against the
+                                GitHub Advisory and OSV vulnerability databases.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -279,13 +535,22 @@
                 <div class="wrap">
                     <div class="ev-grid">
                         <div class="ev-text">
-                            <span class="bracket-label"><span class="brk">[</span>Audit evidence<span class="brk">]</span></span>
-                            <h2>PDF reports ready<br />for <em>compliance reviews.</em></h2>
+                            <span class="bracket-label"
+                                ><span class="brk">[</span>Audit evidence<span
+                                    class="brk"
+                                    >]</span
+                                ></span
+                            >
+                            <h2>
+                                PDF reports ready<br />for
+                                <em>compliance reviews.</em>
+                            </h2>
                             <p>
-                                Every scan generates a structured PDF with an executive summary,
-                                OWASP Mobile Top&nbsp;10 findings, and CWE references — ready to
-                                attach directly to a SOC&nbsp;2 or ISO&nbsp;27001 audit package.
-                                No reformatting, no manual mapping.
+                                Every scan generates a structured PDF with an
+                                executive summary, OWASP Mobile Top&nbsp;10
+                                findings, and CWE references — ready to attach
+                                directly to a SOC&nbsp;2 or ISO&nbsp;27001 audit
+                                package. No reformatting, no manual mapping.
                             </p>
 
                             <div class="ev-stamps">
@@ -298,38 +563,68 @@
                                 </div>
                                 <div class="ev-stamp">
                                     <div class="ev-stamp-body">
-                                        <div class="ev-stamp-code">ISO 27001</div>
+                                        <div class="ev-stamp-code">
+                                            ISO 27001
+                                        </div>
                                         <div class="ev-stamp-sub">ANNEX A</div>
                                     </div>
-                                    <div class="ev-stamp-note">INFO SEC MGMT</div>
+                                    <div class="ev-stamp-note">
+                                        INFO SEC MGMT
+                                    </div>
                                 </div>
                                 <div class="ev-stamp">
                                     <div class="ev-stamp-body">
                                         <div class="ev-stamp-code">OWASP</div>
-                                        <div class="ev-stamp-sub">MASVS L1/L2</div>
+                                        <div class="ev-stamp-sub">
+                                            MASVS L1/L2
+                                        </div>
                                     </div>
                                     <div class="ev-stamp-note">MOBILE STD</div>
                                 </div>
-                                <a href="/compliance" class="ev-stamp ev-stamp-more">
+                                <a
+                                    href="/compliance"
+                                    class="ev-stamp ev-stamp-more"
+                                >
                                     <div class="ev-stamp-body">
-                                        <div class="ev-stamp-code">+ More frameworks</div>
-                                        <div class="ev-stamp-sub">GDPR · NIST · PCI · HIPAA</div>
+                                        <div class="ev-stamp-code">
+                                            + More frameworks
+                                        </div>
+                                        <div class="ev-stamp-sub">
+                                            GDPR · NIST · PCI · HIPAA
+                                        </div>
                                     </div>
                                     <div class="ev-stamp-arrow">→</div>
                                 </a>
                             </div>
 
                             <div class="ev-actions">
-                                <a href="/scan" class="btn btn-primary">Download sample <span class="arrow">→</span></a>
-                                <a href="/scan" class="btn btn-dark">Run my own scan</a>
+                                <a href="/scan" class="btn btn-primary"
+                                    >Download sample
+                                    <span class="arrow">→</span></a
+                                >
+                                <a href="/scan" class="btn btn-dark"
+                                    >Run my own scan</a
+                                >
                             </div>
                         </div>
 
                         <div class="ev-doc">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
-                            <span class="regmark" style="bottom:10px;left:10px"></span>
-                            <span class="regmark" style="bottom:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="bottom: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="bottom: 10px; right: 10px"
+                            ></span>
 
                             <div class="ev-doc-head">
                                 <span>PAVISE / SCAN-2026-04-17-A3F1</span>
@@ -337,18 +632,57 @@
                             </div>
                             <div class="ev-doc-stamp">CONFIDENTIAL</div>
                             <div class="ev-doc-label">EXECUTIVE SUMMARY</div>
-                            <h4>Mobile Application Security Assessment<br />example-banking-app.ipa</h4>
+                            <h4>
+                                Mobile Application Security Assessment<br />example-banking-app.ipa
+                            </h4>
 
                             <div class="ev-doc-label">FINDINGS BY SEVERITY</div>
                             <div class="ev-sev-grid">
-                                <div class="ev-sev"><div class="ev-sev-n">0</div><div class="ev-sev-l">CRIT</div></div>
-                                <div class="ev-sev"><div class="ev-sev-n" style="color:#c4503e">2</div><div class="ev-sev-l">HIGH</div></div>
-                                <div class="ev-sev"><div class="ev-sev-n" style="color:#a06621">5</div><div class="ev-sev-l">MED</div></div>
-                                <div class="ev-sev"><div class="ev-sev-n" style="color:#2a8859">5</div><div class="ev-sev-l">LOW</div></div>
-                                <div class="ev-sev"><div class="ev-sev-n" style="color:var(--ink-dim)">8</div><div class="ev-sev-l">INFO</div></div>
+                                <div class="ev-sev">
+                                    <div class="ev-sev-n">0</div>
+                                    <div class="ev-sev-l">CRIT</div>
+                                </div>
+                                <div class="ev-sev">
+                                    <div
+                                        class="ev-sev-n"
+                                        style="color: #c4503e"
+                                    >
+                                        2
+                                    </div>
+                                    <div class="ev-sev-l">HIGH</div>
+                                </div>
+                                <div class="ev-sev">
+                                    <div
+                                        class="ev-sev-n"
+                                        style="color: #a06621"
+                                    >
+                                        5
+                                    </div>
+                                    <div class="ev-sev-l">MED</div>
+                                </div>
+                                <div class="ev-sev">
+                                    <div
+                                        class="ev-sev-n"
+                                        style="color: #2a8859"
+                                    >
+                                        5
+                                    </div>
+                                    <div class="ev-sev-l">LOW</div>
+                                </div>
+                                <div class="ev-sev">
+                                    <div
+                                        class="ev-sev-n"
+                                        style="color: var(--ink-dim)"
+                                    >
+                                        8
+                                    </div>
+                                    <div class="ev-sev-l">INFO</div>
+                                </div>
                             </div>
 
-                            <div class="ev-doc-label">OWASP M-TOP 10 COVERAGE</div>
+                            <div class="ev-doc-label">
+                                OWASP M-TOP 10 COVERAGE
+                            </div>
                             <div class="ev-doc-bars">
                                 <div class="fill"><span>M1</span></div>
                                 <div class="fill"><span>M2</span></div>
@@ -363,9 +697,24 @@
                             </div>
 
                             <div class="ev-doc-label">TOP FINDINGS</div>
-                            <div class="ev-row"><span><b>M2</b> &nbsp;Hardcoded Stripe key in StringsTable.bin</span><span class="sev sev-high">HIGH</span></div>
-                            <div class="ev-row"><span><b>M3</b> &nbsp;ATS exception for *.cdn.acme.com</span><span class="sev sev-med">MED</span></div>
-                            <div class="ev-row"><span><b>M5</b> &nbsp;libssl 1.1.1k — CVE-2023-0286</span><span class="sev sev-med">MED</span></div>
+                            <div class="ev-row">
+                                <span
+                                    ><b>M2</b> &nbsp;Hardcoded Stripe key in
+                                    StringsTable.bin</span
+                                ><span class="sev sev-high">HIGH</span>
+                            </div>
+                            <div class="ev-row">
+                                <span
+                                    ><b>M3</b> &nbsp;ATS exception for
+                                    *.cdn.acme.com</span
+                                ><span class="sev sev-med">MED</span>
+                            </div>
+                            <div class="ev-row">
+                                <span
+                                    ><b>M5</b> &nbsp;libssl 1.1.1k —
+                                    CVE-2023-0286</span
+                                ><span class="sev sev-med">MED</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -376,36 +725,90 @@
                 <div class="wrap">
                     <div class="sec-head">
                         <div>
-                            <span class="bracket-label"><span class="brk">[</span>Performance<span class="brk">]</span></span>
-                            <h2>Built for speed,<br /><em>not patience.</em></h2>
+                            <span class="bracket-label"
+                                ><span class="brk">[</span>Performance<span
+                                    class="brk"
+                                    >]</span
+                                ></span
+                            >
+                            <h2>
+                                Built for speed,<br /><em>not patience.</em>
+                            </h2>
                         </div>
                         <p class="sec-sub">
-                            Written in Rust with parallel analysis pipelines. Most scans complete before
-                            you finish the keyboard shortcut to switch tabs.
+                            Written in Rust with parallel analysis pipelines.
+                            Most scans complete before you finish the keyboard
+                            shortcut to switch tabs.
                         </p>
                     </div>
 
                     <div class="perf-grid">
                         <div>
-                            <p class="perf-big"><span class="lt">&lt;</span>3<span class="unit">seconds</span></p>
+                            <p class="perf-big">
+                                <span class="lt">&lt;</span>3<span class="unit"
+                                    >seconds</span
+                                >
+                            </p>
                             <p class="perf-desc">
-                                Average scan time for a typical 50&nbsp;MB IPA. Binary parsing, pattern
-                                matching, OWASP scoring, and CVE matching all run concurrently across
+                                Average scan time for a typical 50&nbsp;MB IPA.
+                                Binary parsing, pattern matching, OWASP scoring,
+                                and CVE matching all run concurrently across
                                 every available CPU core via Rayon thread pools.
                             </p>
 
                             <div class="switches">
                                 <h4>Why security teams switch to Pavise</h4>
-                                <div class="row"><div class="chk">✓</div><span>No Docker, no self-hosting. Just a URL — or one Homebrew install.</span></div>
-                                <div class="row"><div class="chk">✓</div><span>15× faster scans. Seconds, not minutes — even on multi-gigabyte IPAs.</span></div>
-                                <div class="row"><div class="chk">✓</div><span>No account, zero retention. IPAs are processed and deleted immediately — nothing persists after the scan completes.</span></div>
-                                <div class="row"><div class="chk">✓</div><span>Open source. MIT-licensed, auditable, deployable in air-gapped environments.</span></div>
+                                <div class="row">
+                                    <div class="chk">✓</div>
+                                    <span
+                                        >No Docker, no self-hosting. Just a URL
+                                        — or one Homebrew install.</span
+                                    >
+                                </div>
+                                <div class="row">
+                                    <div class="chk">✓</div>
+                                    <span
+                                        >15× faster scans. Seconds, not minutes
+                                        — even on multi-gigabyte IPAs.</span
+                                    >
+                                </div>
+                                <div class="row">
+                                    <div class="chk">✓</div>
+                                    <span
+                                        >No account, zero retention. IPAs are
+                                        processed and deleted immediately —
+                                        nothing persists after the scan
+                                        completes.</span
+                                    >
+                                </div>
+                                <div class="row">
+                                    <div class="chk">✓</div>
+                                    <span
+                                        >Open source. MIT-licensed, auditable,
+                                        deployable in air-gapped
+                                        environments.</span
+                                    >
+                                </div>
                             </div>
                         </div>
 
                         <div class="cmp">
-                            <span class="regmark" style="top:10px;left:10px;color:rgba(236,230,216,0.4)"></span>
-                            <span class="regmark" style="top:10px;right:10px;color:rgba(236,230,216,0.4)"></span>
+                            <span
+                                class="regmark"
+                                style="
+                                    top: 10px;
+                                    left: 10px;
+                                    color: rgba(236, 230, 216, 0.4);
+                                "
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="
+                                    top: 10px;
+                                    right: 10px;
+                                    color: rgba(236, 230, 216, 0.4);
+                                "
+                            ></span>
                             <div class="cmp-head">
                                 <span>scan time · 50&nbsp;MB IPA</span>
                                 <span>lower is better</span>
@@ -413,32 +816,80 @@
 
                             <div class="cmp-row">
                                 <div class="name">Pavise</div>
-                                <div class="bar"><i style="width:6%"></i></div>
+                                <div class="bar"><i style="width: 6%"></i></div>
                                 <div class="time">2.4 s</div>
                             </div>
                             <div class="cmp-row them">
                                 <div class="name">MobSF</div>
-                                <div class="bar"><i style="width:92%"></i></div>
+                                <div class="bar">
+                                    <i style="width: 92%"></i>
+                                </div>
                                 <div class="time">~45 s</div>
                             </div>
-                            <div class="cmp-row them" style="opacity:0.7">
-                                <div class="name" style="font-size:16px;font-weight:500;font-family:var(--font-body)">iMAS</div>
-                                <div class="bar"><i style="width:60%;background:rgba(236,230,216,0.4)"></i></div>
+                            <div class="cmp-row them" style="opacity: 0.7">
+                                <div
+                                    class="name"
+                                    style="
+                                        font-size: 16px;
+                                        font-weight: 500;
+                                        font-family: var(--font-body);
+                                    "
+                                >
+                                    iMAS
+                                </div>
+                                <div class="bar">
+                                    <i
+                                        style="
+                                            width: 60%;
+                                            background: rgba(
+                                                236,
+                                                230,
+                                                216,
+                                                0.4
+                                            );
+                                        "
+                                    ></i>
+                                </div>
                                 <div class="time">~28 s</div>
                             </div>
-                            <div class="cmp-row them" style="opacity:0.7">
-                                <div class="name" style="font-size:16px;font-weight:500;font-family:var(--font-body)">Needle</div>
-                                <div class="bar"><i style="width:45%;background:rgba(236,230,216,0.4)"></i></div>
+                            <div class="cmp-row them" style="opacity: 0.7">
+                                <div
+                                    class="name"
+                                    style="
+                                        font-size: 16px;
+                                        font-weight: 500;
+                                        font-family: var(--font-body);
+                                    "
+                                >
+                                    Needle
+                                </div>
+                                <div class="bar">
+                                    <i
+                                        style="
+                                            width: 45%;
+                                            background: rgba(
+                                                236,
+                                                230,
+                                                216,
+                                                0.4
+                                            );
+                                        "
+                                    ></i>
+                                </div>
                                 <div class="time">~21 s</div>
                             </div>
 
                             <div class="cmp-foot">
                                 <div>
-                                    <div class="cmp-foot-label">P50 latency</div>
+                                    <div class="cmp-foot-label">
+                                        P50 latency
+                                    </div>
                                     <div class="cmp-foot-num">1.8&thinsp;s</div>
                                 </div>
                                 <div>
-                                    <div class="cmp-foot-label">P99 latency</div>
+                                    <div class="cmp-foot-label">
+                                        P99 latency
+                                    </div>
                                     <div class="cmp-foot-num">4.2&thinsp;s</div>
                                 </div>
                             </div>
@@ -452,57 +903,115 @@
                 <div class="wrap">
                     <div class="sec-head">
                         <div>
-                            <span class="bracket-label"><span class="brk">[</span>Output formats<span class="brk">]</span></span>
+                            <span class="bracket-label"
+                                ><span class="brk">[</span>Output formats<span
+                                    class="brk"
+                                    >]</span
+                                ></span
+                            >
                             <h2>Four formats,<br /><em>zero friction.</em></h2>
                         </div>
                         <p class="sec-sub">
-                            Pipe results into CI, attach to a ticket, present to a client, or
-                            open in your editor. Every scan produces all four formats by default.
+                            Pipe results into CI, attach to a ticket, present to
+                            a client, or open in your editor. Every scan
+                            produces all four formats by default.
                         </p>
                     </div>
 
                     <div class="out-grid">
                         <div class="out-card">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
                             <span class="out-num">01</span>
                             <span class="out-ext">.pdf</span>
                             <h3>Audit-ready report</h3>
-                            <p>Executive summary, findings, and OWASP mapping. Ready to attach to a SOC 2 or ISO 27001 evidence package.</p>
-                            <div class="out-tools"><span>SOC 2</span><span>ISO 27001</span><span>Compliance</span></div>
+                            <p>
+                                Executive summary, findings, and OWASP mapping.
+                                Ready to attach to a SOC 2 or ISO 27001 evidence
+                                package.
+                            </p>
+                            <div class="out-tools">
+                                <span>SOC 2</span><span>ISO 27001</span
+                                ><span>Compliance</span>
+                            </div>
                         </div>
                         <div class="out-card">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
                             <span class="out-num">02</span>
                             <span class="out-ext">.json</span>
                             <h3>Machine-readable</h3>
-                            <p>Structured output for CI/CD pipelines, custom dashboards, and downstream automation scripts.</p>
-                            <div class="out-tools"><span>CI/CD</span><span>Webhooks</span><span>Scripts</span></div>
+                            <p>
+                                Structured output for CI/CD pipelines, custom
+                                dashboards, and downstream automation scripts.
+                            </p>
+                            <div class="out-tools">
+                                <span>CI/CD</span><span>Webhooks</span
+                                ><span>Scripts</span>
+                            </div>
                         </div>
                         <div class="out-card">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
                             <span class="out-num">03</span>
                             <span class="out-ext">.sarif</span>
                             <h3>IDE &amp; GitHub</h3>
-                            <p>SARIF 2.1.0 for VS Code, GitHub Code Scanning, and any tool that speaks the static-analysis interchange format.</p>
-                            <div class="out-tools"><span>VS Code</span><span>GitHub</span><span>GitLab</span></div>
+                            <p>
+                                SARIF 2.1.0 for VS Code, GitHub Code Scanning,
+                                and any tool that speaks the static-analysis
+                                interchange format.
+                            </p>
+                            <div class="out-tools">
+                                <span>VS Code</span><span>GitHub</span
+                                ><span>GitLab</span>
+                            </div>
                         </div>
                         <div class="out-card">
-                            <span class="regmark" style="top:10px;left:10px"></span>
-                            <span class="regmark" style="top:10px;right:10px"></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; left: 10px"
+                            ></span>
+                            <span
+                                class="regmark"
+                                style="top: 10px; right: 10px"
+                            ></span>
                             <span class="out-num">04</span>
                             <span class="out-ext">.html</span>
                             <h3>Interactive view</h3>
-                            <p>Browser-based results with filtering, severity breakdown, and CWE links. Open it on any laptop, no installs.</p>
-                            <div class="out-tools"><span>Browser</span><span>Filter</span><span>Share</span></div>
+                            <p>
+                                Browser-based results with filtering, severity
+                                breakdown, and CWE links. Open it on any laptop,
+                                no installs.
+                            </p>
+                            <div class="out-tools">
+                                <span>Browser</span><span>Filter</span
+                                ><span>Share</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </section>
 
             <!-- Wave band (dithering shader) -->
+            <!-- WAVE BAND & TWEAK PANEL — DISABLED (commented out)
             <section class="wave-band on-dark" aria-hidden="false">
                 <canvas id="wave-shader" class="wave-band-canvas"></canvas>
                 <div class="wave-band-overlay">
@@ -541,22 +1050,46 @@
                     </div>
                 </div>
             </section>
+            END WAVE BAND & TWEAK PANEL -->
 
             <!-- Big CTA -->
             <section class="cta on-dark">
-                <svg class="cta-lines" viewBox="0 0 1440 600" preserveAspectRatio="none" aria-hidden="true" id="cta-lines"></svg>
+                <svg
+                    class="cta-lines"
+                    viewBox="0 0 1440 600"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                    id="cta-lines"
+                ></svg>
                 <div class="wrap cta-inner">
-                    <span class="cta-eyebrow"><span class="brk">[</span>Shipping mobile soon?<span class="brk">]</span></span>
+                    <span class="cta-eyebrow"
+                        ><span class="brk">[</span>Shipping mobile soon?<span
+                            class="brk"
+                            >]</span
+                        ></span
+                    >
                     <h2>
                         Pavise scans your IPA<br />
-                        before the auditor asks<span style="color:var(--mint)">.</span>
+                        before the auditor asks<span style="color: var(--mint)"
+                            >.</span
+                        >
                     </h2>
                     <div class="cta-actions">
-                        <a href="/scan" class="btn btn-primary btn-lg">Open Scanner <span class="arrow">→</span></a>
-                        <a href="https://github.com/ahmetmutlugun/pavise#readme" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-lg">Read the docs</a>
+                        <a href="/scan" class="btn btn-primary btn-lg"
+                            >Open Scanner <span class="arrow">→</span></a
+                        >
+                        <a
+                            href="https://github.com/ahmetmutlugun/pavise#readme"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="btn btn-ghost btn-lg"
+                            >Read the docs</a
+                        >
                     </div>
                     <p class="cta-foot">
-                        MIT-LICENSED&nbsp;&nbsp;·&nbsp;&nbsp;NO ACCOUNT&nbsp;&nbsp;·&nbsp;&nbsp;ZERO RETENTION&nbsp;&nbsp;·&nbsp;&nbsp;DELETED IMMEDIATELY
+                        MIT-LICENSED&nbsp;&nbsp;·&nbsp;&nbsp;NO
+                        ACCOUNT&nbsp;&nbsp;·&nbsp;&nbsp;ZERO
+                        RETENTION&nbsp;&nbsp;·&nbsp;&nbsp;DELETED IMMEDIATELY
                     </p>
                 </div>
             </section>
@@ -566,13 +1099,31 @@
         <footer class="foot">
             <div class="wrap foot-grid">
                 <div class="foot-brand">
-                    <svg width="56" height="72" viewBox="0 0 100 128" fill="none" aria-hidden="true">
-                        <path d="M 16 8 Q 16 4 20 4 L 80 4 Q 84 4 84 8 L 84 76 Q 84 104 50 124 Q 16 104 16 76 Z" fill="#1c1b2a"/>
-                        <line x1="50" y1="16" x2="50" y2="112" stroke="#6fe3a8" stroke-width="2"/>
-                        <circle cx="50" cy="56" r="6" fill="#6fe3a8"/>
+                    <svg
+                        width="56"
+                        height="72"
+                        viewBox="0 0 100 128"
+                        fill="none"
+                        aria-hidden="true"
+                    >
+                        <path
+                            d="M 16 8 Q 16 4 20 4 L 80 4 Q 84 4 84 8 L 84 76 Q 84 104 50 124 Q 16 104 16 76 Z"
+                            fill="#1c1b2a"
+                        />
+                        <line
+                            x1="50"
+                            y1="16"
+                            x2="50"
+                            y2="112"
+                            stroke="#6fe3a8"
+                            stroke-width="2"
+                        />
+                        <circle cx="50" cy="56" r="6" fill="#6fe3a8" />
                     </svg>
                     <h4>Pavise</h4>
-                    <span class="tag">iOS app security<br />in under 3 seconds</span>
+                    <span class="tag"
+                        >iOS app security<br />in under 3 seconds</span
+                    >
                 </div>
                 <div class="foot-col">
                     <h5>Product</h5>
@@ -587,9 +1138,30 @@
                 <div class="foot-col">
                     <h5>Resources</h5>
                     <ul>
-                        <li><a href="https://github.com/ahmetmutlugun/pavise#readme" target="_blank" rel="noopener noreferrer">Documentation</a></li>
-                        <li><a href="https://github.com/ahmetmutlugun/pavise" target="_blank" rel="noopener noreferrer">GitHub ↗</a></li>
-                        <li><a href="https://github.com/ahmetmutlugun/pavise/issues" target="_blank" rel="noopener noreferrer">Issues</a></li>
+                        <li>
+                            <a
+                                href="https://github.com/ahmetmutlugun/pavise#readme"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                >Documentation</a
+                            >
+                        </li>
+                        <li>
+                            <a
+                                href="https://github.com/ahmetmutlugun/pavise"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                >GitHub ↗</a
+                            >
+                        </li>
+                        <li>
+                            <a
+                                href="https://github.com/ahmetmutlugun/pavise/issues"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                >Issues</a
+                            >
+                        </li>
                     </ul>
                 </div>
                 <div class="foot-col">
@@ -604,13 +1176,24 @@
             </div>
             <div class="wrap foot-bot">
                 <span>© 2026 Pavise · MIT License</span>
-                <span>Status · <span style="color:var(--mint-deep)">● Operational</span></span>
+                <span
+                    >Status ·
+                    <span style="color: var(--mint-deep)"
+                        >● Operational</span
+                    ></span
+                >
             </div>
         </footer>
 
         <!-- SRI hash computed from https://stats.pavise.app/count.js on 2026-03-30.
              Re-run: curl -fsSL https://stats.pavise.app/count.js | openssl dgst -sha384 -binary | openssl base64 -A
              Update this hash whenever the GoatCounter script changes. -->
-        <script data-goatcounter="https://stats.pavise.app/count" async src="//stats.pavise.app/count.js" crossorigin="anonymous" integrity="sha384-ibA+WLRCY3W4rrf/Qi6Z02iu3FWDJOW41oKXAKzGUka17bnDTswba03X3emshpZS"></script>
+        <script
+            data-goatcounter="https://stats.pavise.app/count"
+            async
+            src="//stats.pavise.app/count.js"
+            crossorigin="anonymous"
+            integrity="sha384-ibA+WLRCY3W4rrf/Qi6Z02iu3FWDJOW41oKXAKzGUka17bnDTswba03X3emshpZS"
+        ></script>
     </body>
 </html>
