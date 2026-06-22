@@ -45,20 +45,10 @@
         </script>
 
         <title>Scan iOS IPA — Pavise Security Analyzer</title>
-        <style>.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}</style>
 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet" />
-
-        <script>
-            // Prevent flash of wrong theme
-            (function() {
-                var t = localStorage.getItem('pavise-theme');
-                if (t) document.documentElement.setAttribute('data-theme', t);
-                else if (window.matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-theme', 'dark');
-            })();
-        </script>
+        <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300..900;1,9..40,300..900&family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet" />
 
         <script type="module" src="/src/scan.ts"></script>
     </head>
@@ -69,18 +59,13 @@
 
             <aside class="sidebar" id="sidebar">
                 <div class="sidebar-head">
-                    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <defs>
-                            <linearGradient id="sGrad" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
-                                <stop offset="0%" stop-color="#3b82f6" />
-                                <stop offset="100%" stop-color="#7c3aed" />
-                            </linearGradient>
-                        </defs>
-                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#sGrad)" stroke-width="1.5" fill="none" opacity="0.6" />
-                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" fill="url(#sGrad)" opacity="0.1" />
-                        <path d="M10 14.5l3 3 5-5" stroke="url(#sGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                    <svg viewBox="0 0 100 128" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M 16 8 Q 16 4 20 4 L 80 4 Q 84 4 84 8 L 84 76 Q 84 104 50 124 Q 16 104 16 76 Z" fill="#1c1b2a" />
+                        <line x1="50" y1="16" x2="50" y2="112" stroke="#6fe3a8" stroke-width="2" />
+                        <circle cx="50" cy="56" r="6" fill="#6fe3a8" />
                     </svg>
                     <span class="sidebar-title">Pavise</span>
+                    <span class="sidebar-ver">Static analysis</span>
                 </div>
 
                 <nav class="sidebar-nav">
@@ -134,46 +119,34 @@
                             <line x1="3" y1="18" x2="21" y2="18" />
                         </svg>
                     </button>
+                    <div class="topbar-crumb">
+                        <span>Scanner</span>
+                        <span class="sep">/</span>
+                        <b>New scan</b>
+                    </div>
                     <div class="topbar-spacer"></div>
-                    <span style="font-size: 0.65rem; font-family: var(--mono); color: var(--text-xdim); text-transform: uppercase; letter-spacing: 0.08em;">Static Analysis</span>
-                    <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode">
-                        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-                    </button>
+                    <span class="topbar-status">Static analysis</span>
                 </div>
 
                 <main class="main" id="main-content">
                     <div class="container">
                         <div class="view active" id="view-scan">
-                            <h1 class="sr-only">iOS IPA Security Scanner — Pavise</h1>
                             <div class="scan-hero">
-                                <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <defs>
-                                        <linearGradient id="hGrad" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
-                                            <stop offset="0%" stop-color="#3b82f6" />
-                                            <stop offset="100%" stop-color="#7c3aed" />
-                                        </linearGradient>
-                                    </defs>
-                                    <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#hGrad)" stroke-width="1.5" fill="none" opacity="0.6" />
-                                    <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" fill="url(#hGrad)" opacity="0.1" />
-                                    <path d="M10 14.5l3 3 5-5" stroke="url(#hGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-                                </svg>
-                                <div>
-                                    <div class="scan-hero-name">Pavise</div>
-                                    <div class="scan-hero-sub">iOS Security Analyzer</div>
-                                </div>
+                                <span class="scan-eyebrow"><span class="dot"></span>Ready · processed locally</span>
+                                <h1 class="scan-title">Drop an IPA to start<br /><em>your security scan.</em></h1>
+                                <p class="scan-hero-desc">Binary analysis, secret detection, OWASP scoring, tracker SDKs, transport security and supply-chain CVE matching — all in under three seconds.</p>
                             </div>
-                            <p class="scan-hero-desc">Drop an IPA to get binary analysis, secret detection, and OWASP scoring in ~3 seconds.</p>
                             <div class="upload">
                                 <form id="scan-form">
                                     <div class="drop-zone" id="drop-zone">
                                         <input type="file" name="file" accept=".ipa" id="file-input" aria-label="Choose an IPA file to analyze" required />
-                                        <svg class="drop-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                                            <polyline points="17 8 12 3 7 8" />
-                                            <line x1="12" y1="3" x2="12" y2="15" />
-                                        </svg>
-                                        <div class="drop-label">Drop an <strong>.ipa</strong> to analyze</div>
+                                        <span class="regmark" style="top: 12px; left: 12px"></span>
+                                        <span class="regmark" style="top: 12px; right: 12px"></span>
+                                        <span class="regmark" style="bottom: 12px; left: 12px"></span>
+                                        <span class="regmark" style="bottom: 12px; right: 12px"></span>
+                                        <div class="ipa-glyph" aria-hidden="true">.IPA</div>
+                                        <div class="drop-label">Drop an <strong>.ipa</strong> file here</div>
+                                        <div class="drop-hint">Max 15 GB · ARM64 / ARM64e · processed locally</div>
                                         <div class="file-name" id="file-name"></div>
                                     </div>
 
@@ -208,12 +181,12 @@
                             </div>
 
                             <div class="cap-tags">
-                                <span class="cap-tag" style="border-color: var(--accent)">Binary</span>
-                                <span class="cap-tag" style="border-color: var(--high)">Secrets</span>
-                                <span class="cap-tag" style="border-color: var(--warn)">OWASP</span>
-                                <span class="cap-tag" style="border-color: var(--purple)">Trackers</span>
-                                <span class="cap-tag" style="border-color: var(--secure)">Transport</span>
-                                <span class="cap-tag" style="border-color: #f0883e">Supply Chain</span>
+                                <span class="cap-tag">Binary</span>
+                                <span class="cap-tag">Secrets</span>
+                                <span class="cap-tag">OWASP M1–M10</span>
+                                <span class="cap-tag">Trackers</span>
+                                <span class="cap-tag">Transport</span>
+                                <span class="cap-tag">Supply chain</span>
                             </div>
 
                             <div id="results" aria-live="polite" aria-atomic="true"></div>
@@ -222,16 +195,10 @@
                         <div class="view" id="view-about">
                             <div class="about-content">
                                 <div class="about-hero">
-                                    <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <defs>
-                                            <linearGradient id="aGrad" x1="3" y1="2" x2="25" y2="28" gradientUnits="userSpaceOnUse">
-                                                <stop offset="0%" stop-color="#3b82f6" />
-                                                <stop offset="100%" stop-color="#7c3aed" />
-                                            </linearGradient>
-                                        </defs>
-                                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" stroke="url(#aGrad)" stroke-width="1.5" fill="none" opacity="0.6" />
-                                        <path d="M14 2L3 7v7c0 7.35 4.48 12.11 11 14 6.52-1.89 11-6.65 11-14V7L14 2z" fill="url(#aGrad)" opacity="0.1" />
-                                        <path d="M10 14.5l3 3 5-5" stroke="url(#aGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                                    <svg viewBox="0 0 100 128" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                        <path d="M 16 8 Q 16 4 20 4 L 80 4 Q 84 4 84 8 L 84 76 Q 84 104 50 124 Q 16 104 16 76 Z" fill="#1c1b2a" />
+                                        <line x1="50" y1="16" x2="50" y2="112" stroke="#6fe3a8" stroke-width="2" />
+                                        <circle cx="50" cy="56" r="6" fill="#6fe3a8" />
                                     </svg>
                                     <div class="about-hero-text">
                                         <h1>Pavise</h1>

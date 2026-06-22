@@ -581,26 +581,6 @@ active.isContentEditable)
     }
 });
 
-// ── Theme toggle ──
-const themeToggle = document.getElementById("theme-toggle");
-function setTheme(theme) {
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("pavise-theme", theme);
-}
-themeToggle.addEventListener("click", () => {
-    const current = document.documentElement.getAttribute("data-theme");
-    setTheme(current === "dark" ? "light" : "dark");
-});
-// Init theme from localStorage or system preference
-(function() {
-    const stored = localStorage.getItem("pavise-theme");
-    if (stored) {
-        setTheme(stored);
-    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-        setTheme("dark");
-    }
-})();
-
 // ── Console easter egg ──
 console.log(
     "%c⬡ Pavise%c  iOS Security Analyzer\n%cParsing Mach-O since 2024. Built with Rust.\ngithub.com/ahmetmutlugun",
