@@ -165,7 +165,12 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
         },
     });
 
-    if !has_canary {
+    // Canary status reflects app hardening at the main-executable level. A
+    // framework/dylib lacking the symbol is far lower signal and must NOT raise
+    // a HIGH app-wide finding (it previously did, contradicting the main
+    // binary's own SECURE protection). The main executable lacking the canary is
+    // the genuine HIGH; framework gaps are reported separately and downgraded.
+    if !has_canary && is_executable {
         findings.push(Finding {
             id: "QS-BIN-002".to_string(),
             title: "Stack Canary Not Found".to_string(),
@@ -181,6 +186,26 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
             owasp_masvs: Some("MSTG-CODE-9".to_string()),
             evidence: vec![format!("___stack_chk_fail absent in {}", path)],
             remediation: Some("Compile with stack protection enabled: -fstack-protector-all (Xcode default for release builds).".to_string()),
+        });
+    } else if !has_canary {
+        // Framework/dylib without a canary — separate, downgraded finding that
+        // never collides with the main executable's SECURE QS-BIN-002.
+        findings.push(Finding {
+            id: "QS-BIN-008".to_string(),
+            title: "Framework Binary Without Stack Canary".to_string(),
+            description: format!(
+                "The bundled framework binary '{}' was built without stack canaries \
+                (___stack_chk_fail absent). The main app binary's protection is unaffected, \
+                but overflow bugs in this dependency would go undetected.",
+                path
+            ),
+            severity: Severity::Warning,
+            category: "binary".to_string(),
+            cwe: Some("CWE-121".to_string()),
+            owasp_mobile: Some("M7".to_string()),
+            owasp_masvs: Some("MSTG-CODE-9".to_string()),
+            evidence: vec![format!("___stack_chk_fail absent in {}", path)],
+            remediation: Some("Rebuild the dependency with -fstack-protector-all, or update to a version that ships with stack protection.".to_string()),
         });
     } else if is_executable {
         findings.push(Finding {
@@ -248,7 +273,7 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
             },
         });
 
-        if !has_arc {
+        if !has_arc && is_executable {
             findings.push(Finding {
                 id: "QS-BIN-003".to_string(),
                 title: "ARC (Automatic Reference Counting) Not Detected".to_string(),
@@ -264,6 +289,26 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
                 owasp_masvs: Some("MSTG-CODE-9".to_string()),
                 evidence: vec![format!("_objc_release/_objc_retain absent despite _objc_msgSend in {}", path)],
                 remediation: Some("Enable ARC in Xcode build settings: 'Objective-C Automatic Reference Counting' = YES.".to_string()),
+            });
+        } else if !has_arc {
+            // Framework/dylib using the ObjC runtime without ARC — informational;
+            // many legitimate dependencies predate or opt out of ARC.
+            findings.push(Finding {
+                id: "QS-BIN-009".to_string(),
+                title: "Framework Binary Without ARC".to_string(),
+                description: format!(
+                    "The bundled framework binary '{}' uses the Objective-C runtime without ARC. \
+                    The main app binary is unaffected; manual memory management in this dependency \
+                    carries some use-after-free risk.",
+                    path
+                ),
+                severity: Severity::Info,
+                category: "binary".to_string(),
+                cwe: Some("CWE-416".to_string()),
+                owasp_mobile: Some("M7".to_string()),
+                owasp_masvs: Some("MSTG-CODE-9".to_string()),
+                evidence: vec![format!("_objc_release/_objc_retain absent despite _objc_msgSend in {}", path)],
+                remediation: Some("Prefer dependencies built with ARC enabled.".to_string()),
             });
         } else if is_executable {
             findings.push(Finding {
@@ -308,7 +353,10 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
         },
     });
 
-    if !has_code_signature {
+    // Embedded frameworks/dylibs frequently lack an individual LC_CODE_SIGNATURE
+    // (they are covered by the app's outer signature), so a missing per-framework
+    // signature is not a vulnerability. Only the main executable matters here.
+    if !has_code_signature && is_executable {
         findings.push(Finding {
             id: "QS-BIN-004".to_string(),
             title: "Code Signature Missing".to_string(),
@@ -447,7 +495,12 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
         },
     });
 
-    if has_debug_symbols {
+    // Only the main executable's strip state is reported. Bundled frameworks
+    // commonly retain symbols and are lower signal; flagging each one inflates
+    // the report. (See check_debug_symbols: detection is DWARF-based, not a
+    // symbol-count heuristic, so a stripped binary with a dynamic symbol table
+    // is no longer misreported as "not stripped".)
+    if has_debug_symbols && is_executable {
         findings.push(Finding {
             id: "QS-BIN-007".to_string(),
             title: "Debug Symbols Not Stripped".to_string(),
@@ -651,8 +704,11 @@ fn extract_dwarf_source_paths(macho: &MachO) -> Vec<String> {
 }
 
 fn check_debug_symbols(macho: &MachO) -> bool {
-    // Check for __DWARF segment (present when dSYM is embedded in the binary)
-    // and __debug_* sections (DWARF debug info in individual sections).
+    // Debug info is indicated by a __DWARF segment (embedded dSYM) or __debug_*
+    // sections. We deliberately do NOT infer "not stripped" from symbol-table
+    // size: even a fully stripped Mach-O retains a dynamic symbol table
+    // (imports/exports), so a symbol count threshold produced false positives
+    // (pavise reporting "not stripped" where MobSF and `nm` agree it is).
     for seg in &macho.segments {
         if seg.name().ok() == Some("__DWARF") {
             return true;
@@ -664,15 +720,6 @@ fn check_debug_symbols(macho: &MachO) -> bool {
                     return true;
                 }
             }
-        }
-    }
-
-    // Check for non-empty symtab
-    if let Some(syms) = &macho.symbols {
-        let count = syms.iter().count();
-        if count > 5 {
-            // More than a few symbols = not fully stripped
-            return true;
         }
     }
 

@@ -27,13 +27,39 @@ const BINARY_NOISE_EXTENSIONS: &[&str] = &[
     ".npz",
     ".caffemodel",
     ".model",
+    // Bundled reference datasets. These contain thousands of domains/IPs/strings
+    // that are static library data, not the app's own endpoints or secrets.
+    // Scanning them produced 773 spurious "domains" (Bitwarden's
+    // public_suffix_list.dat) and ~2899 garbage "hardcoded IPs" (Orbot's GeoIP /
+    // bridge lists).
+    ".dat",
+    ".mmdb", // MaxMind GeoIP2 binary database
+];
+
+/// Bundled reference-data files matched by name rather than extension.
+const REFERENCE_DATA_NAMES: &[&str] = &[
+    "public_suffix_list.dat",
+    "effective_tld_names.dat",
+    "publicsuffixlist",
+    "geoip",
+    "geolite",
+    "geoip2",
+    "geoipcity",
+    "tlds-alpha-by-domain",
 ];
 
 pub fn is_noise_file(path: &str) -> bool {
     let lower = path.to_lowercase();
-    BINARY_NOISE_EXTENSIONS
+    if BINARY_NOISE_EXTENSIONS
         .iter()
         .any(|ext| lower.ends_with(ext))
+    {
+        return true;
+    }
+    // Match the file name (last path component) against known reference datasets,
+    // so e.g. "MaxMindDB/GeoLite2-City.mmdb" or "Resources/GeoIP.dat" are skipped.
+    let name = lower.rsplit('/').next().unwrap_or(&lower);
+    REFERENCE_DATA_NAMES.iter().any(|n| name.contains(n))
 }
 
 #[cfg(test)]
@@ -93,5 +119,16 @@ mod tests {
             !is_noise_file("Source/AppDelegate.swift"),
             ".swift should not be noise"
         );
+    }
+
+    #[test]
+    fn test_noise_file_reference_datasets() {
+        // Bundled reference data must be skipped — by name and by extension.
+        assert!(is_noise_file("Payload/App.app/public_suffix_list.dat"));
+        assert!(is_noise_file("Resources/MaxMindDB/GeoLite2-City.mmdb"));
+        assert!(is_noise_file("Frameworks/X.framework/GeoIP.dat"));
+        // A normal config file with real endpoints/secrets must NOT be skipped.
+        assert!(!is_noise_file("App.app/config.json"));
+        assert!(!is_noise_file("App.app/Settings.plist"));
     }
 }

@@ -62,6 +62,19 @@ fn is_false_positive(s: &str, source_path: &str) -> bool {
         return true;
     }
 
+    // Core Data managed-object-model artifacts: `.momd/VersionInfo.plist` holds
+    // version hashes that look high-entropy but are build artifacts, not secrets.
+    if source_path.contains(".momd/") || source_path.ends_with("VersionInfo.plist") {
+        return true;
+    }
+
+    // Vendored JS/HTML template noise: template literals (`${...}`, backticks)
+    // and inline HTML fragments score high but are code, not secrets. This is
+    // the dominant false-positive source in bundled libs like hterm_all.js.
+    if s.contains("${") || s.contains('`') || s.contains("</") || s.contains("<div") {
+        return true;
+    }
+
     let len = s.len();
 
     // Pure hex hash (MD5=32, SHA1=40, SHA256=64)
@@ -69,8 +82,11 @@ fn is_false_positive(s: &str, source_path: &str) -> bool {
         return true;
     }
 
-    // Ignore high entropy in CSS/HTML if it looks like Base64 (common for embedded icons/images)
-    if (source_path.ends_with(".css") || source_path.ends_with(".html"))
+    // Ignore high entropy in CSS/HTML/JS if it looks like Base64 (common for
+    // embedded icons/images/fonts and inlined data blobs in vendored JS bundles).
+    if (source_path.ends_with(".css")
+        || source_path.ends_with(".html")
+        || source_path.ends_with(".js"))
         && (s.contains("data:image/") || (s.len() > 32 && s.contains('=')))
     {
         return true;
@@ -303,5 +319,29 @@ mod tests {
             results.is_empty(),
             "Base64 asset in CSS should be filtered, got: {results:?}"
         );
+    }
+
+    #[test]
+    fn test_js_base64_filtered() {
+        // Base64 data blobs in vendored JS bundles (e.g. hterm_all.js) are noise.
+        let blob = "7Awh4rh28ygQCR6ISg8Awh4rh28ygQCR6ISg==";
+        let results = scan_for_high_entropy(&[blob], "Payload/App.app/hterm_all.js");
+        assert!(results.is_empty(), "Base64 blob in JS should be filtered, got: {results:?}");
+    }
+
+    #[test]
+    fn test_template_literal_filtered() {
+        // Template-literal / HTML fragments from vendored JS must be filtered.
+        let tmpl = "${copyImage}<div>${hterm.msg('NOTIFY_COPY')}</div>X9zQ";
+        let results = scan_for_high_entropy(&[tmpl], "Payload/App.app/hterm_all.js");
+        assert!(results.is_empty(), "Template literal should be filtered, got: {results:?}");
+    }
+
+    #[test]
+    fn test_coredata_versioninfo_filtered() {
+        // Core Data .momd/VersionInfo.plist holds high-entropy model hashes.
+        let hash = ",7U9u4XCfiZxqLPZXkAnaDWbKXabc123DEF456==";
+        let results = scan_for_high_entropy(&[hash], "App.app/Model.momd/VersionInfo.plist");
+        assert!(results.is_empty(), "Core Data version hash should be filtered, got: {results:?}");
     }
 }

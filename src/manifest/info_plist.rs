@@ -271,6 +271,28 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
         });
     }
 
+    // Global Certificate Transparency disabled (top-level, not per-domain).
+    // Distinct from QS-ATS-009, which covers CT disabled within a single
+    // NSExceptionDomains entry.
+    if ats_dict
+        .get("NSRequiresCertificateTransparency")
+        .and_then(|v| v.as_boolean())
+        == Some(false)
+    {
+        findings.push(Finding {
+            id: "QS-ATS-013".to_string(),
+            title: "ATS: Certificate Transparency Not Required (global)".to_string(),
+            description: "NSRequiresCertificateTransparency is false at the top level of NSAppTransportSecurity, disabling CT enforcement for all connections. CT logs are not consulted, weakening detection of mis-issued certificates.".to_string(),
+            severity: Severity::Info,
+            category: "network".to_string(),
+            cwe: Some("CWE-295".to_string()),
+            owasp_mobile: Some("M5".to_string()),
+            owasp_masvs: Some("MSTG-NETWORK-3".to_string()),
+            evidence: vec!["NSRequiresCertificateTransparency: false".to_string()],
+            remediation: Some("Remove NSRequiresCertificateTransparency or set it to true (the iOS default). Ensure server certificates are CT-logged.".to_string()),
+        });
+    }
+
     // ------------------------------------------------------------------ //
     // Per-domain exception sub-flags. Each (rule, domain) tuple produces a
     // separate finding; rule IDs are stable across domains, so the global

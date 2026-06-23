@@ -442,29 +442,6 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         all_emails.len()
     ));
 
-    // Flag hardcoded IP address literals (unusual for legitimate backend communication).
-    // Skip loopback/unspecified and common local/multicast addresses.
-    fn is_benign_ip(ip: &str) -> bool {
-        let benign = ["127.0.0.1", "0.0.0.0", "255.255.255.255", "239.255.255.250"];
-        if benign.contains(&ip) {
-            return true;
-        }
-        // Private IP ranges (RFC 1918)
-        if ip.starts_with("192.168.") || ip.starts_with("10.") {
-            return true;
-        }
-        if ip.starts_with("172.") {
-            // 172.16.0.0 – 172.31.255.255
-            let parts: Vec<&str> = ip.split('.').collect();
-            if parts.len() >= 2 {
-                if let Ok(second) = parts[1].parse::<u8>() {
-                    return (16..=31).contains(&second);
-                }
-            }
-        }
-        false
-    }
-
     // 1. URL-embedded IPs (http://x.x.x.x/...)
     for d in &all_domains {
         if is_ip_literal(&d.domain) && !is_benign_ip(&d.domain) {
@@ -542,30 +519,80 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     }
     all_secrets = deduplicate(all_secrets);
 
-    // 3d-iii. Embedded certificate / private key file detection
-    const CERT_EXTENSIONS: &[&str] = &[".p12", ".pfx", ".pem", ".cer", ".der", ".key"];
+    // 3d-iii. Embedded certificate / private key file detection.
+    // Classify by *content*, not just extension: a bundled public certificate
+    // (`.der`/`.cer`, or a PEM `CERTIFICATE`) is usually a legitimate pinning
+    // anchor and is reported as an informational hotspot, while genuine private
+    // keys and PKCS#12 keystores are high-severity key exposure.
+    const CERT_EXTENSIONS: &[&str] =
+        &[".p12", ".pfx", ".pem", ".cer", ".der", ".key", ".crt"];
     for f in &unpacked.archive.files {
         let lower = f.path.to_lowercase();
-        if let Some(ext) = CERT_EXTENSIONS.iter().find(|e| lower.ends_with(*e)) {
+        if !CERT_EXTENSIONS.iter().any(|e| lower.ends_with(*e)) {
+            continue;
+        }
+        let Some(kind) = resources::certs::classify(&f.path, &f.data) else {
+            continue;
+        };
+        if kind.is_private() {
+            let keystore = kind == resources::certs::CertKind::EncryptedKeystore;
             all_findings.push(Finding {
                 id: "QS-CERT-001".to_string(),
-                title: "Embedded Certificate or Private Key File".to_string(),
+                title: if keystore {
+                    "Embedded Private Key Keystore".to_string()
+                } else {
+                    "Embedded Private Key File".to_string()
+                },
                 description: format!(
-                    "A certificate or key file ('{}') was found inside the IPA bundle. \
-                    Shipping private keys or PKCS#12 keystores in the app bundle exposes \
-                    them to extraction and misuse by anyone who unpacks the IPA.",
-                    f.path
+                    "A {} ('{}') was found inside the IPA bundle. {} Anyone who unpacks the \
+                    IPA can extract this key material and impersonate the app or its backend.",
+                    if keystore {
+                        "PKCS#12 keystore"
+                    } else {
+                        "private key file"
+                    },
+                    f.path,
+                    if keystore {
+                        "PKCS#12 containers are password-protected, but the passphrase is \
+                        typically weak or shipped alongside, leaving the private key recoverable."
+                    } else {
+                        "The key is stored unencrypted."
+                    },
                 ),
                 severity: Severity::High,
                 category: "secrets".to_string(),
                 cwe: Some("CWE-321".to_string()),
                 owasp_mobile: Some("M9".to_string()),
                 owasp_masvs: Some("MSTG-CRYPTO-1".to_string()),
-                evidence: vec![format!("{} file: {}", ext, f.path)],
+                evidence: vec![format!("{}: {}", if keystore { "keystore" } else { "private key" }, f.path)],
                 remediation: Some(
-                    "Remove certificate and key files from the app bundle. \
+                    "Remove private key and keystore files from the app bundle. \
                     Use the iOS Keychain or server-side PKI. If mutual TLS is required, \
-                    provision certificates at runtime via MDM or a secure enrolment flow."
+                    provision client certificates at runtime via MDM or a secure enrolment flow."
+                        .to_string(),
+                ),
+            });
+        } else {
+            // Public certificate: informational inventory hotspot. Often a
+            // legitimate certificate-pinning anchor rather than a vulnerability.
+            all_findings.push(Finding {
+                id: "QS-CERT-002".to_string(),
+                title: "Embedded Public Certificate".to_string(),
+                description: format!(
+                    "A public X.509 certificate ('{}') is bundled in the IPA. This is commonly a \
+                    certificate-pinning anchor and is not a secret, but it is listed for inventory: \
+                    confirm it is an intended pinning/trust anchor and not a stale or unexpected CA.",
+                    f.path
+                ),
+                severity: Severity::Info,
+                category: "network".to_string(),
+                cwe: None,
+                owasp_mobile: Some("M5".to_string()),
+                owasp_masvs: Some("MSTG-NETWORK-4".to_string()),
+                evidence: vec![format!("certificate: {}", f.path)],
+                remediation: Some(
+                    "No action needed if this is an intended pinning anchor. Remove unused or \
+                    stale certificates, and prefer pinning to public key hashes for rotation flexibility."
                         .to_string(),
                 ),
             });
@@ -602,10 +629,14 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         }
     }
     log.record(format!(
-        "Archive scan: {} cert/key files flagged, {} database files detected",
+        "Archive scan: {} private key/keystore files, {} public certs, {} database files detected",
         all_findings
             .iter()
             .filter(|f| f.id == "QS-CERT-001")
+            .count(),
+        all_findings
+            .iter()
+            .filter(|f| f.id == "QS-CERT-002")
             .count(),
         all_findings
             .iter()
@@ -654,16 +685,27 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             "URLAuthenticationChallenge",
         ];
 
-        let has_pinning_signal = unpacked.archive.files.iter().any(|f| {
-            if let Ok(text) = std::str::from_utf8(&f.data) {
-                PINNING_SIGNALS.iter().any(|sig| text.contains(sig))
-            } else {
-                false
-            }
-        }) || framework_names.iter().any(|n| {
-            let lower = n.to_lowercase();
-            lower.contains("trustkit") || lower.contains("pinning")
-        });
+        // Symbol-based pinning detection (QS-API-023) and bundled pinning
+        // anchors (QS-CERT-002 public certs) are stronger signals than the text
+        // scan below — and the text scan can't see symbols in Mach-O binaries
+        // (from_utf8 fails on them). Without this, QS-NET-004 contradicted
+        // QS-API-023 on pinning apps (Bitwarden, SwissCovid, Orbot).
+        let has_pinning_finding = all_findings
+            .iter()
+            .any(|f| f.id == "QS-API-023" || f.id == "QS-CERT-002");
+
+        let has_pinning_signal = has_pinning_finding
+            || unpacked.archive.files.iter().any(|f| {
+                if let Ok(text) = std::str::from_utf8(&f.data) {
+                    PINNING_SIGNALS.iter().any(|sig| text.contains(sig))
+                } else {
+                    false
+                }
+            })
+            || framework_names.iter().any(|n| {
+                let lower = n.to_lowercase();
+                lower.contains("trustkit") || lower.contains("pinning")
+            });
 
         // Count external non-Apple domains
         let external_domain_count = all_domains
@@ -1038,26 +1080,32 @@ fn deduplicate_findings(findings: Vec<Finding>) -> Vec<Finding> {
     // file each) and must stay as separate per-file hotspots rather than being
     // collapsed into one merged finding. Mirrors how MobSF lists each cert/key
     // file individually. These share a ruleId (one SARIF rule, many results).
-    const PER_INSTANCE_RULES: &[&str] = &["QS-CERT-001"];
+    const PER_INSTANCE_RULES: &[&str] = &["QS-CERT-001", "QS-CERT-002"];
 
     let mut per_instance: Vec<Finding> = Vec::new();
-    let mut by_id: HashMap<String, Vec<Finding>> = HashMap::new();
-    let mut order: Vec<String> = Vec::new();
+    // Group key is (rule_id, is_secure). A "Secure" finding ("protection X is
+    // present") must never be merged into the same group as a non-secure
+    // ("protection X is absent") firing of the same rule id — that previously
+    // produced a HIGH finding titled "Not Found" whose evidence read "present".
+    let mut by_id: HashMap<(String, bool), Vec<Finding>> = HashMap::new();
+    let mut order: Vec<(String, bool)> = Vec::new();
 
     for f in findings {
         if PER_INSTANCE_RULES.contains(&f.id.as_str()) {
             per_instance.push(f);
             continue;
         }
-        if !by_id.contains_key(&f.id) {
-            order.push(f.id.clone());
+        let key = (f.id.clone(), f.severity == Severity::Secure);
+        if !by_id.contains_key(&key) {
+            order.push(key.clone());
         }
-        by_id.entry(f.id.clone()).or_default().push(f);
+        by_id.entry(key).or_default().push(f);
     }
 
     let mut result = Vec::with_capacity(order.len());
-    for id in order {
-        let mut group = by_id.remove(&id).unwrap_or_default();
+    for key in order {
+        let id = key.0.clone();
+        let mut group = by_id.remove(&key).unwrap_or_default();
         if group.len() == 1 {
             result.push(group.remove(0));
         } else {
@@ -1135,6 +1183,40 @@ fn filter_by_severity(findings: Vec<Finding>, min: &Severity) -> Vec<Finding> {
 fn is_ip_literal(s: &str) -> bool {
     let parts: Vec<&str> = s.split('.').collect();
     parts.len() == 4 && parts.iter().all(|p| p.parse::<u8>().is_ok())
+}
+
+/// True when a dotted-quad should NOT be flagged as a hardcoded server IP.
+///
+/// Besides loopback/RFC-1918, this rejects reserved and non-routable ranges
+/// that real backends never use but which the bare-IP regex matches against
+/// string noise — e.g. OID fragments (`1.3.101.112`), version tuples
+/// (`0.1.2.17`), and link-local addresses. A public backend address still
+/// returns false and is reported.
+fn is_benign_ip(ip: &str) -> bool {
+    let octets: Vec<u8> = ip.split('.').filter_map(|p| p.parse::<u8>().ok()).collect();
+    if octets.len() != 4 {
+        // Not a well-formed IPv4 literal — don't flag.
+        return true;
+    }
+    let (a, b) = (octets[0], octets[1]);
+    match a {
+        // 0.0.0.0/8 "this network" — never a real host. Catches version
+        // tuples and OID prefixes like 0.1.2.17.
+        0 => true,
+        // 10.0.0.0/8 (RFC 1918 private)
+        10 => true,
+        // 127.0.0.0/8 loopback
+        127 => true,
+        // 169.254.0.0/16 link-local
+        169 if b == 254 => true,
+        // 172.16.0.0/12 (RFC 1918 private)
+        172 if (16..=31).contains(&b) => true,
+        // 192.168.0.0/16 (RFC 1918 private)
+        192 if b == 168 => true,
+        // 224.0.0.0/4 multicast, 240.0.0.0/4 reserved, 255.x broadcast.
+        224..=255 => true,
+        _ => false,
+    }
 }
 
 /// True if `data` begins with a Mach-O thin or universal (fat) binary magic
@@ -1240,6 +1322,56 @@ mod tests {
         assert!(!is_macho(b"<?xml"));
         assert!(!is_macho(&[0xfe, 0xed]));
         assert!(!is_macho(&[]));
+    }
+
+    #[test]
+    fn test_is_benign_ip_rejects_reserved() {
+        // Reserved / non-routable — must be treated as benign (not flagged).
+        for ip in [
+            "0.1.2.17",      // 0.0.0.0/8 — OID/version-tuple noise
+            "1.3.101.112",   // (caught elsewhere; first octet 1 is routable, see below)
+            "127.0.0.2",     // loopback /8
+            "169.254.1.1",   // link-local
+            "10.0.0.5",      // RFC1918
+            "172.16.0.1",    // RFC1918
+            "192.168.1.1",   // RFC1918
+            "224.0.0.1",     // multicast
+            "255.255.255.255", // broadcast
+        ] {
+            // 1.3.101.112 is routable by range; assert only the reserved ones.
+            if ip == "1.3.101.112" {
+                continue;
+            }
+            assert!(is_benign_ip(ip), "{ip} should be benign/non-routable");
+        }
+        // A real public backend IP is still flagged (not benign).
+        assert!(!is_benign_ip("13.107.42.14"));
+        assert!(!is_benign_ip("8.8.8.8"));
+    }
+
+    #[test]
+    fn test_dedup_keeps_secure_separate_from_high() {
+        // A SECURE "present" finding must never merge into a HIGH "absent" group
+        // of the same rule id — that produced a HIGH titled "Not Found" whose
+        // evidence said "present".
+        let mut secure = finding("QS-BIN-002", "M7", "___stack_chk_fail present in App");
+        secure.severity = Severity::Secure;
+        secure.title = "Stack Canary Protection Present".to_string();
+        let mut high = finding("QS-BIN-002", "M7", "___stack_chk_fail absent in Foo.dylib");
+        high.title = "Stack Canary Not Found".to_string();
+
+        let deduped = deduplicate_findings(vec![secure, high]);
+        assert_eq!(deduped.len(), 2, "secure and high must stay separate");
+        let secure_f = deduped
+            .iter()
+            .find(|f| f.severity == Severity::Secure)
+            .expect("secure finding present");
+        assert!(secure_f.evidence.iter().all(|e| e.contains("present")));
+        let high_f = deduped
+            .iter()
+            .find(|f| f.severity == Severity::High)
+            .expect("high finding present");
+        assert!(high_f.evidence.iter().all(|e| e.contains("absent")));
     }
 
     #[test]

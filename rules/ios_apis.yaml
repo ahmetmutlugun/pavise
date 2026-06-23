@@ -6,11 +6,16 @@
     - _sprintf
     - _gets
     - _vsprintf
+    # _sscanf: unbounded %s parsing → buffer overflow. _strncpy: does not
+    # NUL-terminate on truncation → over-read. Both are high-signal; deliberately
+    # excludes ubiquitous low-signal funcs (_memcpy/_strlen/_fopen).
+    - _sscanf
+    - _strncpy
   severity: warning
   cwe: "CWE-676"
   owasp_mobile: "M7"
   owasp_masvs: "MSTG-CODE-8"
-  remediation: "Replace with bounds-checked alternatives (strlcpy, strlcat, snprintf, etc.)"
+  remediation: "Replace with bounds-checked alternatives (strlcpy, strlcat, snprintf, sscanf with field widths, etc.)"
 
 - id: QS-API-002
   title: "Use of NSLog for logging (may leak sensitive data)"
@@ -204,17 +209,20 @@
   owasp_masvs: "MSTG-STORAGE-1"
   remediation: "Set an encryption key on RLMRealmConfiguration.encryptionKey. Unencrypted Realm databases are readable by anyone who extracts the device storage"
 
+# Only _SecTrustSetExceptions is a genuine validation-bypass primitive (it tells
+# SecTrust to ignore specific trust errors). _SecTrustEvaluateWithError is the
+# CORRECT modern trust-evaluation API and _SecTrustSetVerifyDate has legitimate
+# uses (e.g. consensus-time validation in Tor) — matching them produced false
+# HIGHs on every TLS-using app (Bitwarden, SwissCovid, Orbot, OnionBrowser).
 - id: QS-API-020
   title: "SSL/TLS certificate validation bypass"
   symbols:
     - _SecTrustSetExceptions
-    - _SecTrustSetVerifyDate
-    - _SecTrustEvaluateWithError
   severity: high
   cwe: "CWE-295"
   owasp_mobile: "M3"
   owasp_masvs: "MSTG-NETWORK-3"
-  remediation: "Never call SecTrustSetExceptions or override URLSession challenge handlers to accept invalid certificates. Use proper certificate pinning via TrustKit instead"
+  remediation: "Never call SecTrustSetExceptions to accept invalid certificates. Validate trust with SecTrustEvaluateWithError and implement certificate pinning instead"
 
 - id: QS-API-021
   title: "WKWebView with JavaScript (verify content trust)"

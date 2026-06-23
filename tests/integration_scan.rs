@@ -60,6 +60,28 @@ fn test_cert_file_triggers_finding() {
 }
 
 #[test]
+fn test_public_cert_is_info_not_high() {
+    // A bundled public certificate (common pinning anchor) must be reported as
+    // an informational QS-CERT-002 hotspot, not a high-severity QS-CERT-001
+    // private-key exposure.
+    let pem = b"-----BEGIN CERTIFICATE-----\nMIIBfakecertdata==\n-----END CERTIFICATE-----\n";
+    let ipa = common::IpaBuilder::new("TestApp")
+        .add_bundle_file("certs/pinned.pem", pem)
+        .build();
+
+    let report = scan_ipa(ipa.path(), &default_opts()).expect("scan_ipa should succeed");
+    assert!(
+        report.findings.iter().any(|f| f.id == "QS-CERT-002"),
+        "Expected QS-CERT-002 for a public certificate, findings: {:?}",
+        report.findings.iter().map(|f| &f.id).collect::<Vec<_>>()
+    );
+    assert!(
+        !report.findings.iter().any(|f| f.id == "QS-CERT-001"),
+        "Public certificate must not raise a high-severity QS-CERT-001 finding"
+    );
+}
+
+#[test]
 fn test_sqlite_triggers_finding() {
     let ipa = common::IpaBuilder::new("TestApp")
         .add_bundle_file("data/app.sqlite", b"SQLite format 3\x00")

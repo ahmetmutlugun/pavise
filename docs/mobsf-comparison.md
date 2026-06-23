@@ -61,9 +61,9 @@ MobSF's `code_analysis`, `macho_analysis`, and `binary_analysis` sections were *
 
 ### Recommended pavise additions
 
-1. Email regex over the strings already extracted from Mach-Os.
-2. Bundle Exodus-Privacy tracker DB for category + reference URL per tracker.
-3. Structured `.der`/`.pem`/`.p12` file enumeration separate from the "embedded cert/key" finding.
+1. ~~Email regex over the strings already extracted from Mach-Os.~~ **Done** — `src/patterns/emails.rs`.
+2. ~~Bundle Exodus-Privacy tracker DB for category + reference URL per tracker.~~ **Done** — categories + website per tracker in `rules/trackers.yaml`.
+3. ~~Structured `.der`/`.pem`/`.p12` file enumeration separate from the "embedded cert/key" finding.~~ **Done** — `src/resources/certs.rs` classifies by content: private keys/PKCS#12 → high `QS-CERT-001`, public certs → info `QS-CERT-002` (avoids flagging pinning anchors as key leaks).
 
 ## Methodology notes
 

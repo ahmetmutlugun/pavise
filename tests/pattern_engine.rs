@@ -30,7 +30,12 @@ fn test_aws_key_detected() {
 #[test]
 fn test_private_key_detected() {
     let engine = PatternEngine::load(&common::rules_dir()).unwrap();
-    let text = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQ...\n-----END RSA PRIVATE KEY-----";
+    // A real PEM key: banner followed by a base64 body. QS-SEC-004 now requires
+    // the body, not just the banner.
+    let text = "-----BEGIN RSA PRIVATE KEY-----\n\
+        MIIEowIBAAKCAQEAq7BFUpkGp3+LQmlQYx2eqzDV+xeG8kx/sQFV18S5JCMe\n\
+        Vu0XAVdAOr4QFx4uF6t8qGYwLPpYz0bYzVqQ1mF6sJrZ4Hn8K9vN2pQ==\n\
+        -----END RSA PRIVATE KEY-----";
     let matches = engine.scan(text, "keys/server.pem");
     let key_match = matches.iter().find(|m| m.rule_id == "QS-SEC-004");
     assert!(
@@ -38,6 +43,19 @@ fn test_private_key_detected() {
         "Expected QS-SEC-004 match for private key, got: {matches:?}"
     );
     assert_eq!(key_match.unwrap().severity, Severity::High);
+}
+
+#[test]
+fn test_private_key_banner_only_not_flagged() {
+    // The bare PEM banner appears as a string constant in crypto libraries that
+    // ship no key. It must NOT trigger QS-SEC-004 (false-positive fix).
+    let engine = PatternEngine::load(&common::rules_dir()).unwrap();
+    let text = "log: failed to parse -----BEGIN RSA PRIVATE KEY----- header";
+    let matches = engine.scan(text, "Frameworks/libcrypto.dylib");
+    assert!(
+        !matches.iter().any(|m| m.rule_id == "QS-SEC-004"),
+        "Banner without a key body must not match QS-SEC-004, got: {matches:?}"
+    );
 }
 
 #[test]
