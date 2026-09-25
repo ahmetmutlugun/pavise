@@ -1,0 +1,34 @@
+name: Refresh EOL data
+
+# Weekly refresh of data/eol/ (endoflife.date snapshots compiled into pavise).
+# Opens a PR only when a release line's support status or dates changed.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch snapshots
+        run: scripts/update-eol.sh
+
+      # PRs opened with GITHUB_TOKEN don't trigger other workflows; CI runs
+      # once someone pushes to the branch or closes and reopens the PR.
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/eol-refresh
+          commit-message: "Refresh end-of-life data from endoflife.date"
+          title: "Refresh end-of-life data"
+          body: |
+            Automated refresh of `data/eol/` by `scripts/update-eol.sh`.
+            Changed release lines alter which bundled libraries raise QS-SCA-001.
+          labels: dependencies
+          delete-branch: true

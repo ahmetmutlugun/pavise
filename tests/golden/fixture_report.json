@@ -19,10 +19,6 @@
     {
       "context": "Payload/Golden.app/Config.plist",
       "domain": "api.example-backend.com"
-    },
-    {
-      "context": "Payload/Golden.app/Info.plist",
-      "domain": "www.apple.com"
     }
   ],
   "emails": [],
@@ -308,7 +304,7 @@
     },
     {
       "elapsed_ms": 0,
-      "step": "String scan: 2 secrets, 2 unique domains, 0 emails extracted"
+      "step": "String scan: 2 secrets, 1 unique domains, 0 emails extracted"
     },
     {
       "elapsed_ms": 0,
@@ -316,7 +312,7 @@
     },
     {
       "elapsed_ms": 0,
-      "step": "Tracker detection: 0 trackers identified from 2 domains and 0 frameworks"
+      "step": "Tracker detection: 0 trackers identified from 1 domains and 0 frameworks"
     },
     {
       "elapsed_ms": 0,

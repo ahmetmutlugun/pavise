@@ -22,6 +22,8 @@ Fast iOS IPA static security analyzer
 ## Benchmarks
 
 - [MobSF comparison](docs/mobsf-comparison.md): performance + accuracy vs MobSF on DVIA/Navic/VLC (2026-05-22)
+- [EOL library detection](docs/eol-data.md): banner-based library versions, endoflife.date snapshots in `data/eol/`, weekly refresh (2026-09-25)
+- [Finding attribution](docs/finding-attribution.md): library-vs-app API severity, URL/domain noise, OpenSSL EOL, sideload context (2026-09-25)
 
 ## Plans
 

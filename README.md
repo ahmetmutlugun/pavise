@@ -1,7 +1,10 @@
 # Pavise
 
+<!-- Crates.io badge disabled: the `pavise` crate name belongs to someone else (a 0.0.1
+     placeholder). Re-enable with the new crate name once it is published.
 [![Crates.io](https://img.shields.io/crates/v/pavise)](https://crates.io/crates/pavise)
-[![License: MPL-2.0](https://img.shields.io/crates/l/pavise)](LICENSE)
+-->
+[![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue)](LICENSE)
 [![CI](https://github.com/ahmetmutlugun/pavise/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmetmutlugun/pavise/actions/workflows/ci.yml)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://ghcr.io/ahmetmutlugun/pavise)
 
@@ -10,8 +13,8 @@ Fast static security analysis for iOS IPA files. Sub-second scans with comprehen
 ## Quick Start
 
 ```bash
-# Install
-cargo install pavise
+# Install (Rust 1.75+; builds in about a minute)
+cargo install --locked --git https://github.com/ahmetmutlugun/pavise --bin pavise
 
 # Scan
 pavise app.ipa
@@ -20,7 +23,10 @@ pavise app.ipa
 pavise app.ipa --format html -o report.html
 ```
 
-Or use Docker:
+Or build from a checkout: `cargo build --release`, then run `target/release/pavise`.
+PDF output (`--format pdf`) needs Chrome or Chromium installed.
+
+Or use Docker (linux/amd64 and linux/arm64; the image also serves the web UI by default):
 
 ```bash
 docker run --rm -v "$PWD:/work" ghcr.io/ahmetmutlugun/pavise pavise /work/app.ipa
@@ -32,10 +38,10 @@ docker run --rm -v "$PWD:/work" ghcr.io/ahmetmutlugun/pavise pavise /work/app.ip
 |----------|----------|
 | Binary protections | NX, PIE, ARC, encryption, RPATH, stack canaries |
 | Manifest analysis | Info.plist, entitlements, provisioning profiles |
-| Secret detection | 28 patterns — AWS, GCP, Azure, GitHub, Stripe, Slack, OpenAI, etc. |
+| Secret detection | 29 patterns — AWS, GCP, Azure, GitHub, Stripe, Slack, OpenAI, etc. |
 | Dangerous APIs | 15+ risky iOS APIs (strcpy, NSLog, malloc, etc.) |
 | Tracker detection | 20 advertising/analytics SDKs |
-| Supply chain | Framework inventory with version tracking |
+| Supply chain | Framework inventory; end-of-life detection for OpenSSL, FFmpeg, Qt, Unity, Python, jQuery and more ([endoflife.date](https://endoflife.date) data) |
 | Network intel | DNS resolution and IP geolocation (`--network`) |
 
 ## Output Formats

@@ -1,0 +1,111 @@
+{
+  "product": "lua",
+  "label": "Lua",
+  "releases": [
+    {
+      "name": "5.5",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.4",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.3",
+      "isEol": true,
+      "eolFrom": "2020-09-25",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.2",
+      "isEol": true,
+      "eolFrom": "2015-03-07",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.1",
+      "isEol": true,
+      "eolFrom": "2012-02-17",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.0",
+      "isEol": true,
+      "eolFrom": "2006-06-26",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "4.0",
+      "isEol": true,
+      "eolFrom": "2002-07-04",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.2",
+      "isEol": true,
+      "eolFrom": "2000-02-22",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.1",
+      "isEol": true,
+      "eolFrom": "1999-07-08",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.0",
+      "isEol": true,
+      "eolFrom": "1998-07-11",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.5",
+      "isEol": true,
+      "eolFrom": "1997-07-01",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.4",
+      "isEol": true,
+      "eolFrom": "1996-11-19",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.2",
+      "isEol": true,
+      "eolFrom": "1996-05-14",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.1",
+      "isEol": true,
+      "eolFrom": "1995-11-28",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.1",
+      "isEol": true,
+      "eolFrom": "1995-02-07",
+      "isEoes": null,
+      "eoesFrom": null
+    }
+  ]
+}

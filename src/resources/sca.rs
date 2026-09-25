@@ -2,6 +2,7 @@
 //! framework Info.plists bundled inside the IPA, and from CocoaPods/SPM
 //! lock files if present.
 
+use crate::resources::eol::LibraryVersion;
 use crate::types::FrameworkComponent;
 use crate::unpacker::UnpackedArchive;
 use anyhow::Result;
@@ -247,15 +248,84 @@ fn parse_framework_plist(data: &[u8]) -> (Option<String>, Option<String>) {
         .and_then(|v| v.as_string())
         .map(|s| s.to_string());
 
-    let version = dict
-        .get("CFBundleShortVersionString")
-        .and_then(|v| v.as_string())
-        .map(|s| s.to_string())
-        .or_else(|| {
-            dict.get("CFBundleVersion")
-                .and_then(|v| v.as_string())
-                .map(|s| s.to_string())
-        });
+    // Xcode's framework template ships `1.0` / `1`, and many vendored C
+    // libraries never change it; reporting that as the version misleads.
+    let version = ["CFBundleShortVersionString", "CFBundleVersion"]
+        .iter()
+        .filter_map(|k| dict.get(k).and_then(|v| v.as_string()))
+        .map(str::trim)
+        .find(|v| !is_placeholder_version(v))
+        .map(str::to_string);
 
     (bundle_id, version)
+}
+
+/// Template defaults and unexpanded build settings, not real versions.
+fn is_placeholder_version(v: &str) -> bool {
+    v.is_empty() || v.contains("$(") || ["0", "0.0", "0.0.0", "1", "1.0", "1.0.0"].contains(&v)
+}
+
+/// Fill in versions read from library banners: a bundled framework gets the
+/// banner version; a library inside another binary or a web asset becomes its
+/// own entry.
+pub fn apply_library_versions(components: &mut Vec<FrameworkComponent>, found: &[LibraryVersion]) {
+    for lib in found {
+        match components.iter_mut().find(|c| c.path == lib.path) {
+            Some(c) if c.version.is_none() => {
+                c.version = Some(lib.version.clone());
+                if !c.name.to_lowercase().contains(&lib.library.to_lowercase()) {
+                    c.name = format!("{} ({})", c.name, lib.library);
+                }
+            }
+            Some(_) => {}
+            None => components.push(FrameworkComponent {
+                name: lib.library.to_string(),
+                bundle_id: None,
+                version: Some(lib.version.clone()),
+                path: if lib.native {
+                    format!("{} (statically linked)", lib.path)
+                } else {
+                    lib.path.clone()
+                },
+                source_url: None,
+            }),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn banner_version_replaces_missing_framework_version() {
+        let path = "Payload/U.app/Frameworks/crypto.1.1.framework/crypto.1.1";
+        let mut comps = vec![FrameworkComponent {
+            name: "crypto.1.1".into(),
+            bundle_id: None,
+            version: None,
+            path: path.into(),
+            source_url: None,
+        }];
+        let lib = |path: &str, version: &str| LibraryVersion {
+            path: path.into(),
+            product: "openssl",
+            library: "OpenSSL",
+            version: version.into(),
+            native: true,
+        };
+        let found = vec![lib(path, "1.1.1k"), lib("Payload/U.app/U", "3.5.1")];
+        apply_library_versions(&mut comps, &found);
+        assert_eq!(comps[0].name, "crypto.1.1 (OpenSSL)");
+        assert_eq!(comps[0].version.as_deref(), Some("1.1.1k"));
+        assert_eq!(comps[1].path, "Payload/U.app/U (statically linked)");
+    }
+
+    #[test]
+    fn placeholder_versions_ignored() {
+        for v in ["1.0", "1", "$(MARKETING_VERSION)", ""] {
+            assert!(is_placeholder_version(v), "{v}");
+        }
+        assert!(!is_placeholder_version("5.6.4"));
+    }
 }

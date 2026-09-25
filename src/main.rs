@@ -255,16 +255,8 @@ fn main() -> Result<()> {
             "{}/100 {} — {} high, {} warning findings",
             report.security_score,
             report.grade,
-            report
-                .findings
-                .iter()
-                .filter(|f| f.severity == Severity::High)
-                .count(),
-            report
-                .findings
-                .iter()
-                .filter(|f| f.severity == Severity::Warning)
-                .count(),
+            severity_count(&report, Severity::High),
+            severity_count(&report, Severity::Warning),
         );
     }
 
@@ -316,6 +308,37 @@ fn main() -> Result<()> {
     }
 
     std::process::exit(if has_high { 1 } else { 0 });
+}
+
+/// Non-App-Store build type, when the IPA shows one (unsigned or a
+/// development/ad-hoc/enterprise profile).
+fn sideload_build(report: &ScanReport) -> Option<&str> {
+    let unsigned = report
+        .findings
+        .iter()
+        .any(|f| f.id == "QS-BIN-004" && f.severity != Severity::Secure);
+    if unsigned {
+        return Some("Unsigned");
+    }
+    report
+        .provisioning
+        .as_ref()
+        .map(|p| p.profile_type.as_str())
+        .filter(|t| *t != "app-store")
+}
+
+/// Findings plus secrets at `severity`, so the quiet line and the summary agree.
+fn severity_count(report: &ScanReport, severity: Severity) -> usize {
+    report
+        .findings
+        .iter()
+        .filter(|f| f.severity == severity)
+        .count()
+        + report
+            .secrets
+            .iter()
+            .filter(|s| s.severity == severity)
+            .count()
 }
 
 fn truncate_str(s: &str, max_bytes: usize) -> &str {
@@ -376,27 +399,16 @@ fn print_summary(report: &ScanReport, min_severity: &SeverityArg, verbose: bool)
         report.security_score,
         report.scan_duration_ms
     );
+    if let Some(build) = sideload_build(report) {
+        eprintln!(
+            "  {} {} build: signing, provisioning and encryption findings describe how it was distributed, not its code.",
+            "Build:".dimmed(),
+            build
+        );
+    }
 
-    let high_count = report
-        .findings
-        .iter()
-        .filter(|f| f.severity == Severity::High)
-        .count()
-        + report
-            .secrets
-            .iter()
-            .filter(|s| s.severity == Severity::High)
-            .count();
-    let warn_count = report
-        .findings
-        .iter()
-        .filter(|f| f.severity == Severity::Warning)
-        .count()
-        + report
-            .secrets
-            .iter()
-            .filter(|s| s.severity == Severity::Warning)
-            .count();
+    let high_count = severity_count(report, Severity::High);
+    let warn_count = severity_count(report, Severity::Warning);
     let info_count = report
         .findings
         .iter()

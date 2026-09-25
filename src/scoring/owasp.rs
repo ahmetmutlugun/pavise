@@ -45,7 +45,7 @@ impl ScoreClass {
             "QS-ATS" | "QS-NET" => ScoreClass::Network,
             "QS-ENT" | "QS-PROV" | "QS-SANDBOX" | "QS-IPC" | "QS-PERM" | "QS-PLIST" | "QS-PRIV"
             | "QS-FB" => ScoreClass::Platform,
-            "QS-CVE" => ScoreClass::Dependencies,
+            "QS-CVE" | "QS-SCA" => ScoreClass::Dependencies,
             _ => match category {
                 "secrets" => ScoreClass::Secrets,
                 "network" => ScoreClass::Network,
@@ -60,8 +60,10 @@ impl ScoreClass {
 /// Rules that never affect the score:
 /// - QS-BIN-005: FairPlay encryption is applied by Apple at download time, so
 ///   every sideloaded/CI build has cryptid = 0.
+/// - QS-PROV-001: a development/ad-hoc profile names how the build was
+///   distributed (every sideload/CI build has one), not a flaw in the app.
 /// - QS-PROV-002/003: profile expiry depends on the scan date, not the app.
-const UNSCORED: &[&str] = &["QS-BIN-005", "QS-PROV-002", "QS-PROV-003"];
+const UNSCORED: &[&str] = &["QS-BIN-005", "QS-PROV-001", "QS-PROV-002", "QS-PROV-003"];
 
 /// Map a rule ID to its root cause so one issue is only deducted once.
 fn root_cause(id: &str) -> &str {
@@ -203,12 +205,13 @@ mod tests {
 
     #[test]
     fn get_task_allow_is_not_an_a() {
-        // Dev build: get-task-allow + development profile.
+        // Dev build: get-task-allow deducts; the development profile itself
+        // (QS-PROV-001) only names the distribution channel.
         let findings = vec![
             make_finding("QS-ENT-001", Severity::High, "entitlements"),
             make_finding("QS-PROV-001", Severity::Warning, "configuration"),
         ];
-        assert_eq!(compute_score(&findings, &[]), (76, "C".to_string()));
+        assert_eq!(compute_score(&findings, &[]), (80, "B".to_string()));
     }
 
     #[test]
@@ -228,6 +231,7 @@ mod tests {
     fn fairplay_and_profile_expiry_unscored() {
         let findings = vec![
             make_finding("QS-BIN-005", Severity::Warning, "binary"),
+            make_finding("QS-PROV-001", Severity::Warning, "configuration"),
             make_finding("QS-PROV-002", Severity::High, "configuration"),
             make_finding("QS-PROV-003", Severity::Warning, "configuration"),
         ];

@@ -1,0 +1,272 @@
+{
+  "product": "ffmpeg",
+  "label": "FFmpeg",
+  "releases": [
+    {
+      "name": "9.0",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "8.1",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "8.0",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "7.1",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "7.0",
+      "isEol": true,
+      "eolFrom": "2026-06-22",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "6.1",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "6.0",
+      "isEol": true,
+      "eolFrom": "2024-07-11",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.1",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.0",
+      "isEol": true,
+      "eolFrom": "2023-04-02",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "4.4",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "4.3",
+      "isEol": true,
+      "eolFrom": "2026-06-21",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "4.2",
+      "isEol": true,
+      "eolFrom": "2026-06-21",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "4.1",
+      "isEol": true,
+      "eolFrom": "2024-07-21",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "4.0",
+      "isEol": true,
+      "eolFrom": "2020-07-03",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.4",
+      "isEol": true,
+      "eolFrom": "2026-06-21",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.3",
+      "isEol": true,
+      "eolFrom": "2018-11-18",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.2",
+      "isEol": true,
+      "eolFrom": "2022-10-28",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.1",
+      "isEol": true,
+      "eolFrom": "2017-09-25",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.0",
+      "isEol": true,
+      "eolFrom": "2018-10-28",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.8",
+      "isEol": true,
+      "eolFrom": "2026-06-21",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.7",
+      "isEol": true,
+      "eolFrom": "2016-04-30",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.6",
+      "isEol": true,
+      "eolFrom": "2016-05-03",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.5",
+      "isEol": true,
+      "eolFrom": "2016-02-02",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.4",
+      "isEol": true,
+      "eolFrom": "2017-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.3",
+      "isEol": true,
+      "eolFrom": "2015-01-06",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.2",
+      "isEol": true,
+      "eolFrom": "2015-06-18",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.1",
+      "isEol": true,
+      "eolFrom": "2015-04-30",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.0",
+      "isEol": true,
+      "eolFrom": "2015-06-10",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.2",
+      "isEol": true,
+      "eolFrom": "2015-02-12",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.1",
+      "isEol": true,
+      "eolFrom": "2015-03-13",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.0",
+      "isEol": true,
+      "eolFrom": "2014-07-20",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.11",
+      "isEol": true,
+      "eolFrom": "2014-03-10",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.10",
+      "isEol": true,
+      "eolFrom": "2015-03-12",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.9",
+      "isEol": true,
+      "eolFrom": "2014-03-21",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.8",
+      "isEol": true,
+      "eolFrom": "2013-10-06",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.7",
+      "isEol": true,
+      "eolFrom": "2015-03-12",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.6",
+      "isEol": true,
+      "eolFrom": "2013-09-23",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.5",
+      "isEol": true,
+      "eolFrom": "2014-11-29",
+      "isEoes": null,
+      "eoesFrom": null
+    }
+  ]
+}

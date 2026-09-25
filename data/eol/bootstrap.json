@@ -1,0 +1,34 @@
+{
+  "product": "bootstrap",
+  "label": "Bootstrap",
+  "releases": [
+    {
+      "name": "5",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "4",
+      "isEol": true,
+      "eolFrom": "2023-01-01",
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "3",
+      "isEol": true,
+      "eolFrom": "2019-07-24",
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "2",
+      "isEol": true,
+      "eolFrom": "2013-08-19",
+      "isEoes": false,
+      "eoesFrom": null
+    }
+  ]
+}

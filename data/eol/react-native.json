@@ -1,0 +1,202 @@
+{
+  "product": "react-native",
+  "label": "React Native",
+  "releases": [
+    {
+      "name": "0.87",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.86",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.85",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.84",
+      "isEol": true,
+      "eolFrom": "2026-08-11",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.83",
+      "isEol": true,
+      "eolFrom": "2026-06-09",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.82",
+      "isEol": true,
+      "eolFrom": "2026-04-07",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.81",
+      "isEol": true,
+      "eolFrom": "2026-02-11",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.80",
+      "isEol": true,
+      "eolFrom": "2025-12-10",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.79",
+      "isEol": true,
+      "eolFrom": "2025-10-08",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.78",
+      "isEol": true,
+      "eolFrom": "2025-08-12",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.77",
+      "isEol": true,
+      "eolFrom": "2025-06-12",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.76",
+      "isEol": true,
+      "eolFrom": "2025-04-08",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.75",
+      "isEol": true,
+      "eolFrom": "2025-02-19",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.74",
+      "isEol": true,
+      "eolFrom": "2025-01-27",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.73",
+      "isEol": true,
+      "eolFrom": "2024-10-23",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.72",
+      "isEol": true,
+      "eolFrom": "2024-08-14",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.71",
+      "isEol": true,
+      "eolFrom": "2024-04-23",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.70",
+      "isEol": true,
+      "eolFrom": "2023-12-07",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.69",
+      "isEol": true,
+      "eolFrom": "2023-06-22",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.68",
+      "isEol": true,
+      "eolFrom": "2023-01-13",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.67",
+      "isEol": true,
+      "eolFrom": "2022-11-06",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.66",
+      "isEol": true,
+      "eolFrom": "2022-06-23",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.65",
+      "isEol": true,
+      "eolFrom": "2022-03-30",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.64",
+      "isEol": true,
+      "eolFrom": "2022-01-19",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.63",
+      "isEol": true,
+      "eolFrom": "2021-10-02",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.62",
+      "isEol": true,
+      "eolFrom": "2021-08-18",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.61",
+      "isEol": true,
+      "eolFrom": "2021-03-13",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.60",
+      "isEol": true,
+      "eolFrom": "2020-07-09",
+      "isEoes": null,
+      "eoesFrom": null
+    }
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "product": "qt",
+  "label": "Qt",
+  "releases": [
+    {
+      "name": "6.11",
+      "isEol": true,
+      "eolFrom": "2026-09-22",
+      "isEoes": false,
+      "eoesFrom": "2027-03-23"
+    },
+    {
+      "name": "6.10",
+      "isEol": true,
+      "eolFrom": "2026-04-07",
+      "isEoes": false,
+      "eoesFrom": "2026-10-07"
+    },
+    {
+      "name": "6.9",
+      "isEol": true,
+      "eolFrom": "2025-10-07",
+      "isEoes": true,
+      "eoesFrom": "2026-04-02"
+    },
+    {
+      "name": "6.8",
+      "isEol": true,
+      "eolFrom": "2025-04-02",
+      "isEoes": false,
+      "eoesFrom": "2029-10-08"
+    },
+    {
+      "name": "6.7",
+      "isEol": true,
+      "eolFrom": "2024-10-07",
+      "isEoes": true,
+      "eoesFrom": "2025-04-02"
+    },
+    {
+      "name": "6.6",
+      "isEol": true,
+      "eolFrom": "2024-04-02",
+      "isEoes": true,
+      "eoesFrom": "2024-10-09"
+    },
+    {
+      "name": "6.5",
+      "isEol": true,
+      "eolFrom": "2023-10-09",
+      "isEoes": true,
+      "eoesFrom": "2026-03-31"
+    },
+    {
+      "name": "6.4",
+      "isEol": true,
+      "eolFrom": "2023-03-31",
+      "isEoes": true,
+      "eoesFrom": "2023-09-28"
+    },
+    {
+      "name": "6.3",
+      "isEol": true,
+      "eolFrom": "2022-09-28",
+      "isEoes": true,
+      "eoesFrom": "2023-04-11"
+    },
+    {
+      "name": "6.2",
+      "isEol": true,
+      "eolFrom": "2022-04-11",
+      "isEoes": true,
+      "eoesFrom": "2024-09-30"
+    },
+    {
+      "name": "6.1",
+      "isEol": true,
+      "eolFrom": "2021-09-30",
+      "isEoes": true,
+      "eoesFrom": "2022-05-05"
+    },
+    {
+      "name": "6.0",
+      "isEol": true,
+      "eolFrom": "2021-05-05",
+      "isEoes": true,
+      "eoesFrom": "2021-12-08"
+    },
+    {
+      "name": "5.15",
+      "isEol": true,
+      "eolFrom": "2020-12-08",
+      "isEoes": true,
+      "eoesFrom": "2025-05-25"
+    },
+    {
+      "name": "5.14",
+      "isEol": true,
+      "eolFrom": "2020-12-12",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.13",
+      "isEol": true,
+      "eolFrom": "2020-06-19",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.12",
+      "isEol": true,
+      "eolFrom": "2021-12-05",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.9",
+      "isEol": true,
+      "eolFrom": "2020-05-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5.6",
+      "isEol": true,
+      "eolFrom": "2019-03-16",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "4.8",
+      "isEol": true,
+      "eolFrom": "2015-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    }
+  ]
+}

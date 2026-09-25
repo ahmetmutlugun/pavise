@@ -1,0 +1,97 @@
+{
+  "product": "dotnet",
+  "label": "Microsoft .NET",
+  "releases": [
+    {
+      "name": "10",
+      "isEol": false,
+      "eolFrom": "2028-11-14",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "9",
+      "isEol": false,
+      "eolFrom": "2026-11-10",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "8",
+      "isEol": false,
+      "eolFrom": "2026-11-10",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "7",
+      "isEol": true,
+      "eolFrom": "2024-05-14",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "6",
+      "isEol": true,
+      "eolFrom": "2024-11-12",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "5",
+      "isEol": true,
+      "eolFrom": "2022-05-10",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.1",
+      "isEol": true,
+      "eolFrom": "2022-12-13",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.0",
+      "isEol": true,
+      "eolFrom": "2020-03-03",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.2",
+      "isEol": true,
+      "eolFrom": "2019-12-23",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.1",
+      "isEol": true,
+      "eolFrom": "2021-08-21",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.0",
+      "isEol": true,
+      "eolFrom": "2018-10-01",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.1",
+      "isEol": true,
+      "eolFrom": "2019-06-27",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.0",
+      "isEol": true,
+      "eolFrom": "2019-06-27",
+      "isEoes": null,
+      "eoesFrom": null
+    }
+  ]
+}

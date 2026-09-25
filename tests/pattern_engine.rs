@@ -166,6 +166,24 @@ fn test_new_token_formats() {
 }
 
 #[test]
+fn test_slack_tokens() {
+    // Assembled at runtime so push-protection secret scanners don't flag the fixture.
+    let bot = format!(
+        "xox{}-2718281828-3141592653589-Zq8Rw3LkTp9Vn2Hs6Yc4Ub7M",
+        "b"
+    );
+    assert_eq!(rule_hits(&bot, "QS-SEC-031").len(), 1);
+    let user = format!(
+        "xox{}-2718281828-1618033988-3141592653589-9f2c4a7e1b8d3f6a0c5e2b9d7a4f1c8e",
+        "p"
+    );
+    assert_eq!(rule_hits(&user, "QS-SEC-031").len(), 1);
+    // Prefix alone, or a short suffix, is not a token.
+    assert!(rule_hits("xoxb-", "QS-SEC-031").is_empty());
+    assert!(rule_hits("xoxb-1234-abcdef", "QS-SEC-031").is_empty());
+}
+
+#[test]
 fn test_connection_string_requires_credentials() {
     assert!(rule_hits("mongodb://localhost:27017/test", "QS-SEC-027").is_empty());
     assert!(rule_hits("redis://cache.internal:6379", "QS-SEC-027").is_empty());

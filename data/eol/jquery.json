@@ -1,0 +1,34 @@
+{
+  "product": "jquery",
+  "label": "jQuery",
+  "releases": [
+    {
+      "name": "4",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "2",
+      "isEol": true,
+      "eolFrom": null,
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "1",
+      "isEol": true,
+      "eolFrom": null,
+      "isEoes": false,
+      "eoesFrom": null
+    }
+  ]
+}

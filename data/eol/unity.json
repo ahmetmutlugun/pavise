@@ -1,0 +1,146 @@
+{
+  "product": "unity",
+  "label": "Unity",
+  "releases": [
+    {
+      "name": "6000.6",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "6000.5",
+      "isEol": true,
+      "eolFrom": "2026-08-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "6000.4",
+      "isEol": true,
+      "eolFrom": "2026-06-17",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "6000.3",
+      "isEol": false,
+      "eolFrom": "2027-12-04",
+      "isEoes": false,
+      "eoesFrom": "2028-12-04"
+    },
+    {
+      "name": "6000.2",
+      "isEol": true,
+      "eolFrom": "2025-12-04",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "6000.1",
+      "isEol": true,
+      "eolFrom": "2025-08-12",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "6000.0",
+      "isEol": false,
+      "eolFrom": "2026-10-16",
+      "isEoes": false,
+      "eoesFrom": "2027-10-16"
+    },
+    {
+      "name": "2023.2",
+      "isEol": true,
+      "eolFrom": "2024-04-29",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2023.1",
+      "isEol": true,
+      "eolFrom": "2023-11-13",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2022.3",
+      "isEol": true,
+      "eolFrom": "2025-05-07",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2022.2",
+      "isEol": true,
+      "eolFrom": "2023-06-12",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2022.1",
+      "isEol": true,
+      "eolFrom": "2022-12-06",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2021",
+      "isEol": true,
+      "eolFrom": "2025-02-18",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2021.3",
+      "isEol": true,
+      "eolFrom": "2025-02-18",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2021.2",
+      "isEol": true,
+      "eolFrom": "2022-04-05",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2021.1",
+      "isEol": true,
+      "eolFrom": "2022-11-04",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2020",
+      "isEol": true,
+      "eolFrom": "2023-05-05",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2019",
+      "isEol": true,
+      "eolFrom": "2022-06-16",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2018",
+      "isEol": true,
+      "eolFrom": "2021-06-17",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2017",
+      "isEol": true,
+      "eolFrom": "2020-05-18",
+      "isEoes": null,
+      "eoesFrom": null
+    }
+  ]
+}

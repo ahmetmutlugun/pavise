@@ -134,6 +134,82 @@ fn test_sqlite_triggers_finding() {
 }
 
 #[test]
+fn test_doc_urls_are_not_endpoints() {
+    // License text and library JS comments name hosts the app never contacts.
+    let license = "See http://www.gnu.org-mirror.net/COPYING-ish and https://lists.example-lib.io/";
+    let js = "// docs: http://unixpapa.example-docs.io/js/key.html\n\
+              // see https://developer.example-docs.io/x";
+    let ipa = common::IpaBuilder::new("TestApp")
+        .add_bundle_file("License.plist", license)
+        .add_bundle_file("hterm/hterm_all.js", js)
+        .add_bundle_file(
+            "Settings.plist",
+            "<string>https://api.mycompany.com/v1</string>",
+        )
+        .build();
+
+    let report = scan_ipa(ipa.path(), &default_opts()).expect("scan_ipa should succeed");
+    let domains: Vec<&str> = report.domains.iter().map(|d| d.domain.as_str()).collect();
+    assert!(!domains.contains(&"lists.example-lib.io"), "{domains:?}");
+    // Library JS URLs stay in the inventory but are not scored or counted.
+    let http = report
+        .findings
+        .iter()
+        .find(|f| f.id == "QS-NET-001")
+        .expect("QS-NET-001");
+    assert_eq!(http.severity, pavise::types::Severity::Info);
+    assert!(
+        report.findings.iter().all(|f| f.id != "QS-NET-004"),
+        "one endpoint domain must not trigger the pinning check"
+    );
+}
+
+#[test]
+fn test_end_of_life_libraries_detected() {
+    // jQuery 1.x and Python 3.8 ended years ago; Bootstrap 5 is supported.
+    let js = "/*! jQuery v1.12.4 | (c) jQuery Foundation | jquery.org/license */";
+    let css = "/*! Bootstrap v5.3.2 (https://getbootstrap.com/) */";
+    let ipa = common::IpaBuilder::new("TestApp")
+        .add_bundle_file("www/js/jquery.min.js", js)
+        .add_bundle_file("www/css/bootstrap.min.css", css)
+        .add_bundle_file(
+            "Frameworks/Python.framework/lib/python3.8/os.py",
+            "import abc",
+        )
+        .build();
+
+    let report = scan_ipa(ipa.path(), &default_opts()).expect("scan_ipa should succeed");
+    let versions: Vec<(&str, &str)> = report
+        .framework_components
+        .iter()
+        .filter_map(|c| Some((c.name.as_str(), c.version.as_deref()?)))
+        .collect();
+    for want in [
+        ("jQuery", "1.12.4"),
+        ("Bootstrap", "5.3.2"),
+        ("Python", "3.8"),
+    ] {
+        assert!(
+            versions.contains(&want),
+            "{want:?} missing from {versions:?}"
+        );
+    }
+    let eol: Vec<&str> = report
+        .findings
+        .iter()
+        .filter(|f| f.id == "QS-SCA-001")
+        .map(|f| f.title.as_str())
+        .collect();
+    assert_eq!(
+        eol.len(),
+        2,
+        "one finding per end-of-life library, no Bootstrap: {eol:?}"
+    );
+    assert!(eol.contains(&"End-of-Life jQuery Bundled"), "{eol:?}");
+    assert!(eol.contains(&"End-of-Life Python Bundled"), "{eol:?}");
+}
+
+#[test]
 fn test_http_in_plist_triggers_finding() {
     let plist_content = r#"<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>

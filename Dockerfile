@@ -31,16 +31,16 @@ COPY . .
 RUN --mount=type=cache,id=s/2bd6af3c-a9aa-4a51-b465-7715a71780b6-/usr/local/cargo/registry,target=/usr/local/cargo/registry \
     --mount=type=cache,id=s/2bd6af3c-a9aa-4a51-b465-7715a71780b6-/usr/local/cargo/git,target=/usr/local/cargo/git \
     --mount=type=cache,id=s/2bd6af3c-a9aa-4a51-b465-7715a71780b6-/app/target,target=/app/target,sharing=locked \
-    find src rules templates assets Cargo.toml -type f -exec touch {} + \
-    && cargo build --release --bin pavise-server \
-    && cp target/release/pavise-server /usr/local/bin/pavise-server
+    find src rules templates assets data/eol Cargo.toml -type f -exec touch {} + \
+    && cargo build --release --bin pavise-server --bin pavise \
+    && cp target/release/pavise-server target/release/pavise /usr/local/bin/
 
 # ── Runtime stage ───────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
 
 LABEL org.opencontainers.image.source="https://github.com/ahmetmutlugun/pavise"
 LABEL org.opencontainers.image.description="Fast iOS IPA static security analyzer"
-LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.licenses="MPL-2.0"
 
 # ca-certs for outbound HTTPS (ip-api.com geolocation); chromium prints the
 # PDF report (templates/report.pdf.tera, fonts embedded; DejaVu/Liberation cover non-Latin fallback);
@@ -59,6 +59,8 @@ ENV CHROME=/usr/bin/chromium
 WORKDIR /app
 
 COPY --from=builder /usr/local/bin/pavise-server /app/pavise-server
+# CLI on PATH: `docker run -v "$PWD:/work" <image> pavise /work/app.ipa`
+COPY --from=builder /usr/local/bin/pavise /usr/local/bin/pavise
 COPY --from=frontend /app/web/dist /app/web/dist
 COPY rules/  /app/rules/
 COPY data/   /app/data/

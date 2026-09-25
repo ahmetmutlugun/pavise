@@ -373,12 +373,14 @@ fn test_tracker_detection_by_objc_class() {
 // Symbol Scanner
 // ------------------------------------------------------------------ //
 
+use pavise::binary::symbols::Origin;
+
 #[test]
 fn test_symbol_scanner_loads() {
     let scanner = pavise::binary::symbols::SymbolScanner::load(Some(&common::rules_dir()))
         .expect("Symbol rules should load");
     // Empty imports → no findings
-    let results = scanner.scan(&[]);
+    let results = scanner.scan(&[], "Payload/A.app/A", Origin::App);
     assert!(results.is_empty());
 }
 
@@ -386,7 +388,7 @@ fn test_symbol_scanner_loads() {
 fn test_symbol_scanner_no_panic_on_large_import_list() {
     let scanner = pavise::binary::symbols::SymbolScanner::load(Some(&common::rules_dir())).unwrap();
     let imports: Vec<String> = (0..10_000).map(|i| format!("_symbol_{}", i)).collect();
-    let results = scanner.scan(&imports);
+    let results = scanner.scan(&imports, "Payload/A.app/A", Origin::App);
     // Just ensure no panic
     let _ = results;
 }

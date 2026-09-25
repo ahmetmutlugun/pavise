@@ -20,7 +20,7 @@ use std::time::Instant;
 use tracing::{debug, info, span, Level};
 
 use crate::binary::macho;
-use crate::binary::symbols::SymbolScanner;
+use crate::binary::symbols::{Origin, SymbolScanner};
 use crate::manifest::{entitlements, info_plist, provisioning};
 use crate::patterns::{
     ciphers,
@@ -30,7 +30,7 @@ use crate::patterns::{
     trackers::TrackerDetector,
     urls,
 };
-use crate::resources::{firebase, sca};
+use crate::resources::{eol, firebase, sca};
 use crate::scoring::owasp::compute_score;
 use crate::types::{
     AuditEntry, BinaryInfo, DomainGeoInfo, DomainInfo, Finding, ScanReport, SecretMatch, Severity,
@@ -249,30 +249,31 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         .as_deref()
         .and_then(|p| unpacked.archive.files.iter().find(|f| f.path == p));
     let main_data = main_binary.map(|f| unpacked.archive.read(f)).transpose()?;
-    let (main_binary_result, main_binary_findings, main_imports) =
-        if let Some(ref bin_path) = unpacked.main_binary_path {
-            if let (Some(bin_file), Some(bin_data)) = (main_binary, main_data.as_deref()) {
-                match macho::analyze(bin_data, &bin_file.path) {
-                    Ok(result) => {
-                        let sym_findings = symbol_scanner.scan(&result.imports);
-                        let mut findings = result.findings;
-                        findings.extend(sym_findings);
-                        (Some(result.binary_info), findings, result.imports)
-                    }
-                    // Without the main binary every protection check is
-                    // skipped and the score would be inflated — fail instead.
-                    Err(e) => {
-                        return Err(e).with_context(|| {
-                            format!("Failed to analyze main binary {}", bin_file.path)
-                        });
-                    }
+    let (main_binary_result, main_binary_findings, main_imports) = if let Some(ref bin_path) =
+        unpacked.main_binary_path
+    {
+        if let (Some(bin_file), Some(bin_data)) = (main_binary, main_data.as_deref()) {
+            match macho::analyze(bin_data, &bin_file.path) {
+                Ok(result) => {
+                    let sym_findings = symbol_scanner.scan(&result.imports, bin_path, Origin::App);
+                    let mut findings = result.findings;
+                    findings.extend(sym_findings);
+                    (Some(result.binary_info), findings, result.imports)
                 }
-            } else {
-                anyhow::bail!("Main binary {} missing from archive", bin_path);
+                // Without the main binary every protection check is
+                // skipped and the score would be inflated — fail instead.
+                Err(e) => {
+                    return Err(e).with_context(|| {
+                        format!("Failed to analyze main binary {}", bin_file.path)
+                    });
+                }
             }
         } else {
-            anyhow::bail!("Main binary not found (CFBundleExecutable unresolved)");
-        };
+            anyhow::bail!("Main binary {} missing from archive", bin_path);
+        }
+    } else {
+        anyhow::bail!("Main binary not found (CFBundleExecutable unresolved)");
+    };
 
     all_findings.extend(main_binary_findings);
 
@@ -347,8 +348,9 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         .iter()
         .map(String::as_str)
         .collect();
-    // Symbol-based pinning (QS-API-023) already settles the pinning check, so
-    // skipped (noise) files needn't be inflated just to look for signals.
+    // Symbol-based pinning (QS-API-023) in the app's own binaries settles the
+    // pinning check, so skipped (noise) files needn't be inflated for signals.
+    // A framework importing a pinning API only shows the library can pin.
     let pinning_settled = all_findings.iter().any(|f| f.id == "QS-API-023");
     let budget = unpacker::ByteBudget::new(opts.max_in_flight_bytes.unwrap_or(MAX_IN_FLIGHT_BYTES));
     let mut file_scans: Vec<FileScan> = unpacked
@@ -375,7 +377,11 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                 scan.framework = match macho::analyze(&data, &f.path) {
                     Ok(result) => {
                         let mut findings = result.findings;
-                        findings.extend(symbol_scanner.scan(&result.imports));
+                        findings.extend(symbol_scanner.scan(
+                            &result.imports,
+                            &f.path,
+                            Origin::Library,
+                        ));
                         Some((result.binary_info, findings))
                     }
                     Err(e) => {
@@ -422,14 +428,10 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             all_findings.push(Finding {
                 id: rule_id,
                 title: first.title.clone(),
+                // Per-binary descriptions name one framework; state the rule.
                 description: format!(
-                    "{} — affects {} of {} framework binaries.",
-                    first
-                        .description
-                        .split('\'')
-                        .next()
-                        .unwrap_or(&first.description)
-                        .trim(),
+                    "{} — affects {} of {} bundled framework binaries (third-party code).",
+                    first.title,
                     group.len(),
                     fw_count
                 ),
@@ -455,7 +457,9 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     let mut all_bare_ips: Vec<String> = Vec::new();
 
     let mut file_pinning_signal = false;
+    let mut library_versions: Vec<eol::LibraryVersion> = Vec::new();
     for scan in file_scans {
+        library_versions.extend(scan.libraries);
         all_secrets.extend(scan.secrets);
         all_emails.extend(scan.emails);
         all_domains.extend(scan.domains);
@@ -468,7 +472,21 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     all_secrets = deduplicate(all_secrets);
     all_emails.sort();
     all_emails.dedup();
-    all_domains.sort_by(|a, b| a.domain.cmp(&b.domain));
+    // Where a domain appears in several files, keep an endpoint source (see
+    // `is_endpoint_source`) as its context.
+    let binary_paths: std::collections::HashSet<&str> = framework_paths
+        .iter()
+        .copied()
+        .chain(unpacked.main_binary_path.as_deref())
+        .chain(unpacked.extension_binary_paths.iter().map(String::as_str))
+        .collect();
+    let is_endpoint =
+        |d: &DomainInfo| is_endpoint_source(&d.context, binary_paths.contains(d.context.as_str()));
+    all_domains.sort_by(|a, b| {
+        a.domain
+            .cmp(&b.domain)
+            .then(is_endpoint(b).cmp(&is_endpoint(a)))
+    });
     all_domains.dedup_by(|a, b| a.domain == b.domain);
     all_bare_ips.sort();
     all_bare_ips.dedup();
@@ -743,30 +761,33 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     // Flag apps with external network activity but no detectable pinning mechanism.
     // We check for known pinning signals in extracted strings and framework names.
     {
-        // Symbol-based pinning detection (QS-API-023) is a stronger signal than
-        // the per-file text scan (`has_pinning_signal`), which can't see symbols
-        // in Mach-O binaries (from_utf8 fails on them). A bundled public
-        // certificate (QS-CERT-002) is not evidence of pinning on its own.
-        let has_pinning_finding = all_findings.iter().any(|f| f.id == "QS-API-023");
-
-        let has_pinning_signal = has_pinning_finding
+        // Symbol-based pinning detection (QS-API-023 in app binaries, see
+        // `pinning_settled`) is a stronger signal than the per-file text scan
+        // (`has_pinning_signal`), which can't see symbols in Mach-O binaries
+        // (from_utf8 fails on them). A bundled public certificate
+        // (QS-CERT-002) is not evidence of pinning on its own.
+        let has_pinning_signal = pinning_settled
             || file_pinning_signal
             || framework_names.iter().any(|n| {
                 let lower = n.to_lowercase();
                 lower.contains("trustkit") || lower.contains("pinning")
             });
 
-        // Count external non-Apple domains
-        let external_domain_count = all_domains
+        // External non-Apple domains in endpoint sources: links in bundled
+        // JS libraries' comments or docs are not hosts the app talks to.
+        let external_domains: Vec<&str> = all_domains
             .iter()
+            .filter(|d| is_endpoint(d))
+            .map(|d| d.domain.as_str())
             .filter(|d| {
-                !d.domain.ends_with(".apple.com")
-                    && !d.domain.contains("apple.com")
-                    && !d.domain.ends_with(".icloud.com")
-                    && !d.domain.ends_with(".googleapis.com")
-                    && !d.domain.starts_with("localhost")
+                !d.ends_with(".apple.com")
+                    && !d.contains("apple.com")
+                    && !d.ends_with(".icloud.com")
+                    && !d.ends_with(".googleapis.com")
+                    && !d.starts_with("localhost")
             })
-            .count();
+            .collect();
+        let external_domain_count = external_domains.len();
 
         if !has_pinning_signal && external_domain_count >= 2 {
             all_findings.push(Finding {
@@ -783,15 +804,10 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                 cwe: Some("CWE-295".to_string()),
                 owasp_mobile: Some("M5".to_string()),
                 owasp_masvs: Some("MSTG-NETWORK-4".to_string()),
-                evidence: all_domains
+                evidence: external_domains
                     .iter()
-                    .filter(|d| {
-                        !d.domain.ends_with(".apple.com")
-                            && !d.domain.contains("apple.com")
-                            && !d.domain.ends_with(".icloud.com")
-                    })
                     .take(5)
-                    .map(|d| d.domain.clone())
+                    .map(|d| d.to_string())
                     .collect(),
                 remediation: Some(
                     "Implement certificate pinning using TrustKit, URLSession \
@@ -835,6 +851,20 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             .into_iter()
             .map(|name| resources::sca::static_component(name, main_path)),
     );
+
+    // 3f-iii. Versions from library banners (bundled frameworks' plists often
+    // carry a template `1.0`) and embedded Python, then end-of-life lines.
+    let archive_paths: Vec<&str> = unpacked
+        .archive
+        .files
+        .iter()
+        .map(|f| f.path.as_str())
+        .collect();
+    library_versions.extend(eol::detect_python(&archive_paths));
+    library_versions.sort();
+    library_versions.dedup();
+    sca::apply_library_versions(&mut framework_components, &library_versions);
+    all_findings.extend(eol::findings(&library_versions));
 
     let versioned_count = framework_components
         .iter()
@@ -1134,6 +1164,8 @@ struct FileScan {
     findings: Vec<Finding>,
     /// Bare IPv4 addresses
     bare_ips: Vec<String>,
+    /// Library versions from banners in binaries and web assets
+    libraries: Vec<eol::LibraryVersion>,
     pinning_signal: bool,
 }
 
@@ -1151,6 +1183,9 @@ fn scan_strings(
             text.push('\n');
             text.push_str(&s);
         }
+    }
+    if let Some(scope) = eol::scope_of(&f.path, is_macho(data)) {
+        out.libraries = eol::detect(&text, &f.path, scope);
     }
     let mut secrets = pattern_engine.scan(&text, &f.path);
 
@@ -1185,7 +1220,23 @@ fn scan_strings(
         Vec::new()
     };
 
-    let url_result = urls::extract(&text, &f.path);
+    let mut url_result = if urls::is_reference_file(&f.path) {
+        urls::UrlExtractResult {
+            domains: Vec::new(),
+            findings: Vec::new(),
+        }
+    } else {
+        urls::extract(&text, &f.path)
+    };
+    // HTTP links in bundled library JS/HTML are mostly comments and docs.
+    if !is_endpoint_source(&f.path, is_macho(data)) {
+        for finding in &mut url_result.findings {
+            finding.severity = Severity::Info;
+            finding.description.push_str(
+                " The file is a bundled asset, not app code or config, so the URL may be a comment or documentation link.",
+            );
+        }
+    }
 
     // Weak cipher scan — runs on all file types; CommonCrypto constants
     // appear as C string literals in Mach-O __TEXT,__cstring sections.
@@ -1244,7 +1295,7 @@ fn analyze_extension(
         }
     };
     let mut findings = result.findings;
-    findings.extend(scanner.scan(&result.imports));
+    findings.extend(scanner.scan(&result.imports, path, Origin::App));
     if let Some(ent) = entitlements::extract_from_binary(data) {
         let name = path
             .split('/')
@@ -1308,6 +1359,8 @@ fn deduplicate_findings(findings: Vec<Finding>) -> Vec<Finding> {
         "QS-PERM-001",
         "QS-IPC-001",
         "QS-IPC-002",
+        // One per end-of-life library, each with its own title.
+        "QS-SCA-001",
     ];
 
     let mut per_instance: Vec<Finding> = Vec::new();
@@ -1485,6 +1538,18 @@ fn is_macho(data: &[u8]) -> bool {
             | [0xca, 0xfe, 0xba, 0xbe]   // FAT_MAGIC (universal)
             | [0xbe, 0xba, 0xfe, 0xca] // FAT_CIGAM (universal, swapped)
     )
+}
+
+/// Files whose URLs are endpoints the app may contact: its Mach-O binaries,
+/// config files, and JS app code (React Native `.jsbundle`, Cordova `www/`,
+/// Capacitor `public/`). Other bundled JS/HTML is usually a library.
+fn is_endpoint_source(path: &str, is_binary: bool) -> bool {
+    let lower = path.to_lowercase();
+    is_binary
+        || is_config_like(path)
+        || lower.ends_with(".jsbundle")
+        || ((lower.ends_with(".js") || lower.ends_with(".html"))
+            && (lower.contains(".app/www/") || lower.contains(".app/public/")))
 }
 
 /// Configuration-style files where a high-entropy token is plausibly a credential.

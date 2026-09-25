@@ -1,0 +1,69 @@
+{
+  "product": "angularjs",
+  "label": "AngularJS",
+  "releases": [
+    {
+      "name": "1.8",
+      "isEol": true,
+      "eolFrom": "2021-12-31",
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.7",
+      "isEol": true,
+      "eolFrom": "2021-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.6",
+      "isEol": true,
+      "eolFrom": "2021-12-31",
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.5",
+      "isEol": true,
+      "eolFrom": "2021-12-31",
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.4",
+      "isEol": true,
+      "eolFrom": "2021-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.3",
+      "isEol": true,
+      "eolFrom": "2021-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.2",
+      "isEol": true,
+      "eolFrom": "2021-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.1",
+      "isEol": true,
+      "eolFrom": "2021-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.0",
+      "isEol": true,
+      "eolFrom": "2021-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    }
+  ]
+}

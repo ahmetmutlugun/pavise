@@ -1,0 +1,104 @@
+{
+  "product": "openssl",
+  "label": "OpenSSL",
+  "releases": [
+    {
+      "name": "4.0",
+      "isEol": false,
+      "eolFrom": "2027-05-14",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.6",
+      "isEol": false,
+      "eolFrom": "2026-11-01",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.5",
+      "isEol": false,
+      "eolFrom": "2030-04-08",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.4",
+      "isEol": false,
+      "eolFrom": "2026-10-22",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.3",
+      "isEol": true,
+      "eolFrom": "2026-04-09",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.2",
+      "isEol": true,
+      "eolFrom": "2025-11-23",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.1",
+      "isEol": true,
+      "eolFrom": "2025-03-14",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.0",
+      "isEol": true,
+      "eolFrom": "2026-09-07",
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.1.1",
+      "isEol": true,
+      "eolFrom": "2023-09-11",
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.1.0",
+      "isEol": true,
+      "eolFrom": "2019-09-11",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.0.2",
+      "isEol": true,
+      "eolFrom": "2019-12-31",
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.0.1",
+      "isEol": true,
+      "eolFrom": "2016-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "1.0.0",
+      "isEol": true,
+      "eolFrom": "2015-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "0.9.8",
+      "isEol": true,
+      "eolFrom": "2015-12-31",
+      "isEoes": null,
+      "eoesFrom": null
+    }
+  ]
+}

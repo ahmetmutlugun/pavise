@@ -1,0 +1,69 @@
+{
+  "product": "ionic",
+  "label": "Ionic Framework",
+  "releases": [
+    {
+      "name": "9",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "8",
+      "isEol": false,
+      "eolFrom": "2027-02-19",
+      "isEoes": false,
+      "eoesFrom": "2027-08-19"
+    },
+    {
+      "name": "7",
+      "isEol": true,
+      "eolFrom": "2024-10-17",
+      "isEoes": true,
+      "eoesFrom": "2025-04-17"
+    },
+    {
+      "name": "6",
+      "isEol": true,
+      "eolFrom": "2023-09-29",
+      "isEoes": true,
+      "eoesFrom": "2024-03-29"
+    },
+    {
+      "name": "5",
+      "isEol": true,
+      "eolFrom": "2022-06-08",
+      "isEoes": true,
+      "eoesFrom": "2022-12-08"
+    },
+    {
+      "name": "4",
+      "isEol": true,
+      "eolFrom": "2020-08-11",
+      "isEoes": true,
+      "eoesFrom": "2022-09-30"
+    },
+    {
+      "name": "3",
+      "isEol": true,
+      "eolFrom": "2019-10-30",
+      "isEoes": true,
+      "eoesFrom": "2020-08-11"
+    },
+    {
+      "name": "2",
+      "isEol": true,
+      "eolFrom": "2017-04-05",
+      "isEoes": true,
+      "eoesFrom": "2017-04-05"
+    },
+    {
+      "name": "1",
+      "isEol": true,
+      "eolFrom": "2017-01-25",
+      "isEoes": true,
+      "eoesFrom": "2017-01-25"
+    }
+  ]
+}

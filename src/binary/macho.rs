@@ -490,7 +490,7 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     let all_rpaths: Vec<String> = collect_rpaths(macho, raw_data);
     let rpath_commands: Vec<String> = all_rpaths
         .iter()
-        .filter(|r| !SAFE_RPATHS.contains(&r.as_str()))
+        .filter(|r| !is_safe_rpath(r))
         .cloned()
         .collect();
     let has_dangerous_rpath = !rpath_commands.is_empty();
@@ -672,6 +672,26 @@ const SAFE_RPATHS: &[&str] = &[
     "@loader_path/Frameworks",
     "@loader_path/../Frameworks",
 ];
+
+/// True for system Swift paths and bundle-relative paths that stay inside the
+/// signed, read-only `.app`. Extensions sit at `App.app/PlugIns/X.appex/`, so
+/// Xcode gives them `@executable_path/../../Frameworks`; two `..` levels reach
+/// the app root and no further.
+fn is_safe_rpath(rpath: &str) -> bool {
+    if SAFE_RPATHS.contains(&rpath) {
+        return true;
+    }
+    let Some(rel) = rpath
+        .strip_prefix("@executable_path")
+        .or_else(|| rpath.strip_prefix("@loader_path"))
+    else {
+        return false;
+    };
+    if !(rel.is_empty() || rel.starts_with('/')) {
+        return false;
+    }
+    rel.split('/').filter(|seg| *seg == "..").count() <= 2
+}
 
 fn collect_rpaths(macho: &MachO, raw_data: &[u8]) -> Vec<String> {
     let mut rpaths = Vec::new();
@@ -917,6 +937,27 @@ fn check_debug_symbols(macho: &MachO) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn in_bundle_rpaths_are_safe() {
+        for r in [
+            "/usr/lib/swift",
+            "@executable_path/Frameworks",
+            "@executable_path/../../Frameworks",
+            "@loader_path/../../Frameworks",
+            "@executable_path",
+        ] {
+            assert!(is_safe_rpath(r), "{r}");
+        }
+        for r in [
+            "/tmp/libs",
+            "@executable_path/../../../Documents",
+            "@executable_pathX/Frameworks",
+            "@rpath/Frameworks",
+        ] {
+            assert!(!is_safe_rpath(r), "{r}");
+        }
+    }
 
     /// arm64 MH_EXECUTE with a single `__TEXT,<sect>` section holding `payload`.
     fn macho_with_text_section(sect: &str, payload: &[u8]) -> Vec<u8> {

@@ -13,7 +13,7 @@ pub fn owasp_for(rule_id: &str) -> Option<(&'static str, Option<&'static str>)> 
         id if id.starts_with("QS-SEC-") => m("M1", "MASVS-CRYPTO-2"),
 
         // M2 Inadequate Supply Chain Security
-        id if id.starts_with("QS-CVE-") => m("M2", "MASVS-CODE-3"),
+        id if id.starts_with("QS-CVE-") || id.starts_with("QS-SCA-") => m("M2", "MASVS-CODE-3"),
 
         // M4 Insufficient Input/Output Validation
         "QS-API-001" | "QS-API-003" => m("M4", "MASVS-CODE-4"),
@@ -126,6 +126,7 @@ mod tests {
             "QS-PRIV-002",
             "QS-PROV-001",
             "QS-SANDBOX-001",
+            "QS-SCA-001",
             "QS-SEC-030",
             "QS-STORE-001",
         ];

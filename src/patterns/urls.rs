@@ -29,7 +29,12 @@ const NOISE_HOSTS: &[&str] = &[
     "ogp.me",
     "rdfs.org",
     "dashif.org",
-    "cipa.jp", // EXIF namespace
+    "cipa.jp",  // EXIF namespace
+    "iptc.org", // IPTC photo-metadata XMP namespaces
+    "ifpi.org", // ISRC tag identifier (GStreamer)
+    "json-schema.org",
+    "standards.iso.org",
+    "xml.org",
     // XMPP protocol namespaces (`http://jabber.org/protocol/caps`)
     "jabber.org",
     "xmpp.org",
@@ -49,6 +54,13 @@ const NOISE_HOSTS: &[&str] = &[
     "jqueryui.com",
     "vt100.net",
     "videolan.org",
+    "openssl.org",
+    "cairographics.org",
+    "freedesktop.org",
+    "tianocore.org",
+    "sqlite.org",
+    "unicode.org",
+    "zlib.net",
     // RFC 2606 / test fixtures
     "example.com",
     "example.org",
@@ -61,6 +73,7 @@ const NOISE_HOSTS: &[&str] = &[
 /// (host suffix, path prefix) pairs for hosts that also serve real endpoints.
 const NOISE_HOST_PATHS: &[(&str, &str)] = &[
     ("apple.com", "/dtds/"),
+    ("captive.apple.com", ""), // captive-portal probe, plain HTTP by design
     ("apple.com", "/xmlschemas/"),
     ("mozilla.org", "/mpl"),
     ("webrtc.org", "/experiments/"), // RTP header-extension URIs
@@ -112,6 +125,34 @@ fn is_pki_url(host: &str, path: &str) -> bool {
             .any(|e| path.ends_with(e) || path.ends_with(&format!("{}0", e)))
 }
 
+/// Schema, namespace, license and bug-tracker URLs: identifiers or links in
+/// comments and license text, never fetched by the app.
+fn is_reference_url(host: &str, path: &str, url: &str) -> bool {
+    let path = path.to_lowercase();
+    let file = path.split(['?', '#']).next().unwrap_or("");
+    [".xsd", ".dtd", ".rdf", ".owl", ".xsl", ".xslt"]
+        .iter()
+        .any(|e| file.ends_with(e))
+        // XML namespace identifiers: `http://check.sourceforge.net/ns`
+        || file.ends_with("/ns")
+        || file.starts_with("/ns/")
+        || file.contains("/xmlns")
+        // `http://json-schema.org/schema#`-style namespace identifiers
+        || url.ends_with('#')
+        // `/licenses/LICENSE-2.0`, `/COPYING.txt`; `/license/verify` is an API.
+        || path.starts_with("/licenses/")
+        || ["license", "copying"].iter().any(|n| {
+            file.trim_end_matches('/')
+                .rsplit('/')
+                .next()
+                .and_then(|seg| seg.strip_prefix(n))
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with(['.', '-']))
+        })
+        || ["bugzilla.", "bugs.", "bugreport."]
+            .iter()
+            .any(|p| host.starts_with(p))
+}
+
 fn is_noise_url(url: &str) -> bool {
     let rest = url
         .strip_prefix("http://")
@@ -137,6 +178,31 @@ fn is_noise_url(url: &str) -> bool {
             .iter()
             .any(|(h, p)| host_matches(&host, h) && path_lower.starts_with(p))
         || is_pki_url(&host, path)
+        || is_reference_url(&host, path, url)
+}
+
+/// Files whose URLs are documentation, not endpoints: license and credits
+/// text, and media/firmware whose metadata embeds project links. Secrets are
+/// still scanned there; only URL and domain extraction is skipped.
+pub fn is_reference_file(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    let name = lower.rsplit('/').next().unwrap_or(&lower);
+    const DOC_NAMES: &[&str] = &[
+        "license",
+        "licence",
+        "copying",
+        "notice",
+        "acknowledg",
+        "credits",
+        "authors",
+        "readme",
+        "changelog",
+    ];
+    const MEDIA_EXTENSIONS: &[&str] = &[
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".pdf", ".ttf", ".otf", ".woff",
+        ".woff2", ".rom", ".fd", ".md",
+    ];
+    DOC_NAMES.iter().any(|n| name.contains(n)) || MEDIA_EXTENSIONS.iter().any(|e| name.ends_with(e))
 }
 
 pub struct UrlExtractResult {
@@ -159,13 +225,15 @@ pub fn extract(text: &str, source_path: &str) -> UrlExtractResult {
     let mut seen_http_urls: HashSet<String> = HashSet::new();
 
     for m in url_re().find_iter(text) {
-        let url = m.as_str();
+        let url = trim_url(m.as_str());
+        // Noise URLs (schemas, licenses, docs, malformed hosts) are neither
+        // flagged nor counted as domains the app talks to.
+        if is_noise_url(url) {
+            continue;
+        }
 
-        // Flag HTTP (non-HTTPS) URLs, skipping noise
-        if url.starts_with("http://")
-            && !is_noise_url(url)
-            && seen_http_urls.insert(url.to_string())
-        {
+        // Flag HTTP (non-HTTPS) URLs
+        if url.starts_with("http://") && seen_http_urls.insert(url.to_string()) {
             findings.push(Finding {
                     id: "QS-NET-001".to_string(),
                     title: "Insecure HTTP URL Found".to_string(),
@@ -195,6 +263,24 @@ pub fn extract(text: &str, source_path: &str) -> UrlExtractResult {
     }
 
     UrlExtractResult { domains, findings }
+}
+
+/// Drop punctuation the URL regex swallows from surrounding prose or code:
+/// `(see https://x.app).` → `https://x.app`. A `)` is kept when the URL
+/// opened one itself (`https://en.wikipedia.org/wiki/Foo_(bar)`).
+fn trim_url(url: &str) -> &str {
+    let mut url = url;
+    loop {
+        let trimmed = url.trim_end_matches(['.', ',', ';', ':', '!', '?', '\'', '*']);
+        let trimmed = match trimmed.strip_suffix(')') {
+            Some(t) if trimmed.matches('(').count() < trimmed.matches(')').count() => t,
+            _ => trimmed,
+        };
+        if trimmed.len() == url.len() {
+            return url;
+        }
+        url = trimmed;
+    }
 }
 
 fn extract_domain_from_url(url: &str) -> Option<String> {
@@ -280,6 +366,18 @@ mod tests {
             "http://.css",
             "http://www.icon",
             "http://169.254.170.2EnvConfigCredentialsinvalid",
+            "http://standards.iso.org/ittf/PubliclyAvailableStandards/MPEG-DASH_schema_files/DASH-MPD.xsd",
+            "http://json-schema.org/schema#",
+            "http://purl.example.net/ns/core#",
+            "http://www.cairographics.org/",
+            "http://bugzilla.tianocore.org/show_bug.cgi?id=1",
+            "http://www.zlib.net/COPYING",
+            "http://foo.dev/LICENSE-2.0",
+            "http://x.x.x.x",
+            "http://%.*s",
+            "http://check.sourceforge.net/ns",
+            "http://check.sourceforge.net/xml/check_unittest.xslt",
+            "http://captive.apple.com",
         ] {
             let result = extract(url, "Frameworks/X.framework/X");
             assert!(result.findings.is_empty(), "{} should not be flagged", url);
@@ -296,6 +394,54 @@ mod tests {
         ] {
             let result = extract(url, "config.json");
             assert_eq!(result.findings.len(), 1, "{} should be flagged", url);
+        }
+    }
+
+    #[test]
+    fn test_api_paths_named_like_licenses_still_flagged() {
+        for url in [
+            "http://api.shop.io/license/verify",
+            "http://api.shop.io/v1/licenses",
+        ] {
+            assert_eq!(extract(url, "config.json").findings.len(), 1, "{url}");
+        }
+    }
+
+    #[test]
+    fn test_domains_skip_noise_and_trailing_punctuation() {
+        let text =
+            "(see https://aidoku.app). Licensed under http://www.apache.org/licenses/LICENSE-2.0 \
+                    https://en.wikipedia.org/wiki/Foo_(bar) http://x.x.x.x http://%.*s";
+        let domains: Vec<String> = extract(text, "README")
+            .domains
+            .into_iter()
+            .map(|d| d.domain)
+            .collect();
+        assert_eq!(domains, ["aidoku.app", "en.wikipedia.org"]);
+        assert_eq!(
+            trim_url("https://en.wikipedia.org/wiki/Foo_(bar)"),
+            "https://en.wikipedia.org/wiki/Foo_(bar)"
+        );
+        assert_eq!(trim_url("https://aidoku.app)."), "https://aidoku.app");
+    }
+
+    #[test]
+    fn test_reference_files() {
+        for p in [
+            "Payload/U.app/License.plist",
+            "Payload/U.app/Settings.bundle/Acknowledgements.plist",
+            "Payload/U.app/edk2-licenses.txt",
+            "Payload/U.app/backtrack.png",
+            "Payload/U.app/pxe-e1000.rom",
+        ] {
+            assert!(is_reference_file(p), "{p}");
+        }
+        for p in [
+            "Payload/U.app/U",
+            "Payload/U.app/Config.plist",
+            "Payload/U.app/repositories.txt",
+        ] {
+            assert!(!is_reference_file(p), "{p}");
         }
     }
 

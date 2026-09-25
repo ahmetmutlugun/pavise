@@ -1,0 +1,125 @@
+{
+  "product": "python",
+  "label": "Python",
+  "releases": [
+    {
+      "name": "3.14",
+      "isEol": false,
+      "eolFrom": "2030-10-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.13",
+      "isEol": false,
+      "eolFrom": "2029-10-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.12",
+      "isEol": false,
+      "eolFrom": "2028-10-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.11",
+      "isEol": false,
+      "eolFrom": "2027-10-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.10",
+      "isEol": false,
+      "eolFrom": "2026-10-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.9",
+      "isEol": true,
+      "eolFrom": "2025-10-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.8",
+      "isEol": true,
+      "eolFrom": "2024-10-07",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.7",
+      "isEol": true,
+      "eolFrom": "2023-06-27",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.6",
+      "isEol": true,
+      "eolFrom": "2021-12-23",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.5",
+      "isEol": true,
+      "eolFrom": "2020-09-30",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.4",
+      "isEol": true,
+      "eolFrom": "2019-03-18",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.3",
+      "isEol": true,
+      "eolFrom": "2017-09-29",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.2",
+      "isEol": true,
+      "eolFrom": "2016-02-20",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.7",
+      "isEol": true,
+      "eolFrom": "2020-01-01",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.1",
+      "isEol": true,
+      "eolFrom": "2012-04-09",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.0",
+      "isEol": true,
+      "eolFrom": "2009-06-27",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.6",
+      "isEol": true,
+      "eolFrom": "2013-10-29",
+      "isEoes": null,
+      "eoesFrom": null
+    }
+  ]
+}

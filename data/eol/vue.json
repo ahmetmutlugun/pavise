@@ -1,0 +1,111 @@
+{
+  "product": "vue",
+  "label": "Vue",
+  "releases": [
+    {
+      "name": "3.5",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.4",
+      "isEol": true,
+      "eolFrom": "2024-09-03",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.3",
+      "isEol": true,
+      "eolFrom": "2023-12-29",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.7",
+      "isEol": true,
+      "eolFrom": "2023-12-31",
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.2",
+      "isEol": true,
+      "eolFrom": "2023-05-11",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.1",
+      "isEol": true,
+      "eolFrom": "2021-08-09",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "3.0",
+      "isEol": true,
+      "eolFrom": "2021-06-07",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.6",
+      "isEol": true,
+      "eolFrom": "2022-07-01",
+      "isEoes": false,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.5",
+      "isEol": true,
+      "eolFrom": "2019-02-04",
+      "isEoes": true,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.4",
+      "isEol": true,
+      "eolFrom": "2017-10-13",
+      "isEoes": true,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.3",
+      "isEol": true,
+      "eolFrom": "2017-07-13",
+      "isEoes": true,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.2",
+      "isEol": true,
+      "eolFrom": "2017-04-27",
+      "isEoes": true,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.1",
+      "isEol": true,
+      "eolFrom": "2017-02-26",
+      "isEoes": true,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.0",
+      "isEol": true,
+      "eolFrom": "2016-11-22",
+      "isEoes": true,
+      "eoesFrom": null
+    },
+    {
+      "name": "1",
+      "isEol": true,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    }
+  ]
+}
