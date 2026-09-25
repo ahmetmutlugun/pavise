@@ -5,6 +5,11 @@ Railway injects `PORT`; the server reads it. The Dockerfile `HEALTHCHECK` is
 ignored there (docker-compose still uses it). Logs go to stderr only;
 `PAVISE_LOG_DIR` is set by `docker-compose.yml`, not the image.
 
+Builds: dependencies compile in their own Docker layer (stub sources), so a
+source-only change rebuilds in ~20 s locally instead of ~100 s; editing
+`Cargo.toml`/`Cargo.lock` redoes the full ~65 s compile. On a 4 GB build
+host, pass `CARGO_BUILD_JOBS=2` to avoid running out of memory.
+
 ## Suggested variables
 
 | Variable | Small instance (≤ 2 GB) | Notes |

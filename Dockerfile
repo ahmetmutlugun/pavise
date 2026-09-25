@@ -10,13 +10,25 @@ RUN npm run build
 # ── Rust build stage ────────────────────────────────────────────────────────
 FROM rust:1.88-slim AS builder
 
-RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
-COPY . .
 
-# Limit parallelism to survive 4GB VM builds
-RUN CARGO_BUILD_JOBS=2 cargo build --release --bin pavise-server
+# Compile dependencies in their own layer: it is rebuilt only when
+# Cargo.toml/Cargo.lock change, not on every source edit. Stub entry points
+# stand in for the crate's own sources.
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src \
+    && echo 'fn main() {}' > src/main.rs \
+    && echo 'fn main() {}' > src/serve.rs \
+    && touch src/lib.rs \
+    && cargo build --release --bin pavise-server \
+    && rm -rf src
+
+COPY . .
+# COPY keeps the context's mtimes, which can be older than the stub build;
+# touch so cargo recompiles the real sources instead of reusing the stubs.
+# On small (4 GB) build hosts, set CARGO_BUILD_JOBS=2 to avoid OOM.
+RUN touch src/main.rs src/serve.rs src/lib.rs \
+    && cargo build --release --bin pavise-server
 
 # ── Runtime stage ───────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
