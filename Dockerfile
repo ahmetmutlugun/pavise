@@ -1,9 +1,17 @@
+# syntax=docker/dockerfile:1
+# Cache mounts persist between builds. Railway requires ids of the form
+# s/<service id>-<path> with the service id written literally (no ARG/env).
+# Service `pavise` in project incredible-clarity:
+# 2bd6af3c-a9aa-4a51-b465-7715a71780b6
+# Other builders (docker compose, local) treat them as plain cache names.
+
 # ── Frontend build stage ─────────────────────────────────────────────────────
 FROM node:22-slim AS frontend
 
 WORKDIR /app/web
 COPY web/package.json web/package-lock.json* ./
-RUN npm ci
+RUN --mount=type=cache,id=s/2bd6af3c-a9aa-4a51-b465-7715a71780b6-/root/.npm,target=/root/.npm \
+    npm ci
 COPY web/ .
 RUN npm run build
 
@@ -12,23 +20,20 @@ FROM rust:1.88-slim AS builder
 
 WORKDIR /app
 
-# Compile dependencies in their own layer: it is rebuilt only when
-# Cargo.toml/Cargo.lock change, not on every source edit. Stub entry points
-# stand in for the crate's own sources.
-COPY Cargo.toml Cargo.lock ./
-RUN mkdir src \
-    && echo 'fn main() {}' > src/main.rs \
-    && echo 'fn main() {}' > src/serve.rs \
-    && touch src/lib.rs \
-    && cargo build --release --bin pavise-server \
-    && rm -rf src
-
-COPY . .
-# COPY keeps the context's mtimes, which can be older than the stub build;
-# touch so cargo recompiles the real sources instead of reusing the stubs.
+# Cargo's download cache and target/ persist across builds, so a deploy
+# recompiles only what changed (a dependency bump rebuilds just that crate).
+# target/ lives in the cache, so the binary is copied out in the same step.
+# Touch the crate's sources and embedded files (include_str!/include_bytes!):
+# a checkout or upload can carry mtimes older than the cached build, and cargo
+# decides freshness by mtime.
 # On small (4 GB) build hosts, set CARGO_BUILD_JOBS=2 to avoid OOM.
-RUN touch src/main.rs src/serve.rs src/lib.rs \
-    && cargo build --release --bin pavise-server
+COPY . .
+RUN --mount=type=cache,id=s/2bd6af3c-a9aa-4a51-b465-7715a71780b6-/usr/local/cargo/registry,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=s/2bd6af3c-a9aa-4a51-b465-7715a71780b6-/usr/local/cargo/git,target=/usr/local/cargo/git \
+    --mount=type=cache,id=s/2bd6af3c-a9aa-4a51-b465-7715a71780b6-/app/target,target=/app/target,sharing=locked \
+    find src rules templates assets Cargo.toml -type f -exec touch {} + \
+    && cargo build --release --bin pavise-server \
+    && cp target/release/pavise-server /usr/local/bin/pavise-server
 
 # ── Runtime stage ───────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
@@ -53,7 +58,7 @@ ENV CHROME=/usr/bin/chromium
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/pavise-server /app/pavise-server
+COPY --from=builder /usr/local/bin/pavise-server /app/pavise-server
 COPY --from=frontend /app/web/dist /app/web/dist
 COPY rules/  /app/rules/
 COPY data/   /app/data/
