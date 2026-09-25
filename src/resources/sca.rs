@@ -3,15 +3,16 @@
 //! lock files if present.
 
 use crate::types::FrameworkComponent;
-use crate::unpacker::ExtractedFile;
+use crate::unpacker::UnpackedArchive;
+use anyhow::Result;
 use tracing::debug;
 
 /// For each framework binary path, look for a sibling `Info.plist` and
 /// extract `CFBundleIdentifier` + `CFBundleShortVersionString`.
 pub fn extract_components(
     framework_binary_paths: &[String],
-    files: &[ExtractedFile],
-) -> Vec<FrameworkComponent> {
+    archive: &UnpackedArchive,
+) -> Result<Vec<FrameworkComponent>> {
     let mut components = Vec::new();
 
     for bin_path in framework_binary_paths {
@@ -35,7 +36,7 @@ pub fn extract_components(
             .unwrap_or(bin_path.as_str())
             .to_string();
 
-        let plist_file = match files.iter().find(|f| f.path == plist_path) {
+        let plist_file = match archive.files.iter().find(|f| f.path == plist_path) {
             Some(f) => f,
             None => {
                 debug!("No Info.plist found for framework: {}", bin_path);
@@ -45,21 +46,34 @@ pub fn extract_components(
                     bundle_id: None,
                     version: None,
                     path: bin_path.clone(),
+                    source_url: None,
                 });
                 continue;
             }
         };
 
-        let (bundle_id, version) = parse_framework_plist(&plist_file.data);
+        let (bundle_id, version) = parse_framework_plist(&archive.read(plist_file)?);
         components.push(FrameworkComponent {
             name,
             bundle_id,
             version,
             path: bin_path.clone(),
+            source_url: None,
         });
     }
 
-    components
+    Ok(components)
+}
+
+/// Component for an SDK detected by class signature inside the main binary.
+pub fn static_component(name: String, main_binary_path: &str) -> FrameworkComponent {
+    FrameworkComponent {
+        name,
+        bundle_id: None,
+        version: None,
+        path: format!("{} (statically linked)", main_binary_path),
+        source_url: None,
+    }
 }
 
 /// Extract dependency components from CocoaPods `Podfile.lock` and SPM
@@ -68,23 +82,23 @@ pub fn extract_components(
 /// These files are not normally shipped in production IPAs, but developer or
 /// CI-produced archives sometimes include them. Parsing them gives richer
 /// transitive dependency coverage than bundled framework binaries alone.
-pub fn extract_lockfile_deps(files: &[ExtractedFile]) -> Vec<FrameworkComponent> {
+pub fn extract_lockfile_deps(archive: &UnpackedArchive) -> Result<Vec<FrameworkComponent>> {
     let mut components = Vec::new();
-    for f in files {
+    for f in &archive.files {
         let filename = f.path.split('/').next_back().unwrap_or(&f.path);
         match filename {
             "Podfile.lock" => {
-                if let Ok(text) = std::str::from_utf8(&f.data) {
+                if let Ok(text) = std::str::from_utf8(&archive.read(f)?) {
                     components.extend(parse_podfile_lock(text, &f.path));
                 }
             }
             "Package.resolved" => {
-                components.extend(parse_package_resolved(&f.data, &f.path));
+                components.extend(parse_package_resolved(&archive.read(f)?, &f.path));
             }
             _ => {}
         }
     }
-    components
+    Ok(components)
 }
 
 /// Parse first-level pod entries from a Podfile.lock.
@@ -140,6 +154,7 @@ fn parse_podfile_lock(text: &str, source_path: &str) -> Vec<FrameworkComponent> 
             bundle_id: None,
             version,
             path: source_path.to_string(),
+            source_url: None,
         });
     }
 
@@ -194,11 +209,19 @@ fn parse_package_resolved(data: &[u8], source_path: &str) -> Vec<FrameworkCompon
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
+        // Repo URL: v2 uses "location", v1 uses "repositoryURL"
+        let source_url = pin
+            .get("location")
+            .or_else(|| pin.get("repositoryURL"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
         components.push(FrameworkComponent {
             name,
             bundle_id: None,
             version: pkg_version,
             path: source_path.to_string(),
+            source_url,
         });
     }
 

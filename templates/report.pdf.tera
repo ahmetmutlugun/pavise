@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pavise report · {{ r.app.name }}</title>
+<style>
+{{ fonts_css | safe }}
+/* Pavise design system — mirrors web/src/styles/scan.css, tuned for A4 print. */
+:root{
+  --cream:#ece6d8;--cream-2:#e0d8c2;--cream-3:#f4f0e5;--card:#faf8f2;
+  --navy:#1c1b2a;--navy-2:#26253a;
+  --mint:#6fe3a8;--mint-deep:#4ec98a;--amber:#e8a868;--coral:#e87a6a;
+  --ink:#1c1b2a;--ink-dim:rgba(28,27,42,.64);--ink-faint:rgba(28,27,42,.44);
+  --ink-line:rgba(28,27,42,.12);--ink-line-2:rgba(28,27,42,.22);
+  --paper:rgba(236,230,216,.88);--paper-dim:rgba(236,230,216,.6);--paper-line:rgba(236,230,216,.16);
+  --sev-high:#c4503e;--sev-warn:#c4853e;--sev-info:#2a6d88;--sev-secure:#2a8859;
+  --display:"Bricolage Grotesque","Inter Tight",system-ui,sans-serif;
+  --body:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@page{size:A4;margin:11mm 0 13mm;background:#f4f0e5;
+  @bottom-left{content:{{ footer_css | safe }};padding-left:14mm;vertical-align:top;padding-top:3mm;
+    font-family:"JetBrains Mono",ui-monospace,monospace;font-size:6pt;letter-spacing:.12em;text-transform:uppercase;color:rgba(28,27,42,.5)}
+  @bottom-right{content:"Page " counter(page) " of " counter(pages);padding-right:14mm;vertical-align:top;padding-top:3mm;
+    font-family:"JetBrains Mono",ui-monospace,monospace;font-size:6pt;letter-spacing:.12em;text-transform:uppercase;color:rgba(28,27,42,.5)}}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+html,body{background:var(--cream-3)}
+body{font-family:var(--body);font-size:9pt;line-height:1.5;color:var(--ink);padding:0 14mm;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+/* Untrusted strings of any length must wrap instead of overflowing. */
+.wrap,h1,p,li,td{overflow-wrap:anywhere}
+.mono{font-family:var(--mono)}
+.brk{opacity:.5;padding:0 .45em}
+
+/* ── Masthead (navy card with cut corner, like the site's result header) ── */
+.mast{background:var(--navy);color:var(--cream);position:relative;
+  clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px))}
+.mast-bar{display:flex;align-items:center;gap:8px;padding:10px 20px;border-bottom:1px solid var(--paper-line);
+  font-family:var(--mono);font-size:6.8pt;letter-spacing:.16em;text-transform:uppercase;color:var(--paper-dim)}
+.mast-bar svg{width:11px;height:14px;flex-shrink:0}
+.mast-bar .brand{color:var(--cream);font-weight:600;letter-spacing:.2em}
+.mast-bar .date{margin-left:auto}
+.mast-main{display:flex;gap:20px;padding:18px 20px 20px}
+.mast-id{flex:1;min-width:0}
+.eyebrow{font-family:var(--mono);font-size:6.5pt;letter-spacing:.16em;text-transform:uppercase;color:var(--paper-dim);
+  display:flex;align-items:center;gap:7px}
+.eyebrow .dot{width:5px;height:5px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 3px rgba(111,227,168,.2)}
+h1{font-family:var(--display);font-weight:700;font-size:23pt;line-height:1.02;letter-spacing:-.025em;margin:8px 0 7px;color:var(--cream)}
+h1.long{font-size:17pt;line-height:1.08}
+.clamp2{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.clamp1{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.app-ident{font-family:var(--mono);font-size:7.6pt;color:var(--paper);letter-spacing:.02em;word-break:break-all}
+.app-meta{font-size:8pt;color:var(--paper-dim);margin-top:3px}
+.score{flex-shrink:0;width:112px;text-align:right;border-left:1px solid var(--paper-line);padding-left:18px;
+  display:flex;flex-direction:column;justify-content:center}
+.score .lbl{font-family:var(--mono);font-size:6.3pt;letter-spacing:.16em;text-transform:uppercase;color:var(--paper-dim)}
+.grade{font-family:var(--display);font-weight:800;font-size:50pt;line-height:.95;letter-spacing:-.04em;margin:3px 0 2px}
+.grade-a{color:var(--mint)}.grade-b{color:var(--mint-deep)}.grade-c{color:var(--amber)}.grade-d{color:#e0915a}.grade-f{color:var(--coral)}
+.score .num{font-family:var(--mono);font-size:10pt;font-weight:600;color:var(--paper)}
+.score .num span{font-weight:400;font-size:7.5pt;color:var(--paper-dim)}
+
+/* ── Stats row ── */
+.stats{display:flex;gap:1px;background:var(--ink-line);border:1px solid var(--ink-line);border-top:0}
+.stat{flex:1;background:var(--card);padding:9px 6px 8px;text-align:center}
+.stat b{display:block;font-family:var(--display);font-weight:700;font-size:17pt;line-height:1;color:var(--navy);letter-spacing:-.02em}
+.stat span{display:block;font-family:var(--mono);font-size:5.8pt;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-dim);margin-top:5px}
+.stat.high{box-shadow:inset 0 -3px 0 var(--sev-high)}.stat.high b{color:var(--sev-high)}
+.stat.warn{box-shadow:inset 0 -3px 0 var(--sev-warn)}.stat.warn b{color:var(--sev-warn)}
+.stat.info{box-shadow:inset 0 -3px 0 var(--sev-info)}.stat.info b{color:var(--sev-info)}
+.stat.zero b{color:var(--ink-faint)}
+
+/* ── Verdict ── */
+.verdict{margin:16px 0 4px;display:flex;gap:12px;align-items:flex-start}
+.verdict .mark{width:4px;align-self:stretch;flex-shrink:0;background:var(--mint-deep)}
+.verdict.has-high .mark{background:var(--sev-high)}
+.verdict.has-warn .mark{background:var(--sev-warn)}
+.verdict p.head{font-family:var(--display);font-weight:600;font-size:13pt;line-height:1.2;letter-spacing:-.01em;color:var(--navy)}
+.verdict p.sub{color:var(--ink-dim);font-size:8.6pt;margin-top:3px}
+.diff{margin-top:6px;font-family:var(--mono);font-size:7pt;letter-spacing:.06em;color:var(--ink-dim)}
+.diff .up{color:var(--sev-secure)}.diff .down{color:var(--sev-high)}
+
+/* ── Section label (mono + mint caret, as on the site) ── */
+.section{margin-top:16px}
+.keep{break-inside:avoid}
+.label{font-family:var(--mono);font-size:6.8pt;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-dim);
+  display:flex;align-items:baseline;gap:6px;margin-bottom:7px;break-after:avoid}
+.label::before{content:"▸";color:var(--mint-deep)}
+.label .aside{margin-left:auto;letter-spacing:.06em;text-transform:none;color:var(--ink-faint);font-weight:400;
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+
+/* ── Severity badge ── */
+.sev{font-family:var(--mono);font-size:5.8pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#fff;
+  padding:2px 5px;white-space:nowrap;flex-shrink:0;display:inline-block;min-width:48px;text-align:center}
+.sev.high{background:var(--sev-high)}.sev.warn{background:var(--sev-warn)}.sev.info{background:var(--sev-info)}.sev.secure{background:var(--sev-secure)}
+.times{font-family:var(--mono);font-size:7pt;color:var(--ink-faint);font-weight:500;white-space:nowrap}
+.rid{font-family:var(--mono);font-size:6.6pt;color:var(--ink-faint);letter-spacing:.05em;white-space:nowrap;flex-shrink:0}
+
+/* ── Priority list ── */
+.list{border:1px solid var(--ink-line);background:var(--card)}
+.row{display:flex;align-items:flex-start;gap:10px;padding:6px 10px;border-bottom:1px solid var(--ink-line);break-inside:avoid}
+.row:last-child{border-bottom:0}
+.row .sev{margin-top:2px}
+.row .body{flex:1;min-width:0}
+.row .t{font-weight:500;font-size:8.6pt;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .p{font-family:var(--mono);font-size:6.8pt;color:var(--ink-dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .rid{margin-top:2px}
+.more{font-family:var(--mono);font-size:6.8pt;letter-spacing:.06em;color:var(--ink-dim);padding:6px 10px;border-top:1px solid var(--ink-line);text-align:center}
+.clear{border:1px solid var(--ink-line);background:var(--card);padding:14px 16px;display:flex;gap:10px;align-items:center}
+.clear .ic{width:18px;height:18px;display:grid;place-items:center;background:var(--mint);color:var(--navy);font-weight:800;font-size:9pt;flex-shrink:0}
+
+/* ── Two-column band: protections + OWASP ── */
+.grid{break-inside:avoid;display:grid;gap:1px;background:var(--ink-line);border:1px solid var(--ink-line)}
+.prot{grid-template-columns:repeat(4,1fr)}
+.prot div{background:var(--card);padding:6px 8px;display:flex;align-items:center;gap:7px;font-size:7.6pt;line-height:1.25;min-width:0}
+.prot i{font-style:normal;width:14px;height:14px;flex-shrink:0;display:grid;place-items:center;font-size:7.5pt;font-weight:800}
+.prot .ok i{background:var(--mint);color:var(--navy)}
+.prot .fail i{background:var(--sev-high);color:#fff}
+.prot .warn i{background:var(--amber);color:var(--navy)}
+.prot .fail{color:var(--sev-high);font-weight:500}
+.owasp{grid-template-columns:repeat(5,1fr)}
+.owasp div{background:var(--card);padding:6px 8px 7px;min-width:0;border-top:3px solid transparent}
+.owasp .high{border-top-color:var(--sev-high)}.owasp .warn{border-top-color:var(--sev-warn)}.owasp .info{border-top-color:var(--sev-info)}
+.owasp .none{border-top-color:var(--ink-line)}.owasp .none *{color:var(--ink-faint)!important}
+.owasp .top{display:flex;justify-content:space-between;align-items:baseline}
+.owasp code{font-family:var(--mono);font-size:7pt;font-weight:600;color:var(--navy)}
+.owasp b{font-family:var(--display);font-size:12pt;line-height:1;color:var(--navy)}
+.owasp span{display:block;font-size:6.6pt;line-height:1.25;color:var(--ink-dim);margin-top:2px}
+.note{font-size:7pt;color:var(--ink-faint);margin-top:5px}
+
+/* ── Detail pages ── */
+.page-break{break-before:page}
+h2{font-family:var(--display);font-weight:700;font-size:16pt;letter-spacing:-.02em;color:var(--navy);line-height:1.1}
+.h2-sub{color:var(--ink-dim);font-size:8.4pt;margin:3px 0 12px}
+.card{background:var(--card);border:1px solid var(--ink-line);border-left:3px solid var(--ink-line-2);padding:8px 12px 9px;margin-bottom:6px;break-inside:avoid}
+.card.high{border-left-color:var(--sev-high)}.card.warn{border-left-color:var(--sev-warn)}
+.card-head{display:flex;gap:10px;align-items:flex-start}
+.card-head .sev{margin-top:3px}
+.card-head .t{flex:1;min-width:0;font-family:var(--display);font-weight:600;font-size:10.5pt;line-height:1.25;color:var(--navy);letter-spacing:-.005em}
+.card-head .rid{margin-top:3px}
+.tags{font-family:var(--mono);font-size:6.5pt;letter-spacing:.06em;color:var(--ink-faint);margin:3px 0 0 58px;text-transform:uppercase}
+.card .desc{margin:4px 0 0 58px;font-size:8.1pt;line-height:1.45;color:var(--ink)}
+.ev{margin:5px 0 0 58px;display:flex;gap:8px;align-items:baseline}
+.ev-lbl,.fix-lbl{font-family:var(--mono);font-size:5.8pt;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint);
+  flex-shrink:0;width:34px}
+.ev ul{list-style:none;flex:1;min-width:0;border-left:1px solid var(--ink-line-2);padding-left:7px}
+.ev li{font-family:var(--mono);font-size:6.9pt;line-height:1.5;color:var(--ink-dim);word-break:break-all}
+.ev li.extra{color:var(--ink-faint)}
+.fix{margin:6px 0 0 58px;padding:4px 8px;background:rgba(111,227,168,.14);display:flex;gap:8px;align-items:baseline}
+.fix .fix-lbl{color:#2a8859}
+.fix p{font-size:8pt;color:var(--ink);flex:1;min-width:0}
+
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--ink-line);table-layout:fixed}
+td{padding:5px 10px;border-bottom:1px solid var(--ink-line);vertical-align:top;font-size:8pt}
+tr{break-inside:avoid}
+td.t{width:46%;font-weight:500}
+td.p{font-family:var(--mono);font-size:6.8pt;color:var(--ink-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+td.i{width:92px;text-align:right}
+
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{border:1px solid var(--ink-line-2);background:var(--card);padding:3px 8px;font-size:7.8pt;max-width:100%}
+.chip b{font-weight:600}
+.chip span{color:var(--ink-dim);font-size:7pt;margin-left:4px}
+
+.facts{display:grid;grid-template-columns:132px 1fr;border:1px solid var(--ink-line);background:var(--card)}
+.facts div{padding:4px 10px;border-bottom:1px solid var(--ink-line);font-size:7.8pt;min-width:0}
+.facts .k{font-family:var(--mono);font-size:6.3pt;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-dim);padding-top:5px}
+.facts .v.mono{font-size:7pt;word-break:break-all}
+.facts div:nth-last-child(-n+2){border-bottom:0}
+.closing{margin-top:14px;font-size:7.6pt;color:var(--ink-dim);display:flex;gap:8px}
+.closing::before{content:"▸";color:var(--mint-deep)}
+</style>
+</head>
+<body>
+
+<!-- ═══ Page 1 — summary ═══ -->
+<header class="mast">
+  <div class="mast-bar">
+    <svg viewBox="0 0 100 128" aria-hidden="true"><path d="M16 8Q16 4 20 4L80 4Q84 4 84 8L84 76Q84 104 50 124Q16 104 16 76Z" fill="#ece6d8"/><line x1="50" y1="16" x2="50" y2="112" stroke="#1c1b2a" stroke-width="5"/><circle cx="50" cy="56" r="10" fill="#4ec98a"/></svg>
+    <span class="brand">Pavise</span><span class="brk">[</span>iOS security report<span class="brk">]</span>
+    <span class="date">{{ r.generated }} UTC</span>
+  </div>
+  <div class="mast-main">
+    <div class="mast-id">
+      <div class="eyebrow"><span class="dot"></span>Static analysis · IPA</div>
+      <h1 class="clamp2{% if r.app.long_name %} long{% endif %}">{{ r.app.name }}</h1>
+      {% if r.app.identifier %}<div class="app-ident clamp2">{{ r.app.identifier }}</div>{% endif %}
+      {% if r.app.meta %}<div class="app-meta clamp1">{{ r.app.meta }}</div>{% endif %}
+    </div>
+    <div class="score">
+      <div class="lbl">Grade</div>
+      <div class="grade grade-{{ r.grade_class }}">{{ r.grade }}</div>
+      <div class="num">{{ r.score }}<span> / 100</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat high{% if r.counts.high == 0 %} zero{% endif %}"><b>{{ r.counts.high }}</b><span>High</span></div>
+  <div class="stat warn{% if r.counts.warning == 0 %} zero{% endif %}"><b>{{ r.counts.warning }}</b><span>Warning</span></div>
+  <div class="stat info{% if r.counts.info == 0 %} zero{% endif %}"><b>{{ r.counts.info }}</b><span>Info</span></div>
+  <div class="stat{% if r.counts.secrets == 0 %} zero{% endif %}"><b>{{ r.counts.secrets }}</b><span>Secrets</span></div>
+  <div class="stat{% if r.counts.trackers == 0 %} zero{% endif %}"><b>{{ r.counts.trackers }}</b><span>Trackers</span></div>
+</div>
+
+<div class="verdict{% if r.counts.high > 0 %} has-high{% elif r.counts.warning > 0 %} has-warn{% endif %}">
+  <div class="mark"></div>
+  <div>
+    <p class="head">{{ r.verdict }}</p>
+    {% if r.verdict_detail %}<p class="sub">{{ r.verdict_detail }}</p>{% endif %}
+    {% if r.diff %}<div class="diff">Since baseline:
+      <span class="{% if r.diff.score_delta > 0 %}up{% elif r.diff.score_delta < 0 %}down{% endif %}">score {% if r.diff.score_delta > 0 %}+{% endif %}{{ r.diff.score_delta }}</span>
+      · {{ r.diff.new_findings }} new · {{ r.diff.fixed_findings }} fixed findings
+      {% if r.diff.new_secrets > 0 or r.diff.fixed_secrets > 0 %}· {{ r.diff.new_secrets }} new · {{ r.diff.fixed_secrets }} fixed secrets{% endif %}
+    </div>{% endif %}
+  </div>
+</div>
+
+<section class="section">
+  <div class="label">Fix first{% if r.priority %}<span class="aside">details on the following pages</span>{% endif %}</div>
+  {% if r.priority %}
+  <div class="list">
+    {% for g in r.priority %}
+    <div class="row">
+      <span class="sev {{ g.sev }}">{{ g.sev_label }}</span>
+      <div class="body">
+        <div class="t">{{ g.title }}{% if g.count > 1 %} <span class="times">×{{ g.count }}</span>{% endif %}</div>
+        {% if g.preview %}<div class="p">{{ g.preview }}</div>{% endif %}
+      </div>
+      <span class="rid">{{ g.id }}</span>
+    </div>
+    {% endfor %}
+    {% if r.priority_more > 0 %}<div class="more">+ {{ r.priority_more }} more on the following pages</div>{% endif %}
+  </div>
+  {% else %}
+  <div class="clear"><span class="ic">✓</span><span>Nothing needs fixing before release.{% if r.info %} Informational notes are listed at the end.{% endif %}</span></div>
+  {% endif %}
+</section>
+
+<section class="section">
+  {% if r.binary %}
+  <div class="label">Binary hardening<span class="aside">{{ r.binary.arch }} · {{ r.binary.path }}</span></div>
+  <div class="grid prot">
+    {% for c in r.binary.checks %}
+    <div class="{{ c.state }}"><i>{% if c.state == "ok" %}✓{% elif c.state == "fail" %}✕{% else %}!{% endif %}</i><span class="wrap">{{ c.name }}</span></div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="label">Binary hardening</div>
+  <div class="clear"><span>The main executable could not be analysed.</span></div>
+  {% endif %}
+</section>
+
+<section class="section">
+  <div class="label">OWASP Mobile Top 10 (2024)<span class="aside">findings per category</span></div>
+  <div class="grid owasp">
+    {% for c in r.owasp %}
+    <div class="{{ c.worst }}"><div class="top"><code>{{ c.code }}</code><b>{{ c.count }}</b></div><span>{{ c.label }}</span></div>
+    {% endfor %}
+  </div>
+  <p class="note">Top border shows the most severe finding in each category.</p>
+</section>
+
+<!-- ═══ Detail ═══ -->
+{% if r.details %}
+<div class="page-break"></div>
+<h2>Findings to address</h2>
+<p class="h2-sub">High and warning-level issues, most severe first. Repeated findings are grouped by rule.</p>
+{% for g in r.details %}
+<article class="card {{ g.sev }}">
+  <div class="card-head">
+    <span class="sev {{ g.sev }}">{{ g.sev_label }}</span>
+    <div class="t wrap">{{ g.title }}{% if g.count > 1 %} <span class="times">×{{ g.count }}</span>{% endif %}</div>
+    <span class="rid">{{ g.id }}</span>
+  </div>
+  {% if g.tags %}<div class="tags wrap">{{ g.tags }}</div>{% endif %}
+  {% if g.description %}<p class="desc">{{ g.description }}</p>{% endif %}
+  {% if g.evidence %}
+  <div class="ev">
+    <div class="ev-lbl">Seen</div>
+    <ul>{% if g.evidence_inline %}<li>{{ g.evidence | join(sep="  ·  ") }}</li>{% else %}{% for e in g.evidence %}<li>{{ e }}</li>{% endfor %}{% endif %}{% if g.evidence_more > 0 %}<li class="extra">+ {{ g.evidence_more }} more in the JSON / HTML report</li>{% endif %}</ul>
+  </div>
+  {% endif %}
+  {% if g.remediation %}<div class="fix"><div class="fix-lbl">Fix</div><p>{{ g.remediation }}</p></div>{% endif %}
+</article>
+{% endfor %}
+{% if r.details_more > 0 %}<p class="note">+ {{ r.details_more }} more issues omitted for brevity — see the JSON or HTML report.</p>{% endif %}
+{% endif %}
+
+{% if r.info %}
+<section class="section{% if not r.details %} page-break{% endif %}">
+  <div class="label">Informational<span class="aside">context, not necessarily a problem</span></div>
+  <table>
+    {% for i in r.info %}
+    <tr>
+      <td class="t">{{ i.title }}{% if i.count > 1 %} <span class="times">×{{ i.count }}</span>{% endif %}</td>
+      <td class="p">{{ i.preview }}</td>
+      <td class="i rid">{{ i.id }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% if r.info_more > 0 %}<p class="note">+ {{ r.info_more }} more informational rules in the full report.</p>{% endif %}
+</section>
+{% endif %}
+
+{% if r.trackers %}
+<section class="section">
+  <div class="label">Third-party trackers</div>
+  <div class="chips">
+    {% for t in r.trackers %}<span class="chip wrap"><b>{{ t.name }}</b>{% if t.categories %}<span>{{ t.categories }}</span>{% endif %}</span>{% endfor %}
+    {% if r.trackers_more > 0 %}<span class="chip">+ {{ r.trackers_more }} more</span>{% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="section keep">
+  <div class="label">Scan details</div>
+  <div class="facts">
+    {% for f in r.facts %}<div class="k">{{ f.label }}</div><div class="v{% if f.mono %} mono{% endif %}">{{ f.value }}</div>{% endfor %}
+  </div>
+  <p class="closing">This PDF is a summary. Full evidence, domains and the scan log are in the JSON, SARIF and HTML reports.</p>
+</section>
+
+</body>
+</html>

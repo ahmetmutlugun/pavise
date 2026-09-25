@@ -2,6 +2,10 @@
 
 Date: 2026-05-22. Apple Silicon. MobSF `opensecurity/mobile-security-framework-mobsf:latest` in Docker, pavise built `--release`. Pavise timed with hyperfine (3 warm runs); MobSF timed via REST API (3 sequential runs).
 
+> **Historical snapshot.** Severities and scores below predate later changes (e.g. embedded `.der` certs are now
+> info `QS-CERT-002`; emails, tracker categories and cert enumeration are done). Several "pavise wins" rows
+> (ARC, expired profile HIGH, no-pinning) are questioned in [remediation-plan.md](remediation-plan.md).
+
 ## Performance
 
 | IPA | Size | Pavise (mean) | MobSF cold | MobSF warm | Speedup (cold) |
@@ -41,7 +45,7 @@ MobSF's `code_analysis`, `macho_analysis`, and `binary_analysis` sections were *
 
 ### Where MobSF is more accurate than pavise
 
-- **Email extraction.** DVIA has `prateek@damnvulnerableiosapp.com`, `test123@gmail.com` embedded; MobSF stringifies every Mach-O and finds them. Pavise returned 0 emails for DVIA, Navic, and VLC.
+- ~~**Email extraction.**~~ (fixed since.) DVIA has `prateek@damnvulnerableiosapp.com`, `test123@gmail.com` embedded; MobSF stringifies every Mach-O and finds them. Pavise returned 0 emails for DVIA, Navic, and VLC.
 - **Tracker enrichment.** MobSF links trackers to Exodus-Privacy categories + URLs. Pavise emits name only.
 - **Cert/key file enumeration.** MobSF lists every `.der`/`.pem` separately as a hotspot.
 

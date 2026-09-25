@@ -1,5 +1,7 @@
 use std::{path::PathBuf, time::Duration};
 
+use super::proxy::Cidr;
+
 /// Resolved server configuration parsed from environment variables.
 ///
 /// All values are read once at startup. Invalid values are collected and
@@ -24,6 +26,26 @@ pub struct Config {
     pub rate_limit_max: u32,
     /// How long to keep cached scan results. Env: `PAVISE_CACHE_TTL_HOURS` (default: 24).
     pub cache_ttl: Duration,
+    /// Max entries in each of the result store and hash cache; oldest evicted
+    /// first. Env: `PAVISE_CACHE_MAX_ENTRIES` (default: 256).
+    pub cache_max_entries: usize,
+    /// Zip-bomb cap on one scan's total decompressed bytes (declared sizes).
+    /// Env: `PAVISE_MAX_EXTRACTED_BYTES` (default: 1.5 GiB).
+    pub max_extracted_bytes: u64,
+    /// Max bytes of inflated files one scan holds at once; bounds its peak
+    /// memory. Env: `PAVISE_MAX_IN_FLIGHT_BYTES` (default: 512 MiB).
+    pub max_in_flight_bytes: u64,
+    /// Max concurrent headless-Chrome PDF renders. Env: `PAVISE_MAX_PDF` (default: 2).
+    pub max_pdf_renders: usize,
+    /// Max in-progress chunked uploads (bounds disk use). Env:
+    /// `PAVISE_MAX_UPLOAD_SESSIONS` (default: 16); a single IP may hold 2.
+    pub max_upload_sessions: usize,
+    /// Time allowed to receive one request body. Env: `PAVISE_BODY_TIMEOUT_SECS` (default: 300).
+    pub body_timeout: Duration,
+    /// Peers whose `CF-Connecting-IP` / `X-Forwarded-For` headers are believed.
+    /// Env: `PAVISE_TRUSTED_PROXY` — comma-separated IPs/CIDRs; `1`/`true`
+    /// means loopback + private ranges. Unset: headers are ignored.
+    pub trusted_proxies: Vec<Cidr>,
 }
 
 impl Config {
@@ -50,6 +72,28 @@ impl Config {
             parse_nonzero_u64("PAVISE_MAX_UPLOAD_BYTES", 512 * 1024 * 1024, &mut errors);
         let rate_limit_max = parse_nonzero_u32("PAVISE_RATE_LIMIT", 20, &mut errors);
         let cache_ttl_hours = parse_nonzero_u64("PAVISE_CACHE_TTL_HOURS", 24, &mut errors);
+        let cache_max_entries = parse_nonzero_usize("PAVISE_CACHE_MAX_ENTRIES", 256, &mut errors);
+        let max_extracted_bytes = parse_nonzero_u64(
+            "PAVISE_MAX_EXTRACTED_BYTES",
+            1536 * 1024 * 1024,
+            &mut errors,
+        );
+        let max_in_flight_bytes = parse_nonzero_u64(
+            "PAVISE_MAX_IN_FLIGHT_BYTES",
+            crate::MAX_IN_FLIGHT_BYTES,
+            &mut errors,
+        );
+        let max_pdf_renders = parse_nonzero_usize("PAVISE_MAX_PDF", 2, &mut errors);
+        let max_upload_sessions =
+            parse_nonzero_usize("PAVISE_MAX_UPLOAD_SESSIONS", 16, &mut errors);
+        let body_timeout_secs = parse_nonzero_u64("PAVISE_BODY_TIMEOUT_SECS", 300, &mut errors);
+        let trusted_proxies = match std::env::var("PAVISE_TRUSTED_PROXY") {
+            Ok(v) => Cidr::parse_list(&v).unwrap_or_else(|e| {
+                errors.push(format!("PAVISE_TRUSTED_PROXY={v:?}: {e}"));
+                Vec::new()
+            }),
+            Err(_) => Vec::new(),
+        };
 
         let upload_dir = std::env::var("PAVISE_UPLOAD_DIR")
             .map(PathBuf::from)
@@ -74,6 +118,13 @@ impl Config {
             upload_dir,
             rate_limit_max,
             cache_ttl: Duration::from_secs(cache_ttl_hours.saturating_mul(3600)),
+            cache_max_entries,
+            max_extracted_bytes,
+            max_in_flight_bytes,
+            max_pdf_renders,
+            max_upload_sessions,
+            body_timeout: Duration::from_secs(body_timeout_secs),
+            trusted_proxies,
         };
 
         tracing::info!(
@@ -82,6 +133,9 @@ impl Config {
             max_upload_mb = cfg.max_upload_bytes / (1024 * 1024),
             rate_limit_per_min = cfg.rate_limit_max,
             cache_ttl_hours = cache_ttl_hours,
+            max_extracted_mb = cfg.max_extracted_bytes / (1024 * 1024),
+            max_in_flight_mb = cfg.max_in_flight_bytes / (1024 * 1024),
+            trusted_proxies = cfg.trusted_proxies.len(),
             dist_dir = %cfg.dist_dir.display(),
             upload_dir = %cfg.upload_dir.display(),
             "Pavise server configuration resolved"
@@ -102,6 +156,13 @@ impl Config {
             upload_dir,
             rate_limit_max: 100,
             cache_ttl: Duration::from_secs(3600),
+            cache_max_entries: 8,
+            max_extracted_bytes: 64 * 1024 * 1024,
+            max_in_flight_bytes: 16 * 1024 * 1024,
+            max_pdf_renders: 1,
+            max_upload_sessions: 4,
+            body_timeout: Duration::from_secs(30),
+            trusted_proxies: Vec::new(),
         }
     }
 }
@@ -111,9 +172,7 @@ impl Config {
 fn parse_u16(name: &str, default: u16, errors: &mut Vec<String>) -> u16 {
     match std::env::var(name) {
         Ok(v) => v.parse().unwrap_or_else(|_| {
-            errors.push(format!(
-                "{name}={v:?} is not a valid port number (0-65535)"
-            ));
+            errors.push(format!("{name}={v:?} is not a valid port number (0-65535)"));
             default
         }),
         Err(_) => default,

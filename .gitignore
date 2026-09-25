@@ -7,3 +7,6 @@ test-ipas/
 /benchmarks/corpus/*.ipa.zip
 /benchmarks/corpus/_cache/
 /benchmarks/runs/
+/fuzz/target/
+/fuzz/corpus/
+/fuzz/artifacts/

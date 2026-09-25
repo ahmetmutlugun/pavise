@@ -25,14 +25,19 @@ LABEL org.opencontainers.image.source="https://github.com/ahmetmutlugun/pavise"
 LABEL org.opencontainers.image.description="Fast iOS IPA static security analyzer"
 LABEL org.opencontainers.image.licenses="MIT"
 
-# ca-certs for outbound HTTPS (ip-api.com geolocation); fonts for Typst PDF;
+# ca-certs for outbound HTTPS (ip-api.com geolocation); chromium prints the
+# PDF report (templates/report.pdf.tera, fonts embedded; DejaVu/Liberation cover non-Latin fallback);
 # wget is used by the HEALTHCHECK below to probe /healthz.
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    chromium \
     fonts-dejavu-core \
     fonts-liberation \
     wget \
     && rm -rf /var/lib/apt/lists/*
+
+# Point headless_chrome at the distro browser (it reads $CHROME).
+ENV CHROME=/usr/bin/chromium
 
 WORKDIR /app
 
@@ -41,11 +46,20 @@ COPY --from=frontend /app/web/dist /app/web/dist
 COPY rules/  /app/rules/
 COPY data/   /app/data/
 
-# Upload/temp directory — mount a volume here for large file support
+# Upload/temp directory — mount a volume here for large file support.
+# File logging is opt-in (PAVISE_LOG_DIR, set by docker-compose.yml); on
+# Railway stderr is already captured, so the image doesn't write log files.
 RUN mkdir -p /app/uploads /app/logs
 ENV PAVISE_UPLOAD_DIR=/app/uploads
-ENV PAVISE_LOG_DIR=/app/logs
 ENV PAVISE_DIST_DIR=/app/web/dist
+
+# glibc malloc tuning: a fixed mmap threshold returns freed scan buffers to
+# the OS instead of keeping them in heap arenas, and two arenas stop
+# per-thread fragmentation. Measured on 8 CPUs: RSS after scans 280 MB -> 24 MB,
+# peak over 4 concurrent scans 681 MB -> 399 MB, same scan times.
+ENV MALLOC_ARENA_MAX=2 \
+    MALLOC_MMAP_THRESHOLD_=131072 \
+    MALLOC_TRIM_THRESHOLD_=131072
 
 EXPOSE 3000
 

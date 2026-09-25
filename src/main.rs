@@ -9,7 +9,7 @@ use tracing_subscriber::EnvFilter;
 use pavise::{
     baseline,
     report::{html, json, pdf, sarif},
-    resolve_rules_dir, scan_ipa,
+    scan_ipa,
     types::{Finding, ScanReport, Severity},
     ScanOptions,
 };
@@ -18,10 +18,10 @@ use pavise::{
 #[command(
     name = "pavise",
     about = "Fast mobile app static security analysis",
-    long_about = "Pavise performs static security analysis on iOS IPA and Android APK files.\nTargets sub-second scan times with comprehensive security coverage."
+    long_about = "Pavise performs static security analysis on iOS IPA files.\nTargets sub-second scan times with comprehensive security coverage."
 )]
 struct Cli {
-    /// Path to IPA or APK file to scan
+    /// Path to the IPA file to scan
     #[arg(value_name = "FILE")]
     file: PathBuf,
 
@@ -124,14 +124,15 @@ fn main() -> Result<()> {
         colored::control::set_override(false);
     }
 
-    let rules_dir = resolve_rules_dir(cli.rules.as_deref());
-    if !rules_dir.exists() {
-        eprintln!(
-            "{} Rules directory not found: {}",
-            "Warning:".yellow(),
-            rules_dir.display()
-        );
+    // Embedded rules are the default; an explicit --rules dir must be complete
+    // so a typo never silently scans with an empty rule set.
+    if let Some(dir) = cli.rules.as_deref() {
+        if let Err(e) = pavise::rules::validate_dir(dir) {
+            eprintln!("{} {:#}", "Error:".red().bold(), e);
+            std::process::exit(2);
+        }
     }
+    let rules_dir = cli.rules.clone();
 
     let min_severity = Severity::from(cli.min_severity.clone());
 
@@ -145,6 +146,8 @@ fn main() -> Result<()> {
         min_severity,
         network: cli.network,
         show_progress: !cli.quiet && cli.explain.is_none(),
+        max_extracted_bytes: None,
+        max_in_flight_bytes: None,
     };
 
     // Validate the file exists and is within a sane size limit before scanning.
@@ -188,14 +191,23 @@ fn main() -> Result<()> {
         .to_lowercase();
 
     let mut report = match ext.as_str() {
-        "ipa" => scan_ipa(&cli.file, &opts).context("IPA scan failed")?,
+        "ipa" => match scan_ipa(&cli.file, &opts) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("{} IPA scan failed: {:#}", "Error:".red(), e);
+                std::process::exit(2);
+            }
+        },
         "apk" => {
-            eprintln!("{} Android APK analysis coming in Phase 2.", "Info:".cyan());
+            eprintln!(
+                "{} Android APK files are not supported; pavise scans iOS IPAs only.",
+                "Error:".red()
+            );
             std::process::exit(2);
         }
         _ => {
             eprintln!(
-                "{} Unrecognized file extension '{}'. Expected .ipa or .apk",
+                "{} Unrecognized file extension '{}'. Expected .ipa",
                 "Error:".red(),
                 ext
             );

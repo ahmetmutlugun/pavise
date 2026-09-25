@@ -126,6 +126,7 @@ mod tests {
             },
             main_binary: None,
             framework_binaries: Vec::new(),
+            extension_binaries: Vec::new(),
             findings,
             domains: Vec::new(),
             emails: Vec::new(),
@@ -166,6 +167,10 @@ mod tests {
             severity: Severity::High,
             matched_value: value.to_string(),
             file_path: None,
+            cwe: None,
+            owasp_mobile: None,
+            owasp_masvs: None,
+            remediation: None,
         }
     }
 

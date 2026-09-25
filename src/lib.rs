@@ -7,6 +7,7 @@ pub mod network;
 pub mod patterns;
 pub mod report;
 pub mod resources;
+pub mod rules;
 pub mod scoring;
 pub mod server;
 pub mod types;
@@ -34,7 +35,7 @@ use crate::scoring::owasp::compute_score;
 use crate::types::{
     AuditEntry, BinaryInfo, DomainGeoInfo, DomainInfo, Finding, ScanReport, SecretMatch, Severity,
 };
-use crate::unpacker::ipa::unpack as unpack_ipa;
+use crate::unpacker::ipa::{unpack_with_limit, MAX_TOTAL_EXTRACTED};
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -48,15 +49,45 @@ fn bare_ip_re() -> &'static Regex {
     })
 }
 
+static IP_CONTEXT_RE: OnceLock<Regex> = OnceLock::new();
+
+/// Words that mark a dotted quad on the same line as a network address.
+fn ip_context_re() -> &'static Regex {
+    IP_CONTEXT_RE.get_or_init(|| {
+        Regex::new(
+            r"(?i)host|server|addr|dns|proxy|endpoint|resolver|gateway|\bip\b|_ip\b|\bip_|ipv4",
+        )
+        .expect("IP context regex")
+    })
+}
+
 /// Extract bare IPv4 addresses from text (not already wrapped in a URL scheme).
+///
+/// A dotted quad inside arbitrary text is usually a version or OID, so a match
+/// needs context: the string is just the address (optionally `:port` or
+/// `/prefix`), the line lists several addresses, or it names a host/server/DNS.
 fn scan_for_bare_ips(text: &str) -> Vec<String> {
     let mut ips = Vec::new();
-    for cap in bare_ip_re().captures_iter(text) {
-        if let Some(m) = cap.get(1) {
-            let s = m.as_str();
-            if is_ip_literal(s) {
-                ips.push(s.to_string());
-            }
+    for line in text.lines() {
+        let found: Vec<&str> = bare_ip_re()
+            .captures_iter(line)
+            .filter_map(|c| c.get(1).map(|m| m.as_str()))
+            .filter(|s| is_ip_literal(s))
+            .collect();
+        let Some(first) = found.first() else {
+            continue;
+        };
+        let trimmed = line
+            .trim()
+            .trim_matches(|c| c == '"' || c == '\'' || c == ',');
+        let standalone = trimmed.strip_prefix(first).is_some_and(|rest| {
+            rest.is_empty()
+                || rest
+                    .strip_prefix([':', '/'])
+                    .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+        });
+        if standalone || found.len() >= 2 || ip_context_re().is_match(line) {
+            ips.extend(found.iter().map(|s| s.to_string()));
         }
     }
     ips.sort();
@@ -85,38 +116,25 @@ fn date_str_to_days(date: &str) -> Option<i64> {
     Some(era * 146097 + doe - 719468)
 }
 
-/// Resolve the rules directory: use user-supplied path, or fall back to
-/// a `rules/` directory alongside the binary.
-pub fn resolve_rules_dir(custom: Option<&Path>) -> PathBuf {
-    if let Some(p) = custom {
-        return p.to_path_buf();
-    }
-
-    // Try next to binary
-    if let Ok(exe) = std::env::current_exe() {
-        let candidate = exe.parent().unwrap_or(Path::new(".")).join("rules");
-        if candidate.is_dir() {
-            return candidate;
-        }
-    }
-
-    // Try relative to CWD (useful in development)
-    std::env::current_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join("rules")
-}
-
 /// Configuration for a single IPA scan invocation.
 pub struct ScanOptions {
-    /// Path to the directory containing YAML rule files.
-    pub rules_dir: PathBuf,
+    /// Custom rules directory replacing the embedded rule set (`--rules`).
+    pub rules_dir: Option<PathBuf>,
     /// Minimum severity threshold — findings below this level are excluded from results.
     pub min_severity: Severity,
     /// Perform DNS resolution and IP geolocation lookups (requires network access).
     pub network: bool,
     /// Print phase progress lines to stderr during the scan.
     pub show_progress: bool,
+    /// Zip-bomb cap on total decompressed bytes, by declared size (default 4 GB).
+    pub max_extracted_bytes: Option<u64>,
+    /// Cap on bytes of inflated files held at once during the parallel
+    /// per-file pass (default 512 MiB). Bounds peak memory of a scan.
+    pub max_in_flight_bytes: Option<u64>,
 }
+
+/// Default for [`ScanOptions::max_in_flight_bytes`].
+pub const MAX_IN_FLIGHT_BYTES: u64 = 512 * 1024 * 1024;
 
 /// Lightweight audit log accumulator used during a scan.
 struct AuditLog {
@@ -160,7 +178,8 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     // 1. Unpack
     // ------------------------------------------------------------------ //
     progress!("Unpacking IPA…");
-    let unpacked = unpack_ipa(path).context("Failed to unpack IPA")?;
+    let max_total = opts.max_extracted_bytes.unwrap_or(MAX_TOTAL_EXTRACTED);
+    let unpacked = unpack_with_limit(path, max_total).context("Failed to unpack IPA")?;
     log.record(format!(
         "Unpacked IPA: {} files extracted, {:.1} MB ({} frameworks)",
         unpacked.archive.files.len(),
@@ -192,8 +211,11 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             })
             .context("Info.plist not found in IPA")?;
 
-        info_plist::analyze(&plist_file.data, &opts.rules_dir)
-            .context("Failed to analyze Info.plist")?
+        info_plist::analyze(
+            &unpacked.archive.read(plist_file)?,
+            opts.rules_dir.as_deref(),
+        )
+        .context("Failed to analyze Info.plist")?
     };
 
     let app_info = plist_result.app_info;
@@ -216,35 +238,56 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     // ------------------------------------------------------------------ //
 
     // Load shared analyzers (cheap — just loads YAML once)
-    let symbol_scanner = SymbolScanner::load(&opts.rules_dir)?;
-    let pattern_engine = PatternEngine::load(&opts.rules_dir)?;
-    let tracker_detector = TrackerDetector::load(&opts.rules_dir)?;
+    let symbol_scanner = SymbolScanner::load(opts.rules_dir.as_deref())?;
+    let pattern_engine = PatternEngine::load(opts.rules_dir.as_deref())?;
+    let tracker_detector = TrackerDetector::load(opts.rules_dir.as_deref())?;
 
     progress!("Analyzing main binary…");
     // 3a. Main binary analysis
-    let (main_binary_result, main_binary_findings) =
+    let main_binary = unpacked
+        .main_binary_path
+        .as_deref()
+        .and_then(|p| unpacked.archive.files.iter().find(|f| f.path == p));
+    let main_data = main_binary.map(|f| unpacked.archive.read(f)).transpose()?;
+    let (main_binary_result, main_binary_findings, main_imports) =
         if let Some(ref bin_path) = unpacked.main_binary_path {
-            if let Some(bin_file) = unpacked.archive.files.iter().find(|f| &f.path == bin_path) {
-                match macho::analyze(&bin_file.data, &bin_file.path) {
+            if let (Some(bin_file), Some(bin_data)) = (main_binary, main_data.as_deref()) {
+                match macho::analyze(bin_data, &bin_file.path) {
                     Ok(result) => {
                         let sym_findings = symbol_scanner.scan(&result.imports);
                         let mut findings = result.findings;
                         findings.extend(sym_findings);
-                        (Some(result.binary_info), findings)
+                        (Some(result.binary_info), findings, result.imports)
                     }
+                    // Without the main binary every protection check is
+                    // skipped and the score would be inflated — fail instead.
                     Err(e) => {
-                        debug!("Failed to analyze main binary: {}", e);
-                        (None, Vec::new())
+                        return Err(e).with_context(|| {
+                            format!("Failed to analyze main binary {}", bin_file.path)
+                        });
                     }
                 }
             } else {
-                (None, Vec::new())
+                anyhow::bail!("Main binary {} missing from archive", bin_path);
             }
         } else {
-            (None, Vec::new())
+            anyhow::bail!("Main binary not found (CFBundleExecutable unresolved)");
         };
 
     all_findings.extend(main_binary_findings);
+
+    // Privacy manifest vs. required-reason APIs the main binary imports.
+    let privacy_manifest = unpacked
+        .bundle_prefix
+        .as_deref()
+        .map(|p| format!("{}/PrivacyInfo.xcprivacy", p))
+        .and_then(|path| unpacked.archive.files.iter().find(|f| f.path == path))
+        .map(|f| unpacked.archive.read(f))
+        .transpose()?;
+    all_findings.extend(manifest::privacy::analyze(
+        privacy_manifest.as_deref(),
+        &main_imports,
+    ));
     log.record(format!(
         "Main binary analysis: {} ({}) — {} findings",
         main_binary_result
@@ -257,13 +300,11 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
 
     // 3a-ii. Entitlements (extracted from main binary's code signature)
     let ent_count_before = all_findings.len();
-    if let Some(ref bin_path) = unpacked.main_binary_path {
-        if let Some(bin_file) = unpacked.archive.files.iter().find(|f| &f.path == bin_path) {
-            if let Some(ent_bytes) = entitlements::extract_from_binary(&bin_file.data) {
-                debug!("Extracted {} bytes of entitlements", ent_bytes.len());
-                let ent_findings = entitlements::analyze(&ent_bytes);
-                all_findings.extend(ent_findings);
-            }
+    if let Some(bin_data) = main_data.as_deref() {
+        if let Some(ent_bytes) = entitlements::extract_from_binary(bin_data) {
+            debug!("Extracted {} bytes of entitlements", ent_bytes.len());
+            let ent_findings = entitlements::analyze(&ent_bytes);
+            all_findings.extend(ent_findings);
         }
     }
     log.record(format!(
@@ -271,34 +312,87 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         all_findings.len() - ent_count_before
     ));
 
+    // 3a-iii. App extensions (.appex): own executable and entitlements, run
+    // in their own process but ship with — and share data with — the app.
+    let extension_results: Vec<Option<(BinaryInfo, Vec<Finding>)>> = unpacked
+        .extension_binary_paths
+        .par_iter()
+        .filter_map(|ext_path| unpacked.archive.files.iter().find(|f| &f.path == ext_path))
+        .map(|ext_file| {
+            let data = unpacked.archive.read(ext_file)?;
+            Ok(analyze_extension(&ext_file.path, &data, &symbol_scanner))
+        })
+        .collect::<Result<_>>()?;
+    let mut extension_binaries: Vec<BinaryInfo> = Vec::new();
+    for (bi, findings) in extension_results.into_iter().flatten() {
+        all_findings.extend(findings);
+        extension_binaries.push(bi);
+    }
+    log.record(format!(
+        "App extensions: {} of {} analyzed",
+        extension_binaries.len(),
+        unpacked.extension_binary_paths.len()
+    ));
+
     progress!(format!(
-        "Analyzing {} framework binaries…",
+        "Analyzing {} framework binaries and scanning strings…",
         unpacked.framework_binary_paths.len()
     ));
-    // 3b. Framework binaries (parallel)
-    let framework_results: Vec<(BinaryInfo, Vec<Finding>)> = unpacked
+    // 3b/3c. One parallel pass over every file: framework Mach-O analysis,
+    // string scanning (secrets, URLs, ciphers, emails) and pinning signals.
+    // Each non-retained file is inflated once here and dropped afterwards, so
+    // peak memory tracks the files in flight, not the whole archive.
+    let framework_paths: std::collections::HashSet<&str> = unpacked
         .framework_binary_paths
-        .par_iter()
-        .filter_map(|fw_path| {
-            let fw_file = unpacked.archive.files.iter().find(|f| &f.path == fw_path)?;
-            match macho::analyze(&fw_file.data, &fw_file.path) {
-                Ok(result) => {
-                    let sym_findings = symbol_scanner.scan(&result.imports);
-                    let mut findings = result.findings;
-                    findings.extend(sym_findings);
-                    Some((result.binary_info, findings))
-                }
-                Err(e) => {
-                    debug!("Failed to analyze framework {}: {}", fw_path, e);
-                    None
-                }
-            }
-        })
+        .iter()
+        .map(String::as_str)
         .collect();
+    // Symbol-based pinning (QS-API-023) already settles the pinning check, so
+    // skipped (noise) files needn't be inflated just to look for signals.
+    let pinning_settled = all_findings.iter().any(|f| f.id == "QS-API-023");
+    let budget = unpacker::ByteBudget::new(opts.max_in_flight_bytes.unwrap_or(MAX_IN_FLIGHT_BYTES));
+    let mut file_scans: Vec<FileScan> = unpacked
+        .archive
+        .files
+        .par_iter()
+        .map(|f| -> Result<Option<FileScan>> {
+            let noise = patterns::secrets::is_noise_file(&f.path);
+            if noise && pinning_settled {
+                return Ok(None);
+            }
+            // Held until the file's results are built: covers the inflated
+            // bytes and the extracted text derived from them.
+            let _permit = budget.acquire(f.size);
+            let data = unpacked.archive.read(f)?;
+            let mut scan = FileScan {
+                pinning_signal: has_pinning_signal(&f.path, &data),
+                ..FileScan::default()
+            };
+            if noise {
+                return Ok(Some(scan));
+            }
+            if framework_paths.contains(f.path.as_str()) {
+                scan.framework = match macho::analyze(&data, &f.path) {
+                    Ok(result) => {
+                        let mut findings = result.findings;
+                        findings.extend(symbol_scanner.scan(&result.imports));
+                        Some((result.binary_info, findings))
+                    }
+                    Err(e) => {
+                        debug!("Failed to analyze framework {}: {}", f.path, e);
+                        None
+                    }
+                };
+            }
+            scan_strings(f, &data, &pattern_engine, &mut scan);
+            Ok(Some(scan))
+        })
+        .filter_map(Result::transpose)
+        .collect::<Result<_>>()?;
 
     let mut framework_binaries: Vec<BinaryInfo> = Vec::new();
     let mut fw_finding_groups: HashMap<String, Vec<Finding>> = HashMap::new();
-    for (bi, fw_findings) in framework_results {
+    for (bi, fw_findings) in file_scans.iter_mut().filter_map(|s| s.framework.take()) {
         for f in fw_findings {
             fw_finding_groups.entry(f.id.clone()).or_default().push(f);
         }
@@ -355,72 +449,19 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     ));
 
     progress!("Scanning strings for secrets, URLs, ciphers, and emails…");
-    // 3c. String scanning (parallel over all files)
-    #[allow(clippy::type_complexity)]
-    let string_results: Vec<(
-        Vec<SecretMatch>,
-        Vec<String>,
-        Vec<DomainInfo>,
-        Vec<Finding>,
-        Vec<String>, // bare IPv4 addresses
-    )> = unpacked
-        .archive
-        .files
-        .par_iter()
-        .filter(|f| !patterns::secrets::is_noise_file(&f.path))
-        .map(|f| {
-            let text = extract_printable_strings(&f.data, 6);
-            let mut secrets = pattern_engine.scan(&text, &f.path);
-
-            // Entropy-based detection only on text-like files.
-            // Running on binary files (dylibs, Mach-O frameworks) produces extreme noise:
-            // ObjC selectors, Swift mangled symbols, and path strings all score above 4.5
-            // despite being completely harmless.
-            if is_text_like(&f.path) {
-                let lines: Vec<&str> = text.lines().collect();
-                let entropy_hits = crate::patterns::entropy::scan_for_high_entropy(&lines, &f.path);
-                secrets.extend(entropy_hits);
-            }
-
-            // Email extraction on text files and Mach-O binaries. The main
-            // executable and embedded frameworks have no text-like extension but
-            // routinely embed support/developer addresses in __cstring; MobSF
-            // surfaces these. emails::extract_emails applies its own entropy and
-            // fake-TLD filtering, so binary noise is rejected without the
-            // false-positive blowup that entropy secret scanning suffers from.
-            let emails = if is_text_like(&f.path) || is_macho(&f.data) {
-                extract_emails(&text, &f.path)
-            } else {
-                Vec::new()
-            };
-
-            let url_result = urls::extract(&text, &f.path);
-
-            // Weak cipher scan — runs on all file types; CommonCrypto constants
-            // appear as C string literals in Mach-O __TEXT,__cstring sections.
-            let cipher_findings = ciphers::scan_for_weak_ciphers(&text, &f.path);
-
-            // Bare IPv4 addresses not already inside a URL scheme
-            let bare_ips = scan_for_bare_ips(&text);
-
-            let mut file_findings = url_result.findings;
-            file_findings.extend(cipher_findings);
-
-            (secrets, emails, url_result.domains, file_findings, bare_ips)
-        })
-        .collect();
-
     let mut all_secrets: Vec<SecretMatch> = Vec::new();
     let mut all_emails: Vec<String> = Vec::new();
     let mut all_domains: Vec<DomainInfo> = Vec::new();
     let mut all_bare_ips: Vec<String> = Vec::new();
 
-    for (secrets, emails, domains, file_findings, bare_ips) in string_results {
-        all_secrets.extend(secrets);
-        all_emails.extend(emails);
-        all_domains.extend(domains);
-        all_findings.extend(file_findings);
-        all_bare_ips.extend(bare_ips);
+    let mut file_pinning_signal = false;
+    for scan in file_scans {
+        all_secrets.extend(scan.secrets);
+        all_emails.extend(scan.emails);
+        all_domains.extend(scan.domains);
+        all_findings.extend(scan.findings);
+        all_bare_ips.extend(scan.bare_ips);
+        file_pinning_signal |= scan.pinning_signal;
     }
 
     // Deduplicate
@@ -497,24 +538,25 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     let firebase_info = unpacked
         .archive
         .find("GoogleService-Info.plist")
-        .and_then(|f| firebase::parse_google_service_info(&f.data));
+        .map(|f| unpacked.archive.read(f))
+        .transpose()?
+        .and_then(|data| firebase::parse_google_service_info(&data));
 
-    // 3d-ii. Scan all non-main .plist files for secrets (config plists can contain credentials)
-    let plist_secret_results: Vec<Vec<SecretMatch>> = unpacked
+    // 3d-ii. Scan parsed plists as `Key = "Value"` lines. The raw string scan
+    // above can't match key/value rules: XML puts key and value in separate
+    // elements and binary plists store them as unrelated byte runs.
+    let plist_secret_results: Vec<Option<Vec<SecretMatch>>> = unpacked
         .archive
         .files
         .par_iter()
-        .filter(|f| {
-            f.path.ends_with(".plist")
-                && !f.path.ends_with("Info.plist")
-                && !patterns::secrets::is_noise_file(&f.path)
-        })
+        .filter(|f| f.path.ends_with(".plist") && !patterns::secrets::is_noise_file(&f.path))
         .map(|f| {
-            let text = extract_printable_strings(&f.data, 6);
-            pattern_engine.scan(&text, &f.path)
+            let data = unpacked.archive.read(f)?;
+            Ok(patterns::engine::plist_key_values(&data)
+                .map(|text| pattern_engine.scan(&text, &f.path)))
         })
-        .collect();
-    for matches in plist_secret_results {
+        .collect::<Result<_>>()?;
+    for matches in plist_secret_results.into_iter().flatten() {
         all_secrets.extend(matches);
     }
     all_secrets = deduplicate(all_secrets);
@@ -524,17 +566,30 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     // (`.der`/`.cer`, or a PEM `CERTIFICATE`) is usually a legitimate pinning
     // anchor and is reported as an informational hotspot, while genuine private
     // keys and PKCS#12 keystores are high-severity key exposure.
-    const CERT_EXTENSIONS: &[&str] =
-        &[".p12", ".pfx", ".pem", ".cer", ".der", ".key", ".crt"];
+    const CERT_EXTENSIONS: &[&str] = &[
+        ".p12",
+        ".pfx",
+        ".pem",
+        ".cer",
+        ".der",
+        ".key",
+        ".crt",
+        ".p8",
+        ".jks",
+        ".keystore",
+        ".bks",
+    ];
+    let mut private_key_paths: std::collections::HashSet<&str> = Default::default();
     for f in &unpacked.archive.files {
         let lower = f.path.to_lowercase();
         if !CERT_EXTENSIONS.iter().any(|e| lower.ends_with(*e)) {
             continue;
         }
-        let Some(kind) = resources::certs::classify(&f.path, &f.data) else {
+        let Some(kind) = resources::certs::classify(&f.path, &unpacked.archive.read(f)?) else {
             continue;
         };
         if kind.is_private() {
+            private_key_paths.insert(f.path.as_str());
             let keystore = kind == resources::certs::CertKind::EncryptedKeystore;
             all_findings.push(Finding {
                 id: "QS-CERT-001".to_string(),
@@ -564,7 +619,11 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                 cwe: Some("CWE-321".to_string()),
                 owasp_mobile: Some("M9".to_string()),
                 owasp_masvs: Some("MSTG-CRYPTO-1".to_string()),
-                evidence: vec![format!("{}: {}", if keystore { "keystore" } else { "private key" }, f.path)],
+                evidence: vec![format!(
+                    "{}: {}",
+                    if keystore { "keystore" } else { "private key" },
+                    f.path
+                )],
                 remediation: Some(
                     "Remove private key and keystore files from the app bundle. \
                     Use the iOS Keychain or server-side PKI. If mutual TLS is required, \
@@ -598,6 +657,17 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             });
         }
     }
+
+    // A private key file is reported once, as QS-CERT-001; drop the regex hit
+    // (QS-SEC-004) on the same file, and generic matches a specific rule covers.
+    all_secrets.retain(|s| {
+        s.rule_id != "QS-SEC-004"
+            || !s
+                .file_path
+                .as_deref()
+                .is_some_and(|p| private_key_paths.contains(p))
+    });
+    all_secrets = patterns::secrets::drop_superseded(all_secrets);
 
     // 3d-iv. Bundled database file detection
     const DB_EXTENSIONS: &[&str] = &[".sqlite", ".sqlite3", ".db", ".realm"];
@@ -657,7 +727,11 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         .collect();
 
     let domain_strings: Vec<String> = all_domains.iter().map(|d| d.domain.clone()).collect();
-    let trackers = tracker_detector.detect(&domain_strings, &framework_names);
+    let main_classes: Vec<String> = main_data
+        .as_deref()
+        .map(macho::objc_class_names)
+        .unwrap_or_default();
+    let trackers = tracker_detector.detect(&domain_strings, &framework_names, &main_classes);
     log.record(format!(
         "Tracker detection: {} trackers identified from {} domains and {} frameworks",
         trackers.len(),
@@ -669,39 +743,14 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     // Flag apps with external network activity but no detectable pinning mechanism.
     // We check for known pinning signals in extracted strings and framework names.
     {
-        const PINNING_SIGNALS: &[&str] = &[
-            "pinnedCertificates",
-            "pinnedPublicKeys",
-            "pinnedKeys",
-            "TrustKit",
-            "SSLPinning",
-            "certificate_pinning",
-            "public_key_hash",
-            "kCFStreamSSLPeerTrust",
-            "SecTrustEvaluateWithError",
-            "SecTrustEvaluate",
-            "challengeCompletionHandler",
-            "didReceiveAuthenticationChallenge",
-            "URLAuthenticationChallenge",
-        ];
-
-        // Symbol-based pinning detection (QS-API-023) and bundled pinning
-        // anchors (QS-CERT-002 public certs) are stronger signals than the text
-        // scan below — and the text scan can't see symbols in Mach-O binaries
-        // (from_utf8 fails on them). Without this, QS-NET-004 contradicted
-        // QS-API-023 on pinning apps (Bitwarden, SwissCovid, Orbot).
-        let has_pinning_finding = all_findings
-            .iter()
-            .any(|f| f.id == "QS-API-023" || f.id == "QS-CERT-002");
+        // Symbol-based pinning detection (QS-API-023) is a stronger signal than
+        // the per-file text scan (`has_pinning_signal`), which can't see symbols
+        // in Mach-O binaries (from_utf8 fails on them). A bundled public
+        // certificate (QS-CERT-002) is not evidence of pinning on its own.
+        let has_pinning_finding = all_findings.iter().any(|f| f.id == "QS-API-023");
 
         let has_pinning_signal = has_pinning_finding
-            || unpacked.archive.files.iter().any(|f| {
-                if let Ok(text) = std::str::from_utf8(&f.data) {
-                    PINNING_SIGNALS.iter().any(|sig| text.contains(sig))
-                } else {
-                    false
-                }
-            })
+            || file_pinning_signal
             || framework_names.iter().any(|n| {
                 let lower = n.to_lowercase();
                 lower.contains("trustkit") || lower.contains("pinning")
@@ -767,15 +816,25 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
 
     // 3f. Software Composition Analysis — extract framework versions
     let mut framework_components =
-        sca::extract_components(&unpacked.framework_binary_paths, &unpacked.archive.files);
+        sca::extract_components(&unpacked.framework_binary_paths, &unpacked.archive)?;
 
     // 3f-i. Lock file SCA — CocoaPods Podfile.lock and SPM Package.resolved
     // These files are not normally shipped in production IPAs, but developer
     // or CI archives sometimes include them.  Parsing them adds transitive
     // dependency coverage beyond bundled framework binaries.
-    let lockfile_components = sca::extract_lockfile_deps(&unpacked.archive.files);
+    let lockfile_components = sca::extract_lockfile_deps(&unpacked.archive)?;
     let lockfile_count = lockfile_components.len();
     framework_components.extend(lockfile_components);
+
+    // 3f-ii. SDKs linked statically into the main binary have no framework
+    // bundle; list them from their ObjC class signatures (version unknown).
+    let static_sdks = tracker_detector.statically_linked(&main_classes, &framework_names);
+    let main_path = unpacked.main_binary_path.as_deref().unwrap_or_default();
+    framework_components.extend(
+        static_sdks
+            .into_iter()
+            .map(|name| resources::sca::static_component(name, main_path)),
+    );
 
     let versioned_count = framework_components
         .iter()
@@ -789,12 +848,16 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     ));
 
     // 3g. Provisioning profile
+    // The main app's profile sits at the bundle root; extensions carry their
+    // own under PlugIns/, which `ends_with` would pick up first.
     let provisioning_info = unpacked
-        .archive
-        .files
-        .iter()
-        .find(|f| f.path.ends_with("embedded.mobileprovision"))
-        .and_then(|f| provisioning::parse(&f.data));
+        .bundle_prefix
+        .as_deref()
+        .map(|p| format!("{}/embedded.mobileprovision", p))
+        .and_then(|path| unpacked.archive.files.iter().find(|f| f.path == path))
+        .map(|f| unpacked.archive.read(f))
+        .transpose()?
+        .and_then(|data| provisioning::parse(&data));
 
     if let Some(ref prov) = provisioning_info {
         let profile_type = &prov.profile_type;
@@ -854,7 +917,9 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                             may be rejected by MDM systems.",
                             exp_date
                         ),
-                        severity: Severity::High,
+                        // Info: expiry depends on the scan date, not the app, and
+                        // must not flip the exit code for an unchanged IPA.
+                        severity: Severity::Info,
                         category: "configuration".to_string(),
                         cwe: Some("CWE-298".to_string()),
                         owasp_mobile: Some("M8".to_string()),
@@ -872,7 +937,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                             prevent the app from launching on managed devices.",
                             exp_date, days_remaining
                         ),
-                        severity: Severity::Warning,
+                        severity: Severity::Info,
                         category: "configuration".to_string(),
                         cwe: Some("CWE-298".to_string()),
                         owasp_mobile: Some("M8".to_string()),
@@ -894,46 +959,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     }
 
     // ------------------------------------------------------------------ //
-    // 4. Score
-    // ------------------------------------------------------------------ //
-    progress!("Computing security score…");
-
-    // embedded.mobileprovision is present in dev/ad-hoc/enterprise builds.
-    // App Store binaries are encrypted by Apple at download time, so cryptid=0
-    // is normal here and should not count against the score.
-    let is_dev_build = unpacked
-        .archive
-        .files
-        .iter()
-        .any(|f| f.path.ends_with("embedded.mobileprovision"));
-
-    let (security_score, grade) = compute_score(
-        main_binary_result.as_ref(),
-        &framework_binaries,
-        &all_findings,
-        &all_secrets,
-        is_dev_build,
-    );
-    log.record(format!(
-        "Scoring: {}/100 ({}) — {} high, {} warning, {} info findings total",
-        security_score,
-        grade,
-        all_findings
-            .iter()
-            .filter(|f| f.severity == Severity::High)
-            .count(),
-        all_findings
-            .iter()
-            .filter(|f| f.severity == Severity::Warning)
-            .count(),
-        all_findings
-            .iter()
-            .filter(|f| f.severity == Severity::Info)
-            .count(),
-    ));
-
-    // ------------------------------------------------------------------ //
-    // 5. Network domain intelligence (optional — requires --network flag)
+    // 4. Network domain intelligence (optional — requires --network flag)
     // ------------------------------------------------------------------ //
     let domain_intel: Vec<DomainGeoInfo> = if opts.network {
         match network::domain_intel::analyze_domains(&domain_strings) {
@@ -989,7 +1015,19 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         Vec::new()
     };
 
-    // 5b. OSV.dev CVE lookup (optional — requires --network flag)
+    // 4b. Firebase open-backend probes (optional — requires --network flag)
+    if opts.network {
+        if let Some(ref fb) = firebase_info {
+            let fb_findings = network::firebase_probe::probe(fb);
+            log.record(format!(
+                "Firebase probes: {} publicly readable backends",
+                fb_findings.len()
+            ));
+            all_findings.extend(fb_findings);
+        }
+    }
+
+    // 5. OSV.dev CVE lookup (optional — requires --network flag)
     if opts.network {
         let osv_findings = network::osv::query_components(&framework_components);
         let osv_count = osv_findings.len();
@@ -999,9 +1037,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             osv_count
         ));
     } else {
-        log.record(
-            "OSV.dev CVE lookup: skipped (use --network to enable)".to_string(),
-        );
+        log.record("OSV.dev CVE lookup: skipped (use --network to enable)".to_string());
     }
 
     // Final dedup pass — merges findings emitted after the mid-scan pass at
@@ -1011,12 +1047,51 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     all_findings = deduplicate_findings(all_findings);
 
     // ------------------------------------------------------------------ //
-    // 6. Filter by minimum severity
+    // 6. Score (last, so network/CVE findings count)
+    // ------------------------------------------------------------------ //
+    progress!("Computing security score…");
+
+    let (security_score, grade) = compute_score(&all_findings, &all_secrets);
+    log.record(format!(
+        "Scoring: {}/100 ({}) — {} high, {} warning, {} info findings total",
+        security_score,
+        grade,
+        all_findings
+            .iter()
+            .filter(|f| f.severity == Severity::High)
+            .count(),
+        all_findings
+            .iter()
+            .filter(|f| f.severity == Severity::Warning)
+            .count(),
+        all_findings
+            .iter()
+            .filter(|f| f.severity == Severity::Info)
+            .count(),
+    ));
+
+    // OWASP Mobile Top 10 (2024) / MASVS v2 from the single rule-ID table;
+    // it overrides whatever analyzers set at their call sites.
+    for f in &mut all_findings {
+        if let Some((cat, masvs)) = scoring::mapping::owasp_for(&f.id) {
+            f.owasp_mobile = Some(cat.to_string());
+            f.owasp_masvs = masvs.map(str::to_string);
+        }
+    }
+    for s in &mut all_secrets {
+        if let Some((cat, masvs)) = scoring::mapping::owasp_for(&s.rule_id) {
+            s.owasp_mobile = Some(cat.to_string());
+            s.owasp_masvs = masvs.map(str::to_string);
+        }
+    }
+
+    // ------------------------------------------------------------------ //
+    // 7. Filter by minimum severity
     // ------------------------------------------------------------------ //
     let all_findings = filter_by_severity(all_findings, &opts.min_severity);
 
     // OWASP Mobile Top 10 summary (computed after filtering so counts match report)
-    let owasp_summary = compute_owasp_summary(&all_findings);
+    let owasp_summary = compute_owasp_summary(&all_findings, &all_secrets, &opts.min_severity);
 
     let scan_duration_ms = start.elapsed().as_millis() as u64;
     log.record(format!("Scan complete: {}ms total", scan_duration_ms));
@@ -1030,6 +1105,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         file_hashes: unpacked.hashes,
         main_binary: main_binary_result,
         framework_binaries,
+        extension_binaries,
         findings: all_findings,
         domains: all_domains,
         emails: all_emails,
@@ -1048,21 +1124,166 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     })
 }
 
-/// Build OWASP Mobile Top 10 summary: M1..M10 → list of finding IDs with that category.
-fn compute_owasp_summary(findings: &[Finding]) -> HashMap<String, Vec<String>> {
+/// Per-file results of the parallel pass in `scan_ipa`.
+#[derive(Default)]
+struct FileScan {
+    framework: Option<(BinaryInfo, Vec<Finding>)>,
+    secrets: Vec<SecretMatch>,
+    emails: Vec<String>,
+    domains: Vec<DomainInfo>,
+    findings: Vec<Finding>,
+    /// Bare IPv4 addresses
+    bare_ips: Vec<String>,
+    pinning_signal: bool,
+}
+
+/// String-level checks on one file: secrets, entropy, emails, URLs, weak
+/// ciphers and bare IPs.
+fn scan_strings(
+    f: &unpacker::ExtractedFile,
+    data: &[u8],
+    pattern_engine: &PatternEngine,
+    out: &mut FileScan,
+) {
+    let mut text = extract_printable_strings(data, 6);
+    if is_macho(data) {
+        for s in macho::ustrings(data) {
+            text.push('\n');
+            text.push_str(&s);
+        }
+    }
+    let mut secrets = pattern_engine.scan(&text, &f.path);
+
+    // Entropy-based detection only on text-like files.
+    // Running on binary files (dylibs, Mach-O frameworks) produces extreme noise:
+    // ObjC selectors, Swift mangled symbols, and path strings all score above 4.5
+    // despite being completely harmless.
+    // Config files only: minified JS/HTML/CSS bundles are dominated by
+    // embedded base64 assets. Plists are scanned as parsed values, since
+    // raw binary-plist bytes glue keys and offsets into fake tokens.
+    if is_config_like(&f.path) && !patterns::entropy::is_lottie_json(data) {
+        let parsed = f
+            .path
+            .ends_with(".plist")
+            .then(|| patterns::engine::plist_key_values(data))
+            .flatten();
+        let source = parsed.as_deref().unwrap_or(&text);
+        let lines: Vec<&str> = source.lines().collect();
+        let entropy_hits = crate::patterns::entropy::scan_for_high_entropy(&lines, &f.path);
+        secrets.extend(entropy_hits);
+    }
+
+    // Email extraction on text files and Mach-O binaries. The main
+    // executable and embedded frameworks have no text-like extension but
+    // routinely embed support/developer addresses in __cstring; MobSF
+    // surfaces these. emails::extract_emails applies its own entropy and
+    // fake-TLD filtering, so binary noise is rejected without the
+    // false-positive blowup that entropy secret scanning suffers from.
+    let emails = if is_text_like(&f.path) || is_macho(data) {
+        extract_emails(&text, &f.path)
+    } else {
+        Vec::new()
+    };
+
+    let url_result = urls::extract(&text, &f.path);
+
+    // Weak cipher scan — runs on all file types; CommonCrypto constants
+    // appear as C string literals in Mach-O __TEXT,__cstring sections.
+    let cipher_findings = ciphers::scan_for_weak_ciphers(&text, &f.path);
+
+    // Bare IPv4 addresses not already inside a URL scheme
+    let bare_ips = scan_for_bare_ips(&text);
+
+    let mut file_findings = url_result.findings;
+    file_findings.extend(cipher_findings);
+
+    out.secrets = secrets;
+    out.emails = emails;
+    out.domains = url_result.domains;
+    out.findings = file_findings;
+    out.bare_ips = bare_ips;
+}
+
+/// Strings that only appear when pinning is configured. Generic trust handling
+/// (SecTrustEvaluate, didReceiveAuthenticationChallenge) is used by every
+/// URLSession client and says nothing about pinning.
+const PINNING_SIGNALS: &[&str] = &[
+    "pinnedCertificates",
+    "pinnedPublicKeys",
+    "pinnedKeys",
+    "TrustKit",
+    "SSLPinning",
+    "certificate_pinning",
+    "public_key_hash",
+    "NSPinnedDomains", // ATS-native pinning (iOS 14+)
+];
+
+/// Text scan for pinning configuration. It can't see symbols in Mach-O
+/// binaries (`from_utf8` fails on them); `QS-API-023` covers those.
+fn has_pinning_signal(path: &str, data: &[u8]) -> bool {
+    if let Ok(text) = std::str::from_utf8(data) {
+        PINNING_SIGNALS.iter().any(|sig| text.contains(sig))
+    } else {
+        // Binary plists (Info.plist) keep keys as raw ASCII.
+        path.ends_with("Info.plist") && data.windows(15).any(|w| w == b"NSPinnedDomains")
+    }
+}
+
+/// Analyze one app-extension executable: Mach-O protections, imported APIs
+/// and its own entitlements. Entitlement evidence names the extension.
+fn analyze_extension(
+    path: &str,
+    data: &[u8],
+    scanner: &SymbolScanner,
+) -> Option<(BinaryInfo, Vec<Finding>)> {
+    let result = match macho::analyze(data, path) {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!("Failed to analyze extension {}: {}", path, e);
+            return None;
+        }
+    };
+    let mut findings = result.findings;
+    findings.extend(scanner.scan(&result.imports));
+    if let Some(ent) = entitlements::extract_from_binary(data) {
+        let name = path
+            .split('/')
+            .find(|s| s.ends_with(".appex"))
+            .unwrap_or(path);
+        for mut f in entitlements::analyze(&ent) {
+            for e in &mut f.evidence {
+                *e = format!("{}: {}", name, e);
+            }
+            findings.push(f);
+        }
+    }
+    Some((result.binary_info, findings))
+}
+
+/// Build OWASP Mobile Top 10 summary: M1..M10 → list of finding and secret
+/// rule IDs with that category (secrets filtered by the same minimum severity).
+fn compute_owasp_summary(
+    findings: &[Finding],
+    secrets: &[SecretMatch],
+    min_severity: &Severity,
+) -> HashMap<String, Vec<String>> {
     let mut summary: HashMap<String, Vec<String>> =
         ["M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10"]
             .iter()
             .map(|k| (k.to_string(), Vec::new()))
             .collect();
-    for f in findings {
-        if let Some(m) = &f.owasp_mobile {
-            if let Some(list) = summary.get_mut(m.as_str()) {
-                // Per-instance rules (e.g. QS-CERT-001) fire once per file and
-                // share a ruleId; record each ruleId only once per category.
-                if !list.contains(&f.id) {
-                    list.push(f.id.clone());
-                }
+    let entries = findings.iter().map(|f| (&f.id, &f.owasp_mobile)).chain(
+        secrets
+            .iter()
+            .filter(|s| &s.severity <= min_severity)
+            .map(|s| (&s.rule_id, &s.owasp_mobile)),
+    );
+    for (id, category) in entries {
+        if let Some(list) = category.as_deref().and_then(|m| summary.get_mut(m)) {
+            // Per-instance rules (e.g. QS-CERT-001) fire once per file and
+            // share a ruleId; record each ruleId only once per category.
+            if !list.contains(id) {
+                list.push(id.clone());
             }
         }
     }
@@ -1079,8 +1300,15 @@ fn deduplicate_findings(findings: Vec<Finding>) -> Vec<Finding> {
     // Rules whose every firing is a distinct real-world artifact (one embedded
     // file each) and must stay as separate per-file hotspots rather than being
     // collapsed into one merged finding. Mirrors how MobSF lists each cert/key
-    // file individually. These share a ruleId (one SARIF rule, many results).
-    const PER_INSTANCE_RULES: &[&str] = &["QS-CERT-001", "QS-CERT-002"];
+    // file individually. These share a ruleId (one SARIF rule, many results);
+    // the instance key (file, permission, URL scheme) lives in the evidence.
+    const PER_INSTANCE_RULES: &[&str] = &[
+        "QS-CERT-001",
+        "QS-CERT-002",
+        "QS-PERM-001",
+        "QS-IPC-001",
+        "QS-IPC-002",
+    ];
 
     let mut per_instance: Vec<Finding> = Vec::new();
     // Group key is (rule_id, is_secure). A "Secure" finding ("protection X is
@@ -1182,8 +1410,18 @@ fn filter_by_severity(findings: Vec<Finding>, min: &Severity) -> Vec<Finding> {
 /// True if the string looks like a bare IPv4 address (e.g. "192.168.1.1").
 fn is_ip_literal(s: &str) -> bool {
     let parts: Vec<&str> = s.split('.').collect();
-    parts.len() == 4 && parts.iter().all(|p| p.parse::<u8>().is_ok())
+    // Leading zeros (`1.00.02.28`) mean a version string, not an address.
+    parts.len() == 4
+        && parts
+            .iter()
+            .all(|p| p.parse::<u8>().is_ok() && (p.len() == 1 || !p.starts_with('0')))
 }
+
+/// Public DNS resolvers: look like version tuples but are real addresses.
+const PUBLIC_RESOLVERS: &[&str] = &[
+    "1.1.1.1", "1.0.0.1", "1.1.1.2", "1.0.0.2", "1.1.1.3", "1.0.0.3", "8.8.8.8", "8.8.4.4",
+    "9.9.9.9",
+];
 
 /// True when a dotted-quad should NOT be flagged as a hardcoded server IP.
 ///
@@ -1199,6 +1437,18 @@ fn is_benign_ip(ip: &str) -> bool {
         return true;
     }
     let (a, b) = (octets[0], octets[1]);
+    // X.509 / SNMP OID arcs (`2.5.29.14`, `1.3.101.112`, `1.2.840.x`).
+    if matches!((a, b), (1, 2) | (1, 3) | (2, 5) | (2, 16)) {
+        return true;
+    }
+    // Version tuples (`3.1.1.10`, `2.6.29.4`): tiny first octet, all small.
+    if a <= 9 && octets.iter().all(|&o| o <= 30) && !PUBLIC_RESOLVERS.contains(&ip) {
+        return true;
+    }
+    // x.x.x.0 is a network address (`1.24.4.0`, `134.0.0.0`), not a host.
+    if octets[3] == 0 {
+        return true;
+    }
     match a {
         // 0.0.0.0/8 "this network" — never a real host. Catches version
         // tuples and OID prefixes like 0.1.2.17.
@@ -1235,6 +1485,27 @@ fn is_macho(data: &[u8]) -> bool {
             | [0xca, 0xfe, 0xba, 0xbe]   // FAT_MAGIC (universal)
             | [0xbe, 0xba, 0xfe, 0xca] // FAT_CIGAM (universal, swapped)
     )
+}
+
+/// Configuration-style files where a high-entropy token is plausibly a credential.
+fn is_config_like(path: &str) -> bool {
+    const CONFIG_EXTENSIONS: &[&str] = &[
+        ".plist",
+        ".json",
+        ".xml",
+        ".yaml",
+        ".yml",
+        ".txt",
+        ".strings",
+        ".env",
+        ".cfg",
+        ".conf",
+        ".config",
+        ".ini",
+        ".properties",
+    ];
+    let lower = path.to_lowercase();
+    CONFIG_EXTENSIONS.iter().any(|e| lower.ends_with(e))
 }
 
 fn is_text_like(path: &str) -> bool {
@@ -1328,25 +1599,47 @@ mod tests {
     fn test_is_benign_ip_rejects_reserved() {
         // Reserved / non-routable — must be treated as benign (not flagged).
         for ip in [
-            "0.1.2.17",      // 0.0.0.0/8 — OID/version-tuple noise
-            "1.3.101.112",   // (caught elsewhere; first octet 1 is routable, see below)
-            "127.0.0.2",     // loopback /8
-            "169.254.1.1",   // link-local
-            "10.0.0.5",      // RFC1918
-            "172.16.0.1",    // RFC1918
-            "192.168.1.1",   // RFC1918
-            "224.0.0.1",     // multicast
+            "0.1.2.17",        // 0.0.0.0/8 — OID/version-tuple noise
+            "1.3.101.112",     // OID arc 1.3
+            "2.5.29.14",       // OID arc 2.5 (X.509 extensions)
+            "3.1.1.10",        // version tuple
+            "1.24.4.0",        // network address
+            "127.0.0.2",       // loopback /8
+            "169.254.1.1",     // link-local
+            "10.0.0.5",        // RFC1918
+            "172.16.0.1",      // RFC1918
+            "192.168.1.1",     // RFC1918
+            "224.0.0.1",       // multicast
             "255.255.255.255", // broadcast
         ] {
-            // 1.3.101.112 is routable by range; assert only the reserved ones.
-            if ip == "1.3.101.112" {
-                continue;
-            }
             assert!(is_benign_ip(ip), "{ip} should be benign/non-routable");
         }
         // A real public backend IP is still flagged (not benign).
         assert!(!is_benign_ip("13.107.42.14"));
         assert!(!is_benign_ip("8.8.8.8"));
+        assert!(!is_benign_ip("1.1.1.1"));
+        assert!(!is_benign_ip("149.154.167.50"));
+        assert!(!is_ip_literal("1.00.02.28"));
+        assert!(!is_ip_literal("4.091.008.004"));
+    }
+
+    #[test]
+    fn test_bare_ips_need_context() {
+        let text = "149.154.167.50\n\
+                    Version 5.4.1.22 build\n\
+                    proxy_host=51.15.20.19\n\
+                    1.2.3.4 build 5.6.7.8 notes\n\
+                    185.76.9.1:443";
+        assert_eq!(
+            scan_for_bare_ips(text),
+            vec![
+                "1.2.3.4",
+                "149.154.167.50",
+                "185.76.9.1",
+                "5.6.7.8",
+                "51.15.20.19"
+            ]
+        );
     }
 
     #[test]
@@ -1407,7 +1700,7 @@ mod tests {
             finding("QS-CERT-001", "M9", "a"),
             finding("QS-CERT-001", "M9", "b"),
         ];
-        let summary = compute_owasp_summary(&findings);
+        let summary = compute_owasp_summary(&findings, &[], &Severity::Info);
         assert_eq!(summary["M9"], vec!["QS-CERT-001".to_string()]);
     }
 }

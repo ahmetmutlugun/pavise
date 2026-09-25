@@ -158,7 +158,10 @@ fn load_from(explicit: Option<&Path>) -> Option<LoadedDb> {
 fn resolve_path(explicit: Option<&Path>) -> Option<PathBuf> {
     if let Some(p) = explicit {
         return existing(p.to_path_buf()).or_else(|| {
-            warn!("geoip_local: --geoip-db path does not exist: {}", p.display());
+            warn!(
+                "geoip_local: --geoip-db path does not exist: {}",
+                p.display()
+            );
             None
         });
     }

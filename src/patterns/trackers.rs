@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -18,6 +18,10 @@ struct TrackerRule {
     /// e.g. "Firebase" matches FirebaseCore, FirebaseFirestoreInternal, etc.
     #[serde(default)]
     framework_prefixes: Vec<String>,
+    /// Objective-C class names that only this SDK defines. They survive
+    /// stripping, so they identify SDKs linked statically into the app.
+    #[serde(default)]
+    objc_classes: Vec<String>,
     #[serde(default)]
     website: Option<String>,
 }
@@ -30,24 +34,25 @@ pub struct TrackerDetector {
     framework_map: HashMap<String, usize>,
     /// (lowercase prefix, rule index) pairs for prefix matching
     framework_prefixes: Vec<(String, usize)>,
+    /// Exact (case-sensitive) ObjC class name → rule index
+    class_map: HashMap<String, usize>,
 }
 
 impl TrackerDetector {
-    pub fn load(rules_dir: &Path) -> Result<Self> {
-        let path = rules_dir.join("trackers.yaml");
-        let content = std::fs::read_to_string(&path).unwrap_or_default();
-
-        let rules: Vec<TrackerRule> = if content.is_empty() {
-            Vec::new()
-        } else {
-            serde_yaml::from_str(&content).unwrap_or_default()
-        };
+    pub fn load(rules_dir: Option<&Path>) -> Result<Self> {
+        let content = crate::rules::load(rules_dir, "trackers.yaml")?;
+        let rules: Vec<TrackerRule> =
+            serde_yaml::from_str(&content).context("Failed to parse trackers.yaml")?;
 
         let mut domain_map = HashMap::new();
         let mut framework_map = HashMap::new();
         let mut framework_prefixes = Vec::new();
+        let mut class_map = HashMap::new();
 
         for (idx, rule) in rules.iter().enumerate() {
+            for class in &rule.objc_classes {
+                class_map.insert(class.clone(), idx);
+            }
             for domain in &rule.domains {
                 domain_map.insert(domain.to_lowercase(), idx);
             }
@@ -64,11 +69,48 @@ impl TrackerDetector {
             domain_map,
             framework_map,
             framework_prefixes,
+            class_map,
         })
     }
 
-    /// Detect trackers from a list of domains and framework names.
-    pub fn detect(&self, domains: &[String], framework_names: &[String]) -> Vec<TrackerMatch> {
+    /// Rule indices whose ObjC class signatures appear in `class_names`, with
+    /// the first matching class.
+    fn match_classes(&self, class_names: &[String]) -> Vec<(usize, String)> {
+        let mut hits: Vec<(usize, String)> = Vec::new();
+        for class in class_names {
+            if let Some(&idx) = self.class_map.get(class) {
+                if !hits.iter().any(|(i, _)| *i == idx) {
+                    hits.push((idx, class.clone()));
+                }
+            }
+        }
+        hits.sort();
+        hits
+    }
+
+    /// SDK names detected from class signatures in the main binary, i.e.
+    /// linked statically rather than shipped as a framework.
+    pub fn statically_linked(
+        &self,
+        class_names: &[String],
+        framework_names: &[String],
+    ) -> Vec<String> {
+        let shipped = self.detect(&[], framework_names, &[]);
+        self.match_classes(class_names)
+            .into_iter()
+            .map(|(idx, _)| self.rules[idx].name.clone())
+            .filter(|name| !shipped.iter().any(|t| &t.name == name))
+            .collect()
+    }
+
+    /// Detect trackers from domains, framework names and the main binary's
+    /// ObjC class names.
+    pub fn detect(
+        &self,
+        domains: &[String],
+        framework_names: &[String],
+        class_names: &[String],
+    ) -> Vec<TrackerMatch> {
         let mut matched_indices: HashSet<usize> = HashSet::new();
         let mut evidence_map: HashMap<usize, String> = HashMap::new();
 
@@ -116,7 +158,15 @@ impl TrackerDetector {
             }
         }
 
-        matched_indices
+        for (idx, class) in self.match_classes(class_names) {
+            if matched_indices.insert(idx) {
+                evidence_map.insert(idx, format!("ObjC class: {} (main binary)", class));
+            }
+        }
+
+        let mut matched: Vec<usize> = matched_indices.into_iter().collect();
+        matched.sort();
+        matched
             .into_iter()
             .map(|idx| {
                 let rule = &self.rules[idx];

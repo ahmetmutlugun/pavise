@@ -3,3 +3,10 @@ target/
 .DS_Store
 *.pdf
 pdf.pdf
+# Keep the build context small (Railway uploads it on every `railway up`).
+benchmarks/
+fuzz/
+test-ipas/
+*.ipa
+web/node_modules/
+web/dist/

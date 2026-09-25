@@ -149,16 +149,30 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     let has_canary = imports
         .iter()
         .any(|s| s.contains("___stack_chk_fail") || s.contains("___stack_chk_guard"));
+    // The compiler only emits a canary for functions with stack buffers, so a
+    // missing import is not proof of a missing flag when there is no such code.
+    let canary_na = if has_canary {
+        None
+    } else {
+        canary_not_applicable(&imports, text_section_size(macho))
+    };
     protections.push(BinaryProtection {
         name: "Stack Canary".to_string(),
         enabled: has_canary,
         severity: if has_canary {
             Severity::Secure
+        } else if canary_na.is_some() {
+            Severity::Info
         } else {
             Severity::High
         },
         description: if has_canary {
             "Stack canary protection is present (___stack_chk_fail imported).".to_string()
+        } else if let Some(reason) = canary_na {
+            format!(
+                "___stack_chk_fail not imported, but {} — nothing for a canary to protect.",
+                reason
+            )
         } else {
             "Stack canary protection is absent. Stack buffer overflows may not be detected."
                 .to_string()
@@ -170,7 +184,24 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     // a HIGH app-wide finding (it previously did, contradicting the main
     // binary's own SECURE protection). The main executable lacking the canary is
     // the genuine HIGH; framework gaps are reported separately and downgraded.
-    if !has_canary && is_executable {
+    if let (Some(reason), true) = (canary_na, is_executable) {
+        findings.push(Finding {
+            id: "QS-BIN-002".to_string(),
+            title: "Stack Canary Not Applicable".to_string(),
+            description: format!(
+                "The binary '{}' does not import ___stack_chk_fail, but {}. The compiler only \
+                inserts canaries into functions with stack buffers, so their absence here is expected.",
+                path, reason
+            ),
+            severity: Severity::Info,
+            category: "binary".to_string(),
+            cwe: Some("CWE-121".to_string()),
+            owasp_mobile: Some("M7".to_string()),
+            owasp_masvs: Some("MSTG-CODE-9".to_string()),
+            evidence: vec![format!("___stack_chk_fail absent in {} ({})", path, reason)],
+            remediation: None,
+        });
+    } else if !has_canary && is_executable {
         findings.push(Finding {
             id: "QS-BIN-002".to_string(),
             title: "Stack Canary Not Found".to_string(),
@@ -187,7 +218,7 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
             evidence: vec![format!("___stack_chk_fail absent in {}", path)],
             remediation: Some("Compile with stack protection enabled: -fstack-protector-all (Xcode default for release builds).".to_string()),
         });
-    } else if !has_canary {
+    } else if !has_canary && canary_na.is_none() {
         // Framework/dylib without a canary — separate, downgraded finding that
         // never collides with the main executable's SECURE QS-BIN-002.
         findings.push(Finding {
@@ -232,19 +263,26 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     // flagging them for missing ARC is a false positive.
     //
     // Detection strategy:
-    //   1. ObjC ARC:   _objc_release / _objc_retain / _objc_storeStrong
+    //   1. ObjC ARC:   _objc_storeStrong / _objc_retainAutoreleasedReturnValue …
     //   2. Swift ARC:  swift_retain / swift_release (Swift's own ARC symbols)
     //   3. ObjC usage: _objc_msgSend indicates the binary uses ObjC runtime
     //
     // If a binary has ObjC runtime usage but no ARC symbols → real finding (MRC).
     // If a binary has no ObjC/Swift symbols at all → skip check (pure C/C++).
 
-    let has_objc_arc = imports.iter().any(|s| {
-        s.contains("_objc_release")
-            || s.contains("_objc_retain")
-            || s.contains("_objc_storeStrong")
-            || s.contains("_objc_autorelease")
-    });
+    // Clang also emits objc_retain/objc_release calls under MRC, so only
+    // entry points that exist solely for ARC codegen count as evidence.
+    const OBJC_ARC_MARKERS: &[&str] = &[
+        "_objc_storeStrong",
+        "_objc_retainAutoreleasedReturnValue",
+        "_objc_claimAutoreleasedReturnValue",
+        "_objc_unsafeClaimAutoreleasedReturnValue",
+        "_objc_autoreleaseReturnValue",
+        "_objc_retainAutoreleaseReturnValue",
+    ];
+    let has_objc_arc = imports
+        .iter()
+        .any(|s| OBJC_ARC_MARKERS.contains(&s.as_str()));
     let has_swift_arc = imports.iter().any(|s| {
         s.contains("swift_retain")
             || s.contains("swift_release")
@@ -252,15 +290,28 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
             || s.contains("swift_unknownObjectRelease")
     });
     let has_objc_runtime = imports.iter().any(|s| s.contains("_objc_msgSend"));
+    // MRC code still calls objc_retain/objc_release directly, but so does a
+    // tiny ARC stub (Telegram's `main` has 10 ObjC imports and no ARC-only
+    // calls). Only judge binaries with enough ObjC code for ARC codegen to
+    // have emitted its markers.
+    const MIN_OBJC_IMPORTS: usize = 20;
+    let has_manual_refcount = imports
+        .iter()
+        .any(|s| s == "_objc_retain" || s == "_objc_release" || s == "_objc_autorelease");
+    let objc_import_count = imports
+        .iter()
+        .filter(|s| s.starts_with("_objc_") || s.starts_with("_OBJC_"))
+        .count();
 
     let has_arc = has_objc_arc || has_swift_arc;
-    let uses_objc_or_swift = has_arc || has_objc_runtime;
+    let uses_objc_or_swift = has_arc
+        || (has_objc_runtime && has_manual_refcount && objc_import_count >= MIN_OBJC_IMPORTS);
 
     if uses_objc_or_swift {
         let arc_label = if has_swift_arc {
             "ARC enabled via Swift runtime (swift_retain/release present)."
         } else {
-            "ARC is enabled (Objective-C retain/release functions present)."
+            "ARC is enabled (ARC-only Objective-C runtime entry points present)."
         };
         protections.push(BinaryProtection {
             name: "Automatic Reference Counting (ARC)".to_string(),
@@ -287,7 +338,7 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
                 cwe: Some("CWE-416".to_string()),
                 owasp_mobile: Some("M7".to_string()),
                 owasp_masvs: Some("MSTG-CODE-9".to_string()),
-                evidence: vec![format!("_objc_release/_objc_retain absent despite _objc_msgSend in {}", path)],
+                evidence: vec![format!("No ARC-only runtime calls (_objc_storeStrong, _objc_retainAutoreleasedReturnValue) despite _objc_msgSend in {}", path)],
                 remediation: Some("Enable ARC in Xcode build settings: 'Objective-C Automatic Reference Counting' = YES.".to_string()),
             });
         } else if !has_arc {
@@ -307,7 +358,7 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
                 cwe: Some("CWE-416".to_string()),
                 owasp_mobile: Some("M7".to_string()),
                 owasp_masvs: Some("MSTG-CODE-9".to_string()),
-                evidence: vec![format!("_objc_release/_objc_retain absent despite _objc_msgSend in {}", path)],
+                evidence: vec![format!("No ARC-only runtime calls (_objc_storeStrong, _objc_retainAutoreleasedReturnValue) despite _objc_msgSend in {}", path)],
                 remediation: Some("Prefer dependencies built with ARC enabled.".to_string()),
             });
         } else if is_executable {
@@ -522,7 +573,7 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     let dwarf_paths = extract_dwarf_source_paths(macho);
     if !dwarf_paths.is_empty() {
         findings.push(Finding {
-            id: "QS-BIN-008".to_string(),
+            id: "QS-BIN-010".to_string(),
             title: "Source File Paths Leaked in DWARF Debug Info".to_string(),
             description: format!(
                 "The binary '{}' contains absolute build-machine paths in its DWARF debug sections. \
@@ -703,6 +754,143 @@ fn extract_dwarf_source_paths(macho: &MachO) -> Vec<String> {
     paths
 }
 
+/// Main executables below this `__text` size are launcher stubs (Telegram,
+/// Flutter) whose real code lives in an embedded framework.
+const STUB_TEXT_SIZE: u64 = 64 * 1024;
+
+/// libc calls that operate on caller-provided buffers. A Swift binary that
+/// imports none of them has no C-style stack buffers for a canary to guard.
+const BUFFER_FUNCS: &[&str] = &[
+    "_memcpy",
+    "_memmove",
+    "_memset",
+    "_strcpy",
+    "_strncpy",
+    "_strcat",
+    "_strncat",
+    "_sprintf",
+    "_snprintf",
+    "_vsprintf",
+    "_vsnprintf",
+    "_sscanf",
+    "_gets",
+    "_read",
+    "_strlcpy",
+    "_strlcat",
+    "___memcpy_chk",
+    "___memmove_chk",
+    "___memset_chk",
+    "___strcpy_chk",
+    "___strncpy_chk",
+    "___strcat_chk",
+    "___sprintf_chk",
+    "___snprintf_chk",
+];
+
+/// Why a missing stack canary is not a finding, or `None` if it is one.
+fn canary_not_applicable(imports: &[String], text_size: u64) -> Option<&'static str> {
+    if text_size < STUB_TEXT_SIZE {
+        return Some("its __text section is a small launcher stub");
+    }
+    let is_swift = imports.iter().any(|s| s.starts_with("_swift_"));
+    let uses_buffers = imports.iter().any(|s| BUFFER_FUNCS.contains(&s.as_str()));
+    if is_swift && !uses_buffers {
+        return Some("it is Swift code that imports no libc buffer functions");
+    }
+    None
+}
+
+fn text_section_size(macho: &MachO) -> u64 {
+    for seg in &macho.segments {
+        if seg.name().ok() != Some("__TEXT") {
+            continue;
+        }
+        if let Ok(sections) = seg.sections() {
+            for (sec, _) in sections {
+                if sec.name().ok() == Some("__text") {
+                    return sec.size;
+                }
+            }
+        }
+    }
+    // No __text at all (e.g. bitcode-only): nothing to judge, treat as large.
+    u64::MAX
+}
+
+/// Contents of the `__TEXT,<name>` section of the preferred slice (ARM64 in
+/// a fat binary, else the first). Returns an empty vec for non-Mach-O data.
+fn text_section(data: &[u8], name: &str) -> Vec<u8> {
+    const ARM64_CPUTYPE: u32 = 0x0100_000c;
+    let slice = match Mach::parse(data) {
+        Ok(Mach::Binary(_)) => data,
+        Ok(Mach::Fat(fat)) => {
+            let Ok(arches) = fat.arches() else {
+                return Vec::new();
+            };
+            let Some(arch) = arches
+                .iter()
+                .find(|a| a.cputype == ARM64_CPUTYPE)
+                .or_else(|| arches.first())
+            else {
+                return Vec::new();
+            };
+            let start = arch.offset as usize;
+            match data.get(start..start.saturating_add(arch.size as usize)) {
+                Some(s) => s,
+                None => return Vec::new(),
+            }
+        }
+        Err(_) => return Vec::new(),
+    };
+    let Ok(macho) = MachO::parse(slice, 0) else {
+        return Vec::new();
+    };
+    for seg in &macho.segments {
+        if seg.name().ok() != Some("__TEXT") {
+            continue;
+        }
+        if let Ok(sections) = seg.sections() {
+            for (sec, sec_data) in sections {
+                if sec.name().ok() == Some(name) {
+                    return sec_data.to_vec();
+                }
+            }
+        }
+    }
+    Vec::new()
+}
+
+/// String literals from `__TEXT,__ustring`. The compiler stores NSString
+/// literals with non-ASCII characters there as NUL-terminated UTF-16LE, which
+/// the byte-oriented printable-string scan cannot see.
+pub fn ustrings(data: &[u8]) -> Vec<String> {
+    let sec = text_section(data, "__ustring");
+    let units: Vec<u16> = sec
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .collect();
+    units
+        .split(|&u| u == 0)
+        .filter(|s| s.len() >= 4)
+        .map(|s| {
+            char::decode_utf16(s.iter().copied())
+                .map(|c| c.unwrap_or(char::REPLACEMENT_CHARACTER))
+                .collect()
+        })
+        .collect()
+}
+
+/// Objective-C class names from `__TEXT,__objc_classname`. The runtime needs
+/// them, so they survive symbol stripping — which makes them the signature
+/// of SDKs linked statically into the main binary.
+pub fn objc_class_names(data: &[u8]) -> Vec<String> {
+    text_section(data, "__objc_classname")
+        .split(|&b| b == 0)
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| std::str::from_utf8(s).ok().map(str::to_string))
+        .collect()
+}
+
 fn check_debug_symbols(macho: &MachO) -> bool {
     // Debug info is indicated by a __DWARF segment (embedded dSYM) or __debug_*
     // sections. We deliberately do NOT infer "not stripped" from symbol-table
@@ -724,4 +912,111 @@ fn check_debug_symbols(macho: &MachO) -> bool {
     }
 
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// arm64 MH_EXECUTE with a single `__TEXT,<sect>` section holding `payload`.
+    fn macho_with_text_section(sect: &str, payload: &[u8]) -> Vec<u8> {
+        fn name16(s: &str) -> [u8; 16] {
+            let mut n = [0u8; 16];
+            n[..s.len()].copy_from_slice(s.as_bytes());
+            n
+        }
+        let (header_len, cmd_len) = (32u32, 72u32 + 80);
+        let data_off = header_len + cmd_len;
+        let total = data_off as u64 + payload.len() as u64;
+        let mut b = Vec::new();
+        for w in [
+            0xFEED_FACFu32,
+            0x0100_000C,
+            0,
+            2,
+            1,
+            cmd_len,
+            0x0020_0000,
+            0,
+        ] {
+            b.extend_from_slice(&w.to_le_bytes());
+        }
+        // LC_SEGMENT_64 __TEXT covering the whole file
+        b.extend_from_slice(&0x19u32.to_le_bytes());
+        b.extend_from_slice(&cmd_len.to_le_bytes());
+        b.extend_from_slice(&name16("__TEXT"));
+        for q in [0u64, total, 0, total] {
+            b.extend_from_slice(&q.to_le_bytes());
+        }
+        for w in [5u32, 5, 1, 0] {
+            b.extend_from_slice(&w.to_le_bytes());
+        }
+        // section_64
+        b.extend_from_slice(&name16(sect));
+        b.extend_from_slice(&name16("__TEXT"));
+        b.extend_from_slice(&(data_off as u64).to_le_bytes());
+        b.extend_from_slice(&(payload.len() as u64).to_le_bytes());
+        for w in [data_off, 0, 0, 0, 0, 0, 0, 0] {
+            b.extend_from_slice(&w.to_le_bytes());
+        }
+        b.extend_from_slice(payload);
+        b
+    }
+
+    #[test]
+    fn ustrings_decode_utf16_literals() {
+        let mut payload = Vec::new();
+        for s in ["sk_live_ünïcode_42", "ab"] {
+            for u in s.encode_utf16() {
+                payload.extend_from_slice(&u.to_le_bytes());
+            }
+            payload.extend_from_slice(&[0, 0]);
+        }
+        let bin = macho_with_text_section("__ustring", &payload);
+        assert_eq!(ustrings(&bin), vec!["sk_live_ünïcode_42"]);
+        assert!(ustrings(b"not a mach-o").is_empty());
+    }
+
+    #[test]
+    fn objc_class_names_read_from_classname_section() {
+        let bin = macho_with_text_section("__objc_classname", b"FIRApp\0AppDelegate\0");
+        assert_eq!(objc_class_names(&bin), vec!["FIRApp", "AppDelegate"]);
+    }
+
+    fn imports(names: &[&str]) -> Vec<String> {
+        names.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn canary_na_for_stub_main() {
+        // Telegram: 520-byte __text, all code in TelegramUI.framework.
+        assert!(canary_not_applicable(&imports(&["_swift_release", "_memcpy"]), 520).is_some());
+    }
+
+    #[test]
+    fn canary_na_for_swift_without_buffers() {
+        let i = imports(&["_swift_retain", "_objc_msgSend", "___chkstk_darwin"]);
+        assert!(canary_not_applicable(&i, 10 << 20).is_some());
+    }
+
+    #[test]
+    fn canary_required_for_large_c_binary() {
+        // FunkiniOS: 26 MB of C/C++ calling memcpy/snprintf with no canary.
+        let i = imports(&["_memcpy", "_snprintf", "_objc_msgSend"]);
+        assert_eq!(canary_not_applicable(&i, 26 << 20), None);
+    }
+
+    #[test]
+    fn canary_required_for_swift_using_buffers() {
+        let i = imports(&["_swift_retain", "___memcpy_chk"]);
+        assert_eq!(canary_not_applicable(&i, 10 << 20), None);
+    }
+
+    #[test]
+    fn missing_text_section_is_not_a_stub() {
+        assert_eq!(
+            canary_not_applicable(&imports(&["_memcpy"]), u64::MAX),
+            None
+        );
+    }
 }

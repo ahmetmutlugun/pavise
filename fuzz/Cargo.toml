@@ -1,0 +1,54 @@
+[package]
+name = "pavise-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+tempfile = "3"
+
+[dependencies.pavise]
+path = ".."
+
+# Keep the fuzz crate out of the main workspace.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "zip_unpack"
+path = "fuzz_targets/zip_unpack.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "macho_analyze"
+path = "fuzz_targets/macho_analyze.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "plist_analyze"
+path = "fuzz_targets/plist_analyze.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pattern_scan"
+path = "fuzz_targets/pattern_scan.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "entropy_scan"
+path = "fuzz_targets/entropy_scan.rs"
+test = false
+doc = false
+bench = false

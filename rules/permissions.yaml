@@ -61,6 +61,22 @@ ios:
       cwe: "CWE-200"
       owasp_mobile: "M1"
 
+    # iOS 17 split calendar/reminder access into full and write-only keys.
+    - key: NSCalendarsFullAccessUsageDescription
+      reason: "App requests full read/write access to calendar data (iOS 17+)."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSCalendarsWriteOnlyAccessUsageDescription
+      reason: "App requests write-only access to add calendar events (iOS 17+)."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
+    - key: NSRemindersFullAccessUsageDescription
+      reason: "App requests full read/write access to reminders (iOS 17+)."
+      cwe: "CWE-200"
+      owasp_mobile: "M1"
+
     - key: NSMotionUsageDescription
       reason: "App requests access to motion and fitness data."
       cwe: "CWE-200"
@@ -109,87 +125,3 @@ ios:
   normal:
     - key: NSAppleMusicUsageDescription
       reason: "App requests access to Apple Music library."
-
-# Android Permission Classifications
-android:
-  dangerous:
-    - name: android.permission.READ_CONTACTS
-      reason: "Read access to device contacts."
-      protection_level: dangerous
-
-    - name: android.permission.WRITE_CONTACTS
-      reason: "Write access to device contacts."
-      protection_level: dangerous
-
-    - name: android.permission.ACCESS_FINE_LOCATION
-      reason: "GPS-level location access."
-      protection_level: dangerous
-
-    - name: android.permission.ACCESS_COARSE_LOCATION
-      reason: "Network-based location access."
-      protection_level: dangerous
-
-    - name: android.permission.ACCESS_BACKGROUND_LOCATION
-      reason: "Background location access (Android 10+)."
-      protection_level: dangerous
-
-    - name: android.permission.RECORD_AUDIO
-      reason: "Microphone access."
-      protection_level: dangerous
-
-    - name: android.permission.CAMERA
-      reason: "Camera access."
-      protection_level: dangerous
-
-    - name: android.permission.READ_EXTERNAL_STORAGE
-      reason: "Read external storage."
-      protection_level: dangerous
-
-    - name: android.permission.WRITE_EXTERNAL_STORAGE
-      reason: "Write external storage."
-      protection_level: dangerous
-
-    - name: android.permission.READ_SMS
-      reason: "Read SMS messages."
-      protection_level: dangerous
-
-    - name: android.permission.SEND_SMS
-      reason: "Send SMS messages."
-      protection_level: dangerous
-
-    - name: android.permission.CALL_PHONE
-      reason: "Make phone calls."
-      protection_level: dangerous
-
-    - name: android.permission.READ_CALL_LOG
-      reason: "Access call log."
-      protection_level: dangerous
-
-    - name: android.permission.PROCESS_OUTGOING_CALLS
-      reason: "Intercept outgoing calls."
-      protection_level: dangerous
-
-    - name: android.permission.BODY_SENSORS
-      reason: "Access body sensor data (heart rate, etc.)."
-      protection_level: dangerous
-
-    - name: android.permission.GET_ACCOUNTS
-      reason: "Access device account list."
-      protection_level: dangerous
-
-    - name: android.permission.USE_BIOMETRIC
-      reason: "Biometric authentication."
-      protection_level: dangerous
-
-    - name: android.permission.USE_FINGERPRINT
-      reason: "Fingerprint authentication."
-      protection_level: dangerous
-
-  system:
-    - name: android.permission.RECEIVE_BOOT_COMPLETED
-      reason: "App starts on device boot."
-      protection_level: normal
-
-    - name: android.permission.FOREGROUND_SERVICE
-      reason: "App runs foreground services."
-      protection_level: normal

@@ -237,73 +237,32 @@ pub fn analyze(plist_data: &[u8]) -> Vec<Finding> {
     }
 
     // ------------------------------------------------------------------ //
-    // com.apple.security.cs.allow-jit  →  WARNING
-    // Enables the dynamic-codesigning page permission; required for JIT
-    // engines (JavaScript VMs) but widens the attack surface significantly.
+    // dynamic-codesigning  →  WARNING
+    // iOS's JIT entitlement: lets the process map writable+executable pages
+    // (normally private to WebKit; seen in sideloaded emulators/VMs). The
+    // macOS hardened-runtime keys (com.apple.security.cs.*) are ignored on
+    // iOS; allow-jit is accepted only as an alias for Catalyst-style builds.
     // ------------------------------------------------------------------ //
-    if dict
-        .get("com.apple.security.cs.allow-jit")
-        .and_then(|v| v.as_boolean())
-        == Some(true)
-    {
+    let jit_key = ["dynamic-codesigning", "com.apple.security.cs.allow-jit"]
+        .into_iter()
+        .find(|k| dict.get(k).and_then(|v| v.as_boolean()) == Some(true));
+    if let Some(key) = jit_key {
         findings.push(Finding {
             id: "QS-ENT-008".to_string(),
             title: "JIT Compilation Entitlement Enabled".to_string(),
-            description: "The 'com.apple.security.cs.allow-jit' entitlement is enabled. This grants the app permission to map pages as simultaneously writable and executable, which is required for JIT engines. An attacker who achieves code execution can use this to execute arbitrary unsigned code without bypassing the JIT compiler.".to_string(),
+            description: format!(
+                "The '{}' entitlement is enabled. This lets the app map pages as simultaneously \
+                writable and executable, which JIT engines need. An attacker who achieves code \
+                execution can use it to run arbitrary unsigned code.",
+                key
+            ),
             severity: Severity::Warning,
             category: "entitlements".to_string(),
             cwe: Some("CWE-119".to_string()),
             owasp_mobile: Some("M8".to_string()),
             owasp_masvs: Some("MSTG-CODE-2".to_string()),
-            evidence: vec!["com.apple.security.cs.allow-jit: true".to_string()],
-            remediation: Some("Only enable this entitlement if the app includes a JIT-based runtime (e.g. JavaScriptCore, LuaJIT). Audit all code paths that generate executable code at runtime.".to_string()),
-        });
-    }
-
-    // ------------------------------------------------------------------ //
-    // com.apple.security.cs.allow-unsigned-executable-memory  →  HIGH
-    // Allows mapping memory as executable without a code signature.
-    // This is essentially opting out of code signing enforcement.
-    // ------------------------------------------------------------------ //
-    if dict
-        .get("com.apple.security.cs.allow-unsigned-executable-memory")
-        .and_then(|v| v.as_boolean())
-        == Some(true)
-    {
-        findings.push(Finding {
-            id: "QS-ENT-009".to_string(),
-            title: "Unsigned Executable Memory Permitted".to_string(),
-            description: "The 'com.apple.security.cs.allow-unsigned-executable-memory' entitlement is enabled. This allows the app to map memory as executable without a valid code signature, effectively disabling code signing enforcement for dynamically generated code. This is rarely necessary and significantly increases the risk of code-injection attacks.".to_string(),
-            severity: Severity::High,
-            category: "entitlements".to_string(),
-            cwe: Some("CWE-284".to_string()),
-            owasp_mobile: Some("M8".to_string()),
-            owasp_masvs: Some("MSTG-CODE-2".to_string()),
-            evidence: vec!["com.apple.security.cs.allow-unsigned-executable-memory: true".to_string()],
-            remediation: Some("Remove this entitlement unless strictly required. If a scripting engine needs to execute dynamic code, use the allow-jit entitlement instead, which still enforces code signing constraints.".to_string()),
-        });
-    }
-
-    // ------------------------------------------------------------------ //
-    // com.apple.security.cs.disable-library-validation  →  WARNING
-    // Allows loading dylibs that are not signed by Apple or the app's team.
-    // ------------------------------------------------------------------ //
-    if dict
-        .get("com.apple.security.cs.disable-library-validation")
-        .and_then(|v| v.as_boolean())
-        == Some(true)
-    {
-        findings.push(Finding {
-            id: "QS-ENT-010".to_string(),
-            title: "Library Validation Disabled".to_string(),
-            description: "The 'com.apple.security.cs.disable-library-validation' entitlement is enabled. Normally the OS verifies that all dynamically linked libraries are signed by Apple or by the same team as the app. Disabling this check allows the app to load unsigned or third-party-signed dylibs, which is a vector for dylib injection attacks.".to_string(),
-            severity: Severity::Warning,
-            category: "entitlements".to_string(),
-            cwe: Some("CWE-426".to_string()),
-            owasp_mobile: Some("M8".to_string()),
-            owasp_masvs: Some("MSTG-CODE-2".to_string()),
-            evidence: vec!["com.apple.security.cs.disable-library-validation: true".to_string()],
-            remediation: Some("Remove this entitlement. Enable library validation to prevent dylib injection. If plug-in loading is required, use the hardened runtime plug-in host entitlement instead.".to_string()),
+            evidence: vec![format!("{}: true", key)],
+            remediation: Some("Only enable this entitlement if the app includes a JIT-based runtime. Audit all code paths that generate executable code at runtime.".to_string()),
         });
     }
 
@@ -345,7 +304,52 @@ pub fn analyze(plist_data: &[u8]) -> Vec<Finding> {
         }
     }
 
+    findings.extend(analyze_data_protection(dict));
+
     findings
+}
+
+/// com.apple.developer.default-data-protection sets the file protection class
+/// for files the app creates. Without it (or with CompleteUntilFirstUserAuthentication,
+/// the implicit default) files stay decryptable while the device is locked
+/// once it has been unlocked after boot; NSFileProtectionNone never encrypts
+/// them with a passcode-derived key.
+fn analyze_data_protection(dict: &plist::Dictionary) -> Option<Finding> {
+    const KEY: &str = "com.apple.developer.default-data-protection";
+    let value = dict.get(KEY).and_then(|v| v.as_string());
+    let (severity, evidence, description) = match value {
+        Some("NSFileProtectionComplete") | Some("NSFileProtectionCompleteUnlessOpen") => {
+            return None
+        }
+        Some("NSFileProtectionNone") => (
+            Severity::Warning,
+            format!("{}: NSFileProtectionNone", KEY),
+            "The default data protection class is NSFileProtectionNone: files the app writes \
+            are not protected by the device passcode and can be read from a locked device.",
+        ),
+        other => (
+            Severity::Info,
+            format!("{}: {}", KEY, other.unwrap_or("absent")),
+            "Files the app writes default to NSFileProtectionCompleteUntilFirstUserAuthentication: \
+            they stay readable while the device is locked, from the first unlock after boot.",
+        ),
+    };
+    Some(Finding {
+        id: "QS-ENT-012".to_string(),
+        title: "Default Data Protection Weaker Than Complete".to_string(),
+        description: description.to_string(),
+        severity,
+        category: "entitlements".to_string(),
+        cwe: Some("CWE-311".to_string()),
+        owasp_mobile: Some("M9".to_string()),
+        owasp_masvs: Some("MASVS-STORAGE-1".to_string()),
+        evidence: vec![evidence],
+        remediation: Some(
+            "Enable the Data Protection capability with NSFileProtectionComplete, or set \
+            FileProtectionType.complete on files that hold sensitive data."
+                .to_string(),
+        ),
+    })
 }
 
 // ------------------------------------------------------------------ //
@@ -418,4 +422,58 @@ fn parse_entitlements_blob(data: &[u8], offset: usize) -> Option<Vec<u8>> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Finding IDs, without the data-protection finding every profile gets.
+    fn ids(xml: &str) -> Vec<String> {
+        analyze(xml.as_bytes())
+            .into_iter()
+            .map(|f| f.id)
+            .filter(|id| id != "QS-ENT-012")
+            .collect()
+    }
+
+    fn data_protection(value: Option<&str>) -> Option<Finding> {
+        let entry = value.map_or(String::new(), |v| {
+            format!("<key>com.apple.developer.default-data-protection</key><string>{v}</string>")
+        });
+        let xml = format!(r#"<plist version="1.0"><dict>{entry}</dict></plist>"#);
+        analyze(xml.as_bytes())
+            .into_iter()
+            .find(|f| f.id == "QS-ENT-012")
+    }
+
+    #[test]
+    fn data_protection_class_graded() {
+        assert!(data_protection(Some("NSFileProtectionComplete")).is_none());
+        let none = data_protection(Some("NSFileProtectionNone")).expect("finding");
+        assert_eq!(none.severity, Severity::Warning);
+        let absent = data_protection(None).expect("finding");
+        assert_eq!(absent.severity, Severity::Info);
+        assert_eq!(
+            absent.evidence,
+            vec!["com.apple.developer.default-data-protection: absent"]
+        );
+    }
+
+    #[test]
+    fn ios_jit_entitlement_detected() {
+        let xml = r#"<plist version="1.0"><dict>
+  <key>dynamic-codesigning</key><true/>
+</dict></plist>"#;
+        assert_eq!(ids(xml), vec!["QS-ENT-008"]);
+    }
+
+    #[test]
+    fn macos_only_keys_ignored() {
+        let xml = r#"<plist version="1.0"><dict>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+  <key>com.apple.security.cs.disable-library-validation</key><true/>
+</dict></plist>"#;
+        assert!(ids(xml).is_empty());
+    }
 }

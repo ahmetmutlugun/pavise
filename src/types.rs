@@ -35,14 +35,12 @@ impl std::fmt::Display for Severity {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Platform {
     IOS,
-    Android,
 }
 
 impl std::fmt::Display for Platform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Platform::IOS => write!(f, "iOS"),
-            Platform::Android => write!(f, "Android"),
         }
     }
 }
@@ -145,6 +143,16 @@ pub struct SecretMatch {
     pub severity: Severity,
     pub matched_value: String,
     pub file_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwe: Option<String>,
+    /// OWASP Mobile Top 10 2024 category (set from `scoring::mapping`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owasp_mobile: Option<String>,
+    /// MASVS v2 control (set from `scoring::mapping`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owasp_masvs: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remediation: Option<String>,
 }
 
 /// A third-party analytics or advertising tracker detected in the app.
@@ -164,6 +172,8 @@ pub struct FirebaseInfo {
     pub api_key: Option<String>,
     pub bundle_id: Option<String>,
     pub google_app_id: Option<String>,
+    #[serde(default)]
+    pub storage_bucket: Option<String>,
 }
 
 /// Complete results of an IPA security scan.
@@ -173,6 +183,9 @@ pub struct ScanReport {
     pub file_hashes: FileHashes,
     pub main_binary: Option<BinaryInfo>,
     pub framework_binaries: Vec<BinaryInfo>,
+    /// App extension (`.appex`) executables.
+    #[serde(default)]
+    pub extension_binaries: Vec<BinaryInfo>,
     pub findings: Vec<Finding>,
     pub domains: Vec<DomainInfo>,
     pub emails: Vec<String>,
@@ -209,6 +222,9 @@ pub struct FrameworkComponent {
     pub version: Option<String>,
     /// Full path inside the IPA archive.
     pub path: String,
+    /// Source repository URL (from SPM `Package.resolved`); enables OSV lookup.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
 }
 
 /// Parsed content of embedded.mobileprovision.

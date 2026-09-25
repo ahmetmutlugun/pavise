@@ -8,6 +8,7 @@ use zip::ZipWriter;
 
 pub struct IpaBuilder {
     app_name: String,
+    main_binary: Vec<u8>,
     extra_files: Vec<(String, Vec<u8>)>,
 }
 
@@ -15,8 +16,15 @@ impl IpaBuilder {
     pub fn new(app_name: &str) -> Self {
         IpaBuilder {
             app_name: app_name.to_string(),
+            main_binary: minimal_macho(),
             extra_files: Vec::new(),
         }
+    }
+
+    /// Replace the main executable bytes (default: `minimal_macho()`).
+    pub fn main_binary(mut self, data: impl Into<Vec<u8>>) -> Self {
+        self.main_binary = data.into();
+        self
     }
 
     pub fn add_file(mut self, path: &str, content: impl Into<Vec<u8>>) -> Self {
@@ -47,10 +55,10 @@ impl IpaBuilder {
             zip.write_all(minimal_info_plist(&self.app_name).as_bytes())
                 .unwrap();
 
-            // Mandatory: 4-byte dummy binary (Mach-O analysis will fail gracefully)
+            // Mandatory: main executable (scan_ipa fails if it can't be parsed)
             let bin_path = format!("Payload/{}.app/{}", self.app_name, self.app_name);
             zip.start_file(&bin_path, options).unwrap();
-            zip.write_all(&[0u8; 4]).unwrap();
+            zip.write_all(&self.main_binary).unwrap();
 
             // Extra caller-supplied files
             for (path, content) in &self.extra_files {
@@ -66,6 +74,24 @@ impl IpaBuilder {
         tmp.flush().expect("flush IPA bytes");
         tmp
     }
+}
+
+/// Header-only arm64 MH_EXECUTE Mach-O with MH_PIE and no load commands.
+pub fn minimal_macho() -> Vec<u8> {
+    let mut b = Vec::with_capacity(32);
+    for word in [
+        0xFEED_FACFu32, // MH_MAGIC_64
+        0x0100_000C,    // CPU_TYPE_ARM64
+        0,              // cpusubtype
+        2,              // MH_EXECUTE
+        0,              // ncmds
+        0,              // sizeofcmds
+        0x0020_0000,    // MH_PIE
+        0,              // reserved
+    ] {
+        b.extend_from_slice(&word.to_le_bytes());
+    }
+    b
 }
 
 /// Minimal XML Info.plist sufficient to pass `info_plist::analyze`.

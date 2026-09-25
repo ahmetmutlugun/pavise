@@ -1,15 +1,16 @@
 //! OSV.dev CVE lookup for detected framework components.
 //!
-//! Queries <https://api.osv.dev/v1/query> with each component's name and version
-//! across relevant ecosystems (CocoaPods, SwiftPM). Returns `Finding` objects
-//! containing only CVE IDs that exist in the OSV database.
+//! Queries <https://api.osv.dev/v1/query> for each component that has a source
+//! repository URL, using OSV's `SwiftURL` ecosystem (package name = repo URL
+//! without scheme, e.g. `github.com/apple/swift-nio`). OSV has no CocoaPods
+//! ecosystem, so bundled frameworks without a known repo URL are skipped.
 //!
 //! Only called when `--network` is supplied.
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use crate::types::{Finding, FrameworkComponent, Severity};
 
@@ -86,33 +87,40 @@ pub fn query_components(components: &[FrameworkComponent]) -> Vec<Finding> {
     let mut findings = Vec::new();
     let mut seen_vuln_ids: HashSet<String> = HashSet::new();
 
+    let mut skipped = 0usize;
     for component in components {
         let version = match &component.version {
             Some(v) if !v.is_empty() => v.clone(),
             _ => continue,
         };
+        let Some(pkg_name) = component.source_url.as_deref().and_then(swift_url_name) else {
+            skipped += 1;
+            continue;
+        };
 
-        let candidate_queries = package_candidates(&component.name);
-        for (pkg_name, ecosystem) in candidate_queries {
-            match query_one(&agent, &pkg_name, &version, &ecosystem) {
-                Ok(vulns) => {
-                    for vuln in vulns {
-                        // Deduplicate across ecosystem variants
-                        if !seen_vuln_ids.insert(vuln.id.clone()) {
-                            continue;
-                        }
-                        if let Some(finding) =
-                            vuln_to_finding(&vuln, &component.name, &version, &component.path)
-                        {
-                            findings.push(finding);
-                        }
+        match query_one(&agent, &pkg_name, &version, "SwiftURL") {
+            Ok(vulns) => {
+                for vuln in vulns {
+                    if !seen_vuln_ids.insert(vuln.id.clone()) {
+                        continue;
+                    }
+                    if let Some(finding) =
+                        vuln_to_finding(&vuln, &component.name, &version, &component.path)
+                    {
+                        findings.push(finding);
                     }
                 }
-                Err(e) => {
-                    debug!("OSV query failed for {} ({}): {}", pkg_name, ecosystem, e);
-                }
+            }
+            Err(e) => {
+                warn!("OSV query failed for {} (SwiftURL): {}", pkg_name, e);
             }
         }
+    }
+    if skipped > 0 {
+        debug!(
+            "OSV: skipped {} versioned components without a repo URL",
+            skipped
+        );
     }
 
     findings
@@ -122,35 +130,28 @@ pub fn query_components(components: &[FrameworkComponent]) -> Vec<Finding> {
 // Internal helpers
 // ------------------------------------------------------------------ //
 
-/// Return (package_name, ecosystem) pairs to try for a given component name.
-/// Tries CocoaPods with the original name, then SwiftPM with a lowercased
-/// hyphenated variant.
-fn package_candidates(name: &str) -> Vec<(String, String)> {
-    let mut candidates = vec![(name.to_string(), "CocoaPods".to_string())];
-
-    // SwiftPM packages are typically lowercase-hyphenated
-    let swiftpm_name = name
-        .chars()
-        .enumerate()
-        .flat_map(|(i, c)| {
-            if c.is_uppercase() && i > 0 {
-                vec!['-', c.to_lowercase().next().unwrap_or(c)]
-            } else {
-                vec![c.to_lowercase().next().unwrap_or(c)]
-            }
-        })
-        .collect::<String>();
-
-    if swiftpm_name != name.to_lowercase() {
-        candidates.push((swiftpm_name, "SwiftPM".to_string()));
+/// Normalise a repository URL to OSV's `SwiftURL` package name: scheme,
+/// credentials and `.git` stripped (`https://github.com/a/b.git` → `github.com/a/b`).
+fn swift_url_name(url: &str) -> Option<String> {
+    let url = url.trim();
+    let rest = if let Some(scp) = url.strip_prefix("git@") {
+        // scp-style: git@github.com:owner/repo.git
+        scp.replacen(':', "/", 1)
+    } else {
+        let no_scheme = url.split_once("://").map(|(_, r)| r).unwrap_or(url);
+        no_scheme
+            .rsplit_once('@')
+            .map(|(_, r)| r)
+            .unwrap_or(no_scheme)
+            .to_string()
+    };
+    let name = rest.trim_end_matches('/').trim_end_matches(".git");
+    // Require host/path so bare names never become queries.
+    if name.contains('/') && name.split('/').next().is_some_and(|h| h.contains('.')) {
+        Some(name.to_string())
+    } else {
+        None
     }
-    // Also try plain lowercase for SwiftPM
-    let lower = name.to_lowercase();
-    if lower != name && lower != candidates.last().map(|(n, _)| n.clone()).unwrap_or_default() {
-        candidates.push((lower, "SwiftPM".to_string()));
-    }
-
-    candidates
 }
 
 /// POST a single OSV query and return the list of vulnerabilities.
@@ -172,10 +173,6 @@ fn query_one(
         .post("https://api.osv.dev/v1/query")
         .set("Content-Type", "application/json")
         .send_json(serde_json::to_value(&body)?)?;
-
-    if response.status() != 200 {
-        return Ok(Vec::new());
-    }
 
     let parsed: OsvResponse = response.into_json()?;
     Ok(parsed.vulns)
@@ -217,7 +214,13 @@ fn vuln_to_finding(
 
     let id_slug = display_id
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect::<String>();
 
     Some(Finding {
@@ -251,4 +254,26 @@ fn infer_severity(entries: &[OsvSeverity]) -> Severity {
         }
     }
     Severity::Warning
+}
+
+#[cfg(test)]
+mod tests {
+    use super::swift_url_name;
+
+    #[test]
+    fn normalises_repo_urls() {
+        assert_eq!(
+            swift_url_name("https://github.com/Alamofire/Alamofire.git").as_deref(),
+            Some("github.com/Alamofire/Alamofire")
+        );
+        assert_eq!(
+            swift_url_name("git@github.com:apple/swift-nio.git").as_deref(),
+            Some("github.com/apple/swift-nio")
+        );
+        assert_eq!(
+            swift_url_name("https://user:tok@gitlab.com/o/r/").as_deref(),
+            Some("gitlab.com/o/r")
+        );
+        assert_eq!(swift_url_name("Alamofire"), None);
+    }
 }

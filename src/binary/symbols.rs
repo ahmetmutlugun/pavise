@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -48,15 +48,10 @@ pub struct SymbolScanner {
 }
 
 impl SymbolScanner {
-    pub fn load(rules_dir: &Path) -> Result<Self> {
-        let path = rules_dir.join("ios_apis.yaml");
-        let content = std::fs::read_to_string(&path).unwrap_or_default();
-
-        let rules: Vec<ApiRule> = if content.is_empty() {
-            Vec::new()
-        } else {
-            serde_yaml::from_str(&content)?
-        };
+    pub fn load(rules_dir: Option<&Path>) -> Result<Self> {
+        let content = crate::rules::load(rules_dir, "ios_apis.yaml")?;
+        let rules: Vec<ApiRule> =
+            serde_yaml::from_str(&content).context("Failed to parse ios_apis.yaml")?;
 
         let mut symbol_map = HashMap::new();
         for (idx, rule) in rules.iter().enumerate() {

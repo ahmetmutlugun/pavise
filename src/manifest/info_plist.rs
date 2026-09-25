@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use plist::Value;
 use serde::Deserialize;
 use std::collections::HashMap;
-use tracing::debug;
 
 use crate::types::{AppInfo, Finding, Permission, Platform, Severity};
 
@@ -34,7 +33,7 @@ pub struct PlistAnalysisResult {
     pub findings: Vec<Finding>,
 }
 
-pub fn analyze(data: &[u8], rules_dir: &std::path::Path) -> Result<PlistAnalysisResult> {
+pub fn analyze(data: &[u8], rules_dir: Option<&std::path::Path>) -> Result<PlistAnalysisResult> {
     let value: Value = plist::from_bytes(data).context("Failed to parse Info.plist")?;
 
     let dict = value
@@ -77,15 +76,7 @@ pub fn analyze(data: &[u8], rules_dir: &std::path::Path) -> Result<PlistAnalysis
     let mut findings: Vec<Finding> = Vec::new();
 
     // --- Permissions analysis ---
-    let permission_rules = load_permission_rules(rules_dir).unwrap_or_else(|_| {
-        debug!("Could not load permission rules, using empty set");
-        PermissionRules {
-            ios: IosPermissions {
-                dangerous: Vec::new(),
-                normal: Vec::new(),
-            },
-        }
-    });
+    let permission_rules = load_permission_rules(rules_dir)?;
 
     let dangerous_keys: HashMap<&str, &PermissionRule> = permission_rules
         .ios
@@ -109,7 +100,7 @@ pub fn analyze(data: &[u8], rules_dir: &std::path::Path) -> Result<PlistAnalysis
                 });
 
                 findings.push(Finding {
-                    id: format!("QS-PERM-{}", sanitize_id(key)),
+                    id: "QS-PERM-001".to_string(),
                     title: format!("Sensitive Permission: {}", key),
                     description: format!(
                         "App requests '{}' permission. Usage description: \"{}\"",
@@ -144,6 +135,10 @@ pub fn analyze(data: &[u8], rules_dir: &std::path::Path) -> Result<PlistAnalysis
 
     // --- Sandbox / File Sharing ---
     findings.extend(analyze_sandbox(dict));
+
+    // --- Deployment target / background execution ---
+    findings.extend(analyze_min_os(dict));
+    findings.extend(analyze_background_modes(dict));
 
     let app_info = AppInfo {
         name,
@@ -211,7 +206,50 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
     // ------------------------------------------------------------------ //
     // Top-level ATS flags
     // ------------------------------------------------------------------ //
-    if ats_dict.get("NSAllowsArbitraryLoads").and_then(|v| v.as_boolean()) == Some(true) {
+    // iOS 10+ ignores NSAllowsArbitraryLoads when any of these keys is present
+    // (regardless of value), so it only matters for apps still targeting iOS 9.
+    const ATS_OVERRIDE_KEYS: &[&str] = &[
+        "NSAllowsArbitraryLoadsInWebContent",
+        "NSAllowsArbitraryLoadsForMedia",
+        "NSAllowsLocalNetworking",
+    ];
+    let override_key = ATS_OVERRIDE_KEYS.iter().find(|k| ats_dict.contains_key(k));
+    let targets_ios9 = dict
+        .get("MinimumOSVersion")
+        .and_then(|v| v.as_string())
+        .and_then(|v| v.split('.').next()?.parse::<u32>().ok())
+        .is_some_and(|major| major < 10);
+
+    let arbitrary_loads = ats_dict
+        .get("NSAllowsArbitraryLoads")
+        .and_then(|v| v.as_boolean())
+        == Some(true);
+    if arbitrary_loads && override_key.is_some() && !targets_ios9 {
+        let key = override_key.copied().unwrap_or_default();
+        findings.push(Finding {
+            id: "QS-ATS-014".to_string(),
+            title: "ATS: NSAllowsArbitraryLoads Ignored".to_string(),
+            description: format!(
+                "NSAllowsArbitraryLoads is true, but iOS 10 and later ignore it because {} is \
+                also present, so ATS stays enforced outside that narrower exception. Remove the \
+                dead key to keep the policy readable.",
+                key
+            ),
+            severity: Severity::Info,
+            category: "network".to_string(),
+            cwe: Some("CWE-319".to_string()),
+            owasp_mobile: Some("M5".to_string()),
+            owasp_masvs: Some("MSTG-NETWORK-2".to_string()),
+            evidence: vec![format!(
+                "NSAllowsArbitraryLoads: true (overridden by {})",
+                key
+            )],
+            remediation: Some(
+                "Remove NSAllowsArbitraryLoads; the narrower key already covers the exception."
+                    .to_string(),
+            ),
+        });
+    } else if arbitrary_loads {
         findings.push(Finding {
             id: "QS-ATS-002".to_string(),
             title: "ATS: Arbitrary Loads Allowed".to_string(),
@@ -226,7 +264,11 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
         });
     }
 
-    if ats_dict.get("NSAllowsArbitraryLoadsInWebContent").and_then(|v| v.as_boolean()) == Some(true) {
+    if ats_dict
+        .get("NSAllowsArbitraryLoadsInWebContent")
+        .and_then(|v| v.as_boolean())
+        == Some(true)
+    {
         findings.push(Finding {
             id: "QS-ATS-003".to_string(),
             title: "ATS: Arbitrary Loads Allowed in Web Content".to_string(),
@@ -241,7 +283,11 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
         });
     }
 
-    if ats_dict.get("NSAllowsArbitraryLoadsForMedia").and_then(|v| v.as_boolean()) == Some(true) {
+    if ats_dict
+        .get("NSAllowsArbitraryLoadsForMedia")
+        .and_then(|v| v.as_boolean())
+        == Some(true)
+    {
         findings.push(Finding {
             id: "QS-ATS-005".to_string(),
             title: "ATS: Arbitrary Loads Allowed for Media".to_string(),
@@ -256,7 +302,11 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
         });
     }
 
-    if ats_dict.get("NSAllowsLocalNetworking").and_then(|v| v.as_boolean()) == Some(true) {
+    if ats_dict
+        .get("NSAllowsLocalNetworking")
+        .and_then(|v| v.as_boolean())
+        == Some(true)
+    {
         findings.push(Finding {
             id: "QS-ATS-006".to_string(),
             title: "ATS: Local Networking Allowed".to_string(),
@@ -310,7 +360,9 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
             };
 
             // NSExceptionAllowsInsecureHTTPLoads
-            if cfg.get("NSExceptionAllowsInsecureHTTPLoads").and_then(|v| v.as_boolean())
+            if cfg
+                .get("NSExceptionAllowsInsecureHTTPLoads")
+                .and_then(|v| v.as_boolean())
                 == Some(true)
             {
                 findings.push(Finding {
@@ -328,7 +380,10 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
             }
 
             // NSExceptionMinimumTLSVersion (anything below TLSv1.2)
-            if let Some(ver) = cfg.get("NSExceptionMinimumTLSVersion").and_then(|v| v.as_string()) {
+            if let Some(ver) = cfg
+                .get("NSExceptionMinimumTLSVersion")
+                .and_then(|v| v.as_string())
+            {
                 if is_weak_tls_version(ver) {
                     findings.push(Finding {
                         id: "QS-ATS-007".to_string(),
@@ -346,7 +401,9 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
             }
 
             // NSExceptionRequiresForwardSecrecy: false
-            if cfg.get("NSExceptionRequiresForwardSecrecy").and_then(|v| v.as_boolean())
+            if cfg
+                .get("NSExceptionRequiresForwardSecrecy")
+                .and_then(|v| v.as_boolean())
                 == Some(false)
             {
                 findings.push(Finding {
@@ -364,7 +421,9 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
             }
 
             // NSRequiresCertificateTransparency: false
-            if cfg.get("NSRequiresCertificateTransparency").and_then(|v| v.as_boolean())
+            if cfg
+                .get("NSRequiresCertificateTransparency")
+                .and_then(|v| v.as_boolean())
                 == Some(false)
             {
                 findings.push(Finding {
@@ -382,7 +441,9 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
             }
 
             // NSThirdPartyExceptionAllowsInsecureHTTPLoads
-            if cfg.get("NSThirdPartyExceptionAllowsInsecureHTTPLoads").and_then(|v| v.as_boolean())
+            if cfg
+                .get("NSThirdPartyExceptionAllowsInsecureHTTPLoads")
+                .and_then(|v| v.as_boolean())
                 == Some(true)
             {
                 findings.push(Finding {
@@ -448,11 +509,17 @@ fn analyze_ats(dict: &plist::Dictionary) -> Option<Vec<Finding>> {
 /// True for "TLSv1.0" / "TLSv1.1" (Apple's NSExceptionMinimumTLSVersion strings).
 /// Anything that parses to ≥ 1.2 is considered acceptable.
 fn is_weak_tls_version(s: &str) -> bool {
-    let trimmed = s.trim().trim_start_matches("TLSv").trim_start_matches("TLS");
+    let trimmed = s
+        .trim()
+        .trim_start_matches("TLSv")
+        .trim_start_matches("TLS");
     // Compare as (major, minor) tuple to avoid floating-point surprises.
     let mut parts = trimmed.split('.');
     let major = parts.next().and_then(|p| p.parse::<u32>().ok());
-    let minor = parts.next().and_then(|p| p.parse::<u32>().ok()).unwrap_or(0);
+    let minor = parts
+        .next()
+        .and_then(|p| p.parse::<u32>().ok())
+        .unwrap_or(0);
     match major {
         Some(1) => minor < 2,
         Some(m) if m >= 1 => false,
@@ -525,17 +592,99 @@ fn analyze_sandbox(dict: &plist::Dictionary) -> Vec<Finding> {
     findings
 }
 
-fn load_permission_rules(rules_dir: &std::path::Path) -> Result<PermissionRules> {
-    let path = rules_dir.join("permissions.yaml");
-    let content = std::fs::read_to_string(&path)
-        .with_context(|| format!("Failed to read {}", path.display()))?;
-    serde_yaml::from_str(&content).context("Failed to parse permissions.yaml")
+/// Deployment targets below this major version only run on iOS releases that
+/// Apple no longer patches (iOS 14 and older), so the app stays installable
+/// on devices with unpatched WebKit and kernel bugs.
+const OLDEST_PATCHED_IOS: u32 = 15;
+
+fn analyze_min_os(dict: &plist::Dictionary) -> Vec<Finding> {
+    let Some(min_os) = get_str(dict, "MinimumOSVersion") else {
+        return Vec::new();
+    };
+    let Some(major) = min_os.split('.').next().and_then(|m| m.parse::<u32>().ok()) else {
+        return Vec::new();
+    };
+    if major >= OLDEST_PATCHED_IOS {
+        return Vec::new();
+    }
+    vec![Finding {
+        id: "QS-PLIST-001".to_string(),
+        title: format!("Low Deployment Target (iOS {})", min_os),
+        description: format!(
+            "MinimumOSVersion is {}. The app installs on iOS versions that no longer receive \
+            security updates, so its WebViews, TLS stack and sandbox run with known, unpatched \
+            vulnerabilities on those devices.",
+            min_os
+        ),
+        severity: Severity::Info,
+        category: "configuration".to_string(),
+        cwe: Some("CWE-1104".to_string()),
+        owasp_mobile: Some("M8".to_string()),
+        owasp_masvs: Some("MASVS-CODE-1".to_string()),
+        evidence: vec![format!("MinimumOSVersion: {}", min_os)],
+        remediation: Some(format!(
+            "Raise the deployment target to iOS {} or later, or gate sensitive features on the \
+            runtime OS version.",
+            OLDEST_PATCHED_IOS
+        )),
+    }]
 }
 
-fn sanitize_id(key: &str) -> String {
-    key.chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '_' })
-        .collect()
+/// Background modes that keep collecting or transmitting data while the app
+/// is not on screen.
+const SENSITIVE_BACKGROUND_MODES: &[&str] = &[
+    "location",
+    "audio",
+    "voip",
+    "bluetooth-central",
+    "bluetooth-peripheral",
+    "external-accessory",
+    "nearby-interaction",
+];
+
+fn analyze_background_modes(dict: &plist::Dictionary) -> Vec<Finding> {
+    let modes: Vec<&str> = dict
+        .get("UIBackgroundModes")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|v| v.as_string()).collect())
+        .unwrap_or_default();
+    let sensitive: Vec<&str> = modes
+        .iter()
+        .copied()
+        .filter(|m| SENSITIVE_BACKGROUND_MODES.contains(m))
+        .collect();
+    if sensitive.is_empty() {
+        return Vec::new();
+    }
+    vec![Finding {
+        id: "QS-PLIST-002".to_string(),
+        title: "Sensitive Background Modes Declared".to_string(),
+        description: format!(
+            "UIBackgroundModes lets the app keep running while backgrounded for: {}. These modes \
+            can collect location, audio or nearby-device data without the app on screen; confirm \
+            each is needed and disclosed.",
+            sensitive.join(", ")
+        ),
+        severity: Severity::Info,
+        category: "permissions".to_string(),
+        cwe: Some("CWE-359".to_string()),
+        owasp_mobile: Some("M6".to_string()),
+        owasp_masvs: Some("MASVS-PRIVACY-1".to_string()),
+        evidence: modes
+            .iter()
+            .map(|m| format!("UIBackgroundModes: {}", m))
+            .collect(),
+        remediation: Some(
+            "Remove background modes the app does not need. Stop location updates and audio \
+            sessions as soon as the feature using them ends."
+                .to_string(),
+        ),
+    }]
+}
+
+fn load_permission_rules(rules_dir: Option<&std::path::Path>) -> Result<PermissionRules> {
+    let content = crate::rules::load(rules_dir, "permissions.yaml")?;
+    serde_yaml::from_str(&content).context("Failed to parse permissions.yaml")
 }
 
 fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
@@ -584,11 +733,12 @@ fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
             }
 
             let is_standard = STANDARD_SCHEMES.iter().any(|s| scheme == *s);
-            let is_generic = !is_standard
-                && (GENERIC_SCHEMES.iter().any(|g| scheme == *g) || scheme.len() <= 3);
+            let is_generic =
+                !is_standard && (GENERIC_SCHEMES.iter().any(|g| scheme == *g) || scheme.len() <= 3);
 
-            let (severity, title, description) = if is_generic {
+            let (id, severity, title, description) = if is_generic {
                 (
+                    "QS-IPC-002",
                     Severity::Warning,
                     format!("Generic Custom URL Scheme: '{}'", scheme),
                     format!(
@@ -601,6 +751,7 @@ fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
                 )
             } else {
                 (
+                    "QS-IPC-001",
                     Severity::Info,
                     format!("Custom URL Scheme Registered: '{}'", scheme),
                     format!(
@@ -613,7 +764,7 @@ fn analyze_url_schemes(dict: &plist::Dictionary) -> Vec<Finding> {
             };
 
             findings.push(Finding {
-                id: format!("QS-IPC-001-{}", sanitize_id(&scheme)),
+                id: id.to_string(),
                 title,
                 description,
                 severity,
@@ -640,6 +791,35 @@ mod tests {
     use super::*;
     use plist::Value;
 
+    #[test]
+    fn url_scheme_findings_use_stable_ids() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+  <key>CFBundleURLTypes</key><array><dict>
+    <key>CFBundleURLSchemes</key><array>
+      <string>com.example.myapp</string><string>auth</string><string>https</string>
+    </array>
+  </dict></array>
+</dict></plist>"#;
+        let value: Value = plist::from_bytes(xml.as_bytes()).expect("parse plist");
+        let findings = analyze_url_schemes(value.as_dictionary().expect("root dict"));
+        let ids: Vec<(&str, &Severity, &str)> = findings
+            .iter()
+            .map(|f| (f.id.as_str(), &f.severity, f.evidence[0].as_str()))
+            .collect();
+        assert_eq!(
+            ids,
+            vec![
+                (
+                    "QS-IPC-001",
+                    &Severity::Info,
+                    "CFBundleURLSchemes: com.example.myapp"
+                ),
+                ("QS-IPC-002", &Severity::Warning, "CFBundleURLSchemes: auth"),
+            ]
+        );
+    }
+
     fn ats_findings_from_plist(xml: &str) -> Vec<Finding> {
         let value: Value = plist::from_bytes(xml.as_bytes()).expect("parse plist");
         let dict = value.as_dictionary().expect("root dict");
@@ -650,6 +830,42 @@ mod tests {
         findings.iter().map(|f| f.id.as_str()).collect()
     }
 
+    fn dict(xml: &str) -> plist::Dictionary {
+        let value: Value = plist::from_bytes(xml.as_bytes()).expect("parse plist");
+        value.into_dictionary().expect("root dict")
+    }
+
+    #[test]
+    fn min_os_below_patched_release_flagged() {
+        let old = dict(
+            r#"<plist version="1.0"><dict><key>MinimumOSVersion</key><string>12.0</string></dict></plist>"#,
+        );
+        let found = analyze_min_os(&old);
+        assert_eq!(ids(&found), vec!["QS-PLIST-001"]);
+        assert_eq!(found[0].evidence, vec!["MinimumOSVersion: 12.0"]);
+        let new = dict(
+            r#"<plist version="1.0"><dict><key>MinimumOSVersion</key><string>17.0</string></dict></plist>"#,
+        );
+        assert!(analyze_min_os(&new).is_empty());
+    }
+
+    #[test]
+    fn only_sensitive_background_modes_flagged() {
+        let benign = dict(
+            r#"<plist version="1.0"><dict><key>UIBackgroundModes</key>
+<array><string>fetch</string><string>remote-notification</string></array></dict></plist>"#,
+        );
+        assert!(analyze_background_modes(&benign).is_empty());
+        let loc = dict(
+            r#"<plist version="1.0"><dict><key>UIBackgroundModes</key>
+<array><string>fetch</string><string>location</string></array></dict></plist>"#,
+        );
+        let found = analyze_background_modes(&loc);
+        assert_eq!(ids(&found), vec!["QS-PLIST-002"]);
+        assert!(found[0].description.contains("location"));
+        assert!(!found[0].description.contains("fetch"));
+    }
+
     #[test]
     fn test_weak_tls_version() {
         assert!(is_weak_tls_version("TLSv1.0"));
@@ -657,6 +873,33 @@ mod tests {
         assert!(!is_weak_tls_version("TLSv1.2"));
         assert!(!is_weak_tls_version("TLSv1.3"));
         assert!(!is_weak_tls_version("garbage"));
+    }
+
+    #[test]
+    fn test_arbitrary_loads_overridden_by_web_content_key() {
+        let ats = |min_os: &str, extra: &str| {
+            format!(
+                r#"<plist version="1.0"><dict>
+  <key>MinimumOSVersion</key><string>{min_os}</string>
+  <key>NSAppTransportSecurity</key>
+  <dict><key>NSAllowsArbitraryLoads</key><true/>{extra}</dict>
+</dict></plist>"#
+            )
+        };
+        let web = "<key>NSAllowsArbitraryLoadsInWebContent</key><false/>";
+
+        // iOS 10+: key present (even false) → NSAllowsArbitraryLoads ignored.
+        let found = ats_findings_from_plist(&ats("14.0", web));
+        assert!(
+            ids(&found).contains(&"QS-ATS-014"),
+            "got: {:?}",
+            ids(&found)
+        );
+        assert!(!ids(&found).contains(&"QS-ATS-002"));
+
+        // Still High without an override key, or when iOS 9 is supported.
+        assert!(ids(&ats_findings_from_plist(&ats("14.0", ""))).contains(&"QS-ATS-002"));
+        assert!(ids(&ats_findings_from_plist(&ats("9.0", web))).contains(&"QS-ATS-002"));
     }
 
     #[test]
@@ -670,7 +913,11 @@ mod tests {
   </dict>
 </dict></plist>"#;
         let findings = ats_findings_from_plist(xml);
-        assert!(ids(&findings).contains(&"QS-ATS-005"), "got: {:?}", ids(&findings));
+        assert!(
+            ids(&findings).contains(&"QS-ATS-005"),
+            "got: {:?}",
+            ids(&findings)
+        );
     }
 
     #[test]
@@ -723,8 +970,10 @@ mod tests {
             assert!(got.contains(expected), "missing {} in {:?}", expected, got);
         }
         // Domain must appear in evidence so dedup can roll up multi-domain hits.
-        assert!(findings.iter().any(|f| f.id == "QS-ATS-004"
-            && f.evidence.iter().any(|e| e.contains("legacy.example.com"))));
+        assert!(findings
+            .iter()
+            .any(|f| f.id == "QS-ATS-004"
+                && f.evidence.iter().any(|e| e.contains("legacy.example.com"))));
     }
 
     #[test]

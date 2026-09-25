@@ -5,9 +5,7 @@ mod common;
 
 use pavise::baseline::compare;
 use pavise::report::sarif;
-use pavise::types::{
-    AppInfo, FileHashes, Finding, ScanReport, SecretMatch, Severity,
-};
+use pavise::types::{AppInfo, FileHashes, Finding, ScanReport, SecretMatch, Severity};
 use std::collections::HashMap;
 
 fn make_owasp_summary(findings: &[Finding]) -> HashMap<String, Vec<String>> {
@@ -38,12 +36,12 @@ fn make_report(
         file_hashes: FileHashes {
             md5: "d41d8cd98f00b204e9800998ecf8427e".to_string(),
             sha1: "da39a3ee5e6b4b0d3255bfef95601890afd80709".to_string(),
-            sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-                .to_string(),
+            sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
             size_bytes: 1024,
         },
         main_binary: None,
         framework_binaries: Vec::new(),
+        extension_binaries: Vec::new(),
         findings,
         domains: Vec::new(),
         emails: Vec::new(),
@@ -84,6 +82,10 @@ fn make_secret(rule_id: &str, value: &str) -> SecretMatch {
         severity: Severity::High,
         matched_value: value.to_string(),
         file_path: Some("Config.plist".to_string()),
+        cwe: None,
+        owasp_mobile: None,
+        owasp_masvs: None,
+        remediation: None,
     }
 }
 
@@ -154,10 +156,7 @@ fn test_sarif_valid_json() {
     let rules = run["tool"]["driver"]["rules"]
         .as_array()
         .expect("rules should be array");
-    assert!(
-        rules.len() >= 2,
-        "Should have rules for finding + secret"
-    );
+    assert!(rules.len() >= 2, "Should have rules for finding + secret");
 
     // Check results include both findings and secrets
     let results = run["results"].as_array().expect("results should be array");
@@ -292,6 +291,124 @@ fn test_html_large_report() {
     // Spot-check a few finding IDs
     assert!(html.contains("QS-TEST-000"));
     assert!(html.contains("QS-TEST-119"));
+}
+
+// ------------------------------------------------------------------ //
+// PDF (print HTML) — brevity, escaping, masking
+// ------------------------------------------------------------------ //
+
+/// Text between `<body>` and `</body>`, i.e. what the scanned app can influence.
+fn pdf_body(report: &ScanReport) -> String {
+    let html = pavise::report::pdf::render_html(report).expect("PDF HTML should render");
+    let start = html.find("<body>").expect("body open");
+    let end = html.rfind("</body>").expect("body close");
+    html[start..end].to_string()
+}
+
+#[test]
+fn test_pdf_html_escapes_untrusted_strings() {
+    let mut f = make_finding("QS-TEST-001", Severity::High);
+    f.title = "<script>alert(1)</script>".to_string();
+    f.evidence = vec!["<img src=x onerror=alert(1)>".to_string()];
+    let mut report = make_report(vec![f], Vec::new(), 50, "D");
+    report.app_info.name = "</style><script>x</script>\"'".to_string();
+
+    let html = pavise::report::pdf::render_html(&report).unwrap();
+    assert!(!html.contains("<script"), "no script tag may survive");
+    assert!(!html.contains("<img"), "no injected element may survive");
+    assert_eq!(
+        html.matches("</style>").count(),
+        1,
+        "only the template's own </style>"
+    );
+    assert!(html.contains("&lt;script&gt;alert(1)&lt;&#x2F;script&gt;"));
+}
+
+#[test]
+fn test_pdf_html_masks_secrets() {
+    let secret = "AKIAIOSFODNN7EXAMPLE1234567890";
+    let report = make_report(Vec::new(), vec![make_secret("QS-SEC-001", secret)], 80, "B");
+    let body = pdf_body(&report);
+    assert!(
+        !body.contains(secret),
+        "full secret must not appear in the PDF"
+    );
+    assert!(body.contains("AKIAIO"), "a recognisable prefix is kept");
+}
+
+#[test]
+fn test_pdf_html_groups_and_caps_findings() {
+    // 12 instances of one rule collapse into one card with capped evidence.
+    let findings: Vec<Finding> = (0..12)
+        .map(|i| {
+            let mut f = make_finding("QS-IPC-001", Severity::Warning);
+            f.title = format!("Custom URL Scheme Registered: 'scheme{i}'");
+            f.evidence = vec![format!("CFBundleURLSchemes: scheme{i}")];
+            f
+        })
+        .collect();
+    let body = pdf_body(&make_report(findings, Vec::new(), 90, "A"));
+    assert!(body.contains("Custom URL Scheme Registered"));
+    assert!(body.contains("×12"));
+    assert!(
+        !body.contains("scheme11'"),
+        "per-instance titles are folded"
+    );
+    assert!(
+        body.contains("+ 8 more"),
+        "evidence beyond the cap is summarised"
+    );
+}
+
+#[test]
+fn test_pdf_html_bounds_long_strings() {
+    let mut f = make_finding("QS-TEST-001", Severity::High);
+    f.title = "T".repeat(5_000);
+    f.description = "word ".repeat(5_000);
+    f.evidence = vec!["E".repeat(20_000)];
+    f.remediation = Some("R".repeat(5_000));
+    let mut report = make_report(vec![f], Vec::new(), 40, "F");
+    report.app_info.name = "N".repeat(1_000);
+    report.app_info.identifier = "com.".repeat(500);
+
+    let body = pdf_body(&report);
+    let limits = [
+        ('T', "title", 120),
+        ('E', "evidence", 150),
+        ('R', "remediation", 420),
+        ('N', "name", 80),
+    ];
+    for (ch, what, max) in limits {
+        let longest = body.split(|c| c != ch).map(str::len).max().unwrap_or(0);
+        assert!(
+            longest <= max,
+            "{what} run of {longest} chars exceeds {max}"
+        );
+    }
+    assert!(
+        body.len() < 40_000,
+        "body should stay small, got {}",
+        body.len()
+    );
+}
+
+#[test]
+fn test_pdf_html_large_report_is_brief() {
+    let findings: Vec<Finding> = (0..300)
+        .map(|i| {
+            let sev = if i % 2 == 0 {
+                Severity::High
+            } else {
+                Severity::Info
+            };
+            make_finding(&format!("QS-TEST-{i:03}"), sev)
+        })
+        .collect();
+    let body = pdf_body(&make_report(findings, Vec::new(), 0, "F"));
+    // Detail cards and info rows are capped; the rest is counted, not listed.
+    assert!(body.matches("<article").count() <= 25);
+    assert!(body.contains("more issues omitted"));
+    assert!(body.contains("more informational rules"));
 }
 
 // ------------------------------------------------------------------ //

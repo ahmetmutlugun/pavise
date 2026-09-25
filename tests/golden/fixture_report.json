@@ -1,0 +1,361 @@
+{
+  "app_info": {
+    "app_type": "Swift",
+    "build": "1",
+    "identifier": "com.test.Golden",
+    "min_os_version": "14.0",
+    "name": "Golden",
+    "permissions": [],
+    "platform": "IOS",
+    "sdk_name": "",
+    "supported_platforms": [
+      "iPhoneOS"
+    ],
+    "version": "1.0.0"
+  },
+  "baseline_diff": null,
+  "domain_intel": [],
+  "domains": [
+    {
+      "context": "Payload/Golden.app/Config.plist",
+      "domain": "api.example-backend.com"
+    },
+    {
+      "context": "Payload/Golden.app/Info.plist",
+      "domain": "www.apple.com"
+    }
+  ],
+  "emails": [],
+  "extension_binaries": [
+    {
+      "arch": "ARM64",
+      "bits": 64,
+      "path": "Payload/Golden.app/PlugIns/Widget.appex/Widget",
+      "protections": [
+        {
+          "description": "NX enforced by ARM64 hardware (XN bit). MH_NO_HEAP_EXECUTION flag absent but not required.",
+          "enabled": true,
+          "name": "NX (No-Execute)",
+          "severity": "secure"
+        },
+        {
+          "description": "Binary is compiled with PIE, enabling ASLR.",
+          "enabled": true,
+          "name": "Position Independent Executable (PIE)",
+          "severity": "secure"
+        },
+        {
+          "description": "Stack canary protection is absent. Stack buffer overflows may not be detected.",
+          "enabled": false,
+          "name": "Stack Canary",
+          "severity": "high"
+        },
+        {
+          "description": "Binary lacks a code signature. This may indicate tampering or a development build.",
+          "enabled": false,
+          "name": "Code Signature",
+          "severity": "high"
+        },
+        {
+          "description": "No encryption load command found.",
+          "enabled": false,
+          "name": "Binary Encryption",
+          "severity": "warning"
+        },
+        {
+          "description": "No LC_RPATH entries (N/A).",
+          "enabled": true,
+          "name": "RPATH",
+          "severity": "secure"
+        },
+        {
+          "description": "Binary appears to have symbols stripped.",
+          "enabled": true,
+          "name": "Symbols Stripped",
+          "severity": "secure"
+        }
+      ]
+    }
+  ],
+  "file_hashes": {
+    "md5": "bbd56df28c870c28d2210651f12cc689",
+    "sha1": "f5d860648942ff334d5ee5e6aa87942c1733d565",
+    "sha256": "3d57469e730bfca3a104fe9570296bbb284e8d3a5d104efe52819649e2fb0543",
+    "size_bytes": 1715
+  },
+  "findings": [
+    {
+      "category": "binary",
+      "cwe": "CWE-121",
+      "description": "The binary 'Payload/Golden.app/Golden' does not appear to use stack canaries (___stack_chk_fail not found in imports). Stack buffer overflows may not be detected at runtime (2 instances detected.)",
+      "evidence": [
+        "___stack_chk_fail absent in Payload/Golden.app/Golden",
+        "___stack_chk_fail absent in Payload/Golden.app/PlugIns/Widget.appex/Widget"
+      ],
+      "id": "QS-BIN-002",
+      "owasp_masvs": "MASVS-CODE-4",
+      "owasp_mobile": "M7",
+      "remediation": "Compile with stack protection enabled: -fstack-protector-all (Xcode default for release builds).",
+      "severity": "high",
+      "title": "Stack Canary Not Found"
+    },
+    {
+      "category": "binary",
+      "cwe": "CWE-494",
+      "description": "The binary 'Payload/Golden.app/Golden' does not contain an LC_CODE_SIGNATURE load command. iOS requires valid code signatures for all production apps (2 instances detected.)",
+      "evidence": [
+        "LC_CODE_SIGNATURE absent in Payload/Golden.app/Golden",
+        "LC_CODE_SIGNATURE absent in Payload/Golden.app/PlugIns/Widget.appex/Widget"
+      ],
+      "id": "QS-BIN-004",
+      "owasp_masvs": "MASVS-CODE-4",
+      "owasp_mobile": "M7",
+      "remediation": "Sign the binary with a valid Apple developer certificate using codesign.",
+      "severity": "high",
+      "title": "Code Signature Missing"
+    },
+    {
+      "category": "configuration",
+      "cwe": "CWE-1104",
+      "description": "MinimumOSVersion is 14.0. The app installs on iOS versions that no longer receive security updates, so its WebViews, TLS stack and sandbox run with known, unpatched vulnerabilities on those devices.",
+      "evidence": [
+        "MinimumOSVersion: 14.0"
+      ],
+      "id": "QS-PLIST-001",
+      "owasp_masvs": "MASVS-CODE-1",
+      "owasp_mobile": "M8",
+      "remediation": "Raise the deployment target to iOS 15 or later, or gate sensitive features on the runtime OS version.",
+      "severity": "info",
+      "title": "Low Deployment Target (iOS 14.0)"
+    },
+    {
+      "category": "network",
+      "cwe": "CWE-319",
+      "description": "An HTTP (non-HTTPS) URL was found in 'Payload/Golden.app/Config.plist'. Communication over HTTP is unencrypted and susceptible to man-in-the-middle attacks.",
+      "evidence": [
+        "http://api.example-backend.com/v1"
+      ],
+      "id": "QS-NET-001",
+      "owasp_masvs": "MASVS-NETWORK-1",
+      "owasp_mobile": "M5",
+      "remediation": "Replace HTTP with HTTPS and ensure the server has a valid TLS certificate.",
+      "severity": "warning",
+      "title": "Insecure HTTP URL Found"
+    },
+    {
+      "category": "network",
+      "cwe": "CWE-319",
+      "description": "NSAppTransportSecurity key is absent. Default ATS policy applies (HTTPS required). This is secure for iOS 9+ but verify all endpoints support TLS.",
+      "evidence": [
+        "NSAppTransportSecurity: absent"
+      ],
+      "id": "QS-ATS-001",
+      "owasp_masvs": "MASVS-NETWORK-1",
+      "owasp_mobile": "M5",
+      "remediation": null,
+      "severity": "info",
+      "title": "App Transport Security Not Configured"
+    },
+    {
+      "category": "privacy",
+      "cwe": "CWE-359",
+      "description": "The main bundle has no PrivacyInfo.xcprivacy. Apple requires a privacy manifest that declares collected data types, tracking domains and the reasons for using required-reason APIs; builds without one can be rejected.",
+      "evidence": [
+        "PrivacyInfo.xcprivacy: absent from main bundle"
+      ],
+      "id": "QS-PRIV-001",
+      "owasp_masvs": "MASVS-PRIVACY-1",
+      "owasp_mobile": "M6",
+      "remediation": "Add PrivacyInfo.xcprivacy to the app target (Xcode: File > New > App Privacy) and declare every required-reason API category the app uses.",
+      "severity": "info",
+      "title": "No Privacy Manifest"
+    },
+    {
+      "category": "secrets",
+      "cwe": "CWE-321",
+      "description": "A private key file ('Payload/Golden.app/server.pem') was found inside the IPA bundle. The key is stored unencrypted. Anyone who unpacks the IPA can extract this key material and impersonate the app or its backend.",
+      "evidence": [
+        "private key: Payload/Golden.app/server.pem"
+      ],
+      "id": "QS-CERT-001",
+      "owasp_masvs": "MASVS-CRYPTO-2",
+      "owasp_mobile": "M1",
+      "remediation": "Remove private key and keystore files from the app bundle. Use the iOS Keychain or server-side PKI. If mutual TLS is required, provision client certificates at runtime via MDM or a secure enrolment flow.",
+      "severity": "high",
+      "title": "Embedded Private Key File"
+    },
+    {
+      "category": "storage",
+      "cwe": "CWE-312",
+      "description": "A pre-populated database file ('Payload/Golden.app/seed.sqlite') is shipped inside the IPA. Bundled databases may contain sensitive data (PII, credentials, internal schema) that is accessible to anyone who unpacks the IPA.",
+      "evidence": [
+        "Database: Payload/Golden.app/seed.sqlite"
+      ],
+      "id": "QS-STORE-001",
+      "owasp_masvs": "MASVS-STORAGE-1",
+      "owasp_mobile": "M9",
+      "remediation": "Audit the bundled database for sensitive content. Pre-populated databases are acceptable for reference data but must never contain credentials, PII, or internal infrastructure details.",
+      "severity": "info",
+      "title": "Bundled Database File"
+    }
+  ],
+  "firebase": null,
+  "framework_binaries": [],
+  "framework_components": [],
+  "grade": "F",
+  "main_binary": {
+    "arch": "ARM64",
+    "bits": 64,
+    "path": "Payload/Golden.app/Golden",
+    "protections": [
+      {
+        "description": "NX enforced by ARM64 hardware (XN bit). MH_NO_HEAP_EXECUTION flag absent but not required.",
+        "enabled": true,
+        "name": "NX (No-Execute)",
+        "severity": "secure"
+      },
+      {
+        "description": "Binary is compiled with PIE, enabling ASLR.",
+        "enabled": true,
+        "name": "Position Independent Executable (PIE)",
+        "severity": "secure"
+      },
+      {
+        "description": "Stack canary protection is absent. Stack buffer overflows may not be detected.",
+        "enabled": false,
+        "name": "Stack Canary",
+        "severity": "high"
+      },
+      {
+        "description": "Binary lacks a code signature. This may indicate tampering or a development build.",
+        "enabled": false,
+        "name": "Code Signature",
+        "severity": "high"
+      },
+      {
+        "description": "No encryption load command found.",
+        "enabled": false,
+        "name": "Binary Encryption",
+        "severity": "warning"
+      },
+      {
+        "description": "No LC_RPATH entries (N/A).",
+        "enabled": true,
+        "name": "RPATH",
+        "severity": "secure"
+      },
+      {
+        "description": "Binary appears to have symbols stripped.",
+        "enabled": true,
+        "name": "Symbols Stripped",
+        "severity": "secure"
+      }
+    ]
+  },
+  "owasp_summary": {
+    "M1": [
+      "QS-CERT-001",
+      "QS-SEC-002"
+    ],
+    "M10": [],
+    "M2": [],
+    "M3": [],
+    "M4": [],
+    "M5": [
+      "QS-ATS-001",
+      "QS-NET-001"
+    ],
+    "M6": [
+      "QS-PRIV-001"
+    ],
+    "M7": [
+      "QS-BIN-002",
+      "QS-BIN-004"
+    ],
+    "M8": [
+      "QS-PLIST-001"
+    ],
+    "M9": [
+      "QS-STORE-001"
+    ]
+  },
+  "provisioning": null,
+  "scan_duration_ms": 0,
+  "scan_log": [
+    {
+      "elapsed_ms": 0,
+      "step": "Unpacked IPA: 7 files extracted, 0.0 MB (0 frameworks)"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "Parsed Info.plist: Golden v1.0.0 (com.test.Golden) — 0 permissions, 1 ATS findings"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "Main binary analysis: ARM64 (Payload/Golden.app/Golden) — 6 findings"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "Entitlements: 0 security findings"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "App extensions: 1 of 1 analyzed"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "Framework binaries: 0 analyzed in parallel"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "String scan: 2 secrets, 2 unique domains, 0 emails extracted"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "Archive scan: 1 private key/keystore files, 0 public certs, 1 database files detected"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "Tracker detection: 0 trackers identified from 2 domains and 0 frameworks"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "Pinning check: not detected (signal=false, external_domains=1)"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "SCA: 0 framework components identified (0 with version info, 0 from lock files)"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "Network intel: skipped (use --network to enable DNS/GeoIP lookups)"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "OSV.dev CVE lookup: skipped (use --network to enable)"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "Scoring: 26/100 (F) — 3 high, 1 warning, 4 info findings total"
+    },
+    {
+      "elapsed_ms": 0,
+      "step": "Scan complete"
+    }
+  ],
+  "secrets": [
+    {
+      "cwe": "CWE-798",
+      "file_path": "Payload/Golden.app/Config.plist",
+      "matched_value": "AKIAIOSFODNN7EXAMPLE",
+      "owasp_masvs": "MASVS-CRYPTO-2",
+      "owasp_mobile": "M1",
+      "remediation": "Remove hardcoded AWS credentials; use IAM roles or environment variables",
+      "rule_id": "QS-SEC-002",
+      "severity": "high",
+      "title": "AWS Access Key ID"
+    }
+  ],
+  "security_score": 26,
+  "trackers": []
+}

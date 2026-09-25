@@ -29,9 +29,12 @@
     - GoogleUtilities
     - GoogleDataTransport
     - nanopb
+  # No "Google" prefix: GoogleMaps/GoogleSignIn/GoogleMobileAds are not Firebase.
   framework_prefixes:
     - Firebase
-    - Google
+  objc_classes:
+    - FIRApp
+    - FIROptions
 
 - name: "Google Crashlytics"
   categories:
@@ -47,6 +50,8 @@
     - FirebaseCrashlyticsSwift
   framework_prefixes:
     - FirebaseCrashlytics
+  objc_classes:
+    - FIRCrashlytics
 
 - name: "gRPC (Google)"
   categories:
@@ -71,6 +76,8 @@
     - www.google-analytics.com
   framework_names:
     - GoogleAnalytics
+  objc_classes:
+    - GAIDictionaryBuilder
 
 - name: "Google Ads / AdMob"
   categories:
@@ -85,6 +92,9 @@
   framework_names:
     - GoogleMobileAds
     - AdMob
+  objc_classes:
+    - GADMobileAds
+    - GADBannerView
 
 - name: "Facebook SDK"
   categories:
@@ -102,6 +112,9 @@
     - FBSDKShareKit
     - FacebookCore
     - FacebookLogin
+  objc_classes:
+    - FBSDKApplicationDelegate
+    - FBSDKAppEvents
 
 - name: "Mixpanel"
   categories:
@@ -113,6 +126,8 @@
     - mixpanel.com
   framework_names:
     - Mixpanel
+  objc_classes:
+    - MixpanelPeople
 
 - name: "Amplitude"
   categories:
@@ -124,6 +139,9 @@
     - amplitude.com
   framework_names:
     - Amplitude
+  objc_classes:
+    - AMPIdentify
+    - AMPRevenue
 
 - name: "Segment"
   categories:
@@ -136,6 +154,9 @@
   framework_names:
     - Analytics
     - Segment
+  objc_classes:
+    - SEGAnalytics
+    - SEGAnalyticsConfiguration
 
 - name: "Intercom"
   categories:
@@ -162,6 +183,8 @@
   framework_names:
     - AppsFlyerLib
     - AppsFlyer
+  objc_classes:
+    - AppsFlyerLib
 
 - name: "Braze"
   categories:
@@ -182,6 +205,9 @@
     - Appboy
     - BrazeKit
     - BrazeUI
+  objc_classes:
+    - Appboy
+    - ABKInAppMessage
 
 - name: "Sentry"
   categories:
@@ -192,6 +218,8 @@
     - o0.ingest.sentry.io
   framework_names:
     - Sentry
+  objc_classes:
+    - SentrySDK
 
 - name: "Bugsnag"
   categories:
@@ -203,6 +231,8 @@
     - bugsnag.com
   framework_names:
     - Bugsnag
+  objc_classes:
+    - BugsnagConfiguration
 
 - name: "New Relic"
   categories:
@@ -239,6 +269,9 @@
     - adjust.com
   framework_names:
     - Adjust
+  objc_classes:
+    - ADJConfig
+    - ADJEvent
 
 - name: "Branch.io"
   categories:
@@ -251,6 +284,8 @@
     - branch.io
   framework_names:
     - Branch
+  objc_classes:
+    - BranchUniversalObject
 
 - name: "CleverTap"
   categories:
@@ -263,6 +298,8 @@
   framework_names:
     - CleverTapSDK
     - CleverTap
+  objc_classes:
+    - CleverTapInstanceConfig
 
 - name: "Singular"
   categories:
@@ -274,3 +311,5 @@
   framework_names:
     - Singular
     - SingularSDK
+  objc_classes:
+    - SingularConfig

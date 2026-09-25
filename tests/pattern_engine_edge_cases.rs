@@ -35,7 +35,7 @@ fn test_yaml_rules_with_invalid_regex() {
     )
     .unwrap();
 
-    let result = PatternEngine::load(tmp_dir.path());
+    let result = PatternEngine::load(Some(tmp_dir.path()));
     assert!(
         result.is_err(),
         "Invalid regex in YAML should produce an error, not panic"
@@ -49,7 +49,7 @@ fn test_yaml_rules_with_zero_rules() {
     let secrets_path = tmp_dir.path().join("secrets.yaml");
     std::fs::write(&secrets_path, "[]").unwrap();
 
-    let engine = PatternEngine::load(tmp_dir.path())
+    let engine = PatternEngine::load(Some(tmp_dir.path()))
         .expect("Empty rules list should load successfully");
     assert_eq!(engine.rule_count(), 0, "Should have zero rules loaded");
 
@@ -65,9 +65,9 @@ fn test_yaml_rules_with_zero_rules() {
 fn test_yaml_rules_missing_file() {
     // Rules directory with no secrets.yaml at all
     let tmp_dir = TempDir::new().unwrap();
-    let engine = PatternEngine::load(tmp_dir.path())
-        .expect("Missing secrets.yaml should load with zero rules");
-    assert_eq!(engine.rule_count(), 0);
+    // An explicit rules dir without secrets.yaml must fail loudly rather than
+    // silently scanning with zero rules.
+    assert!(PatternEngine::load(Some(tmp_dir.path())).is_err());
 }
 
 // ------------------------------------------------------------------ //
@@ -76,14 +76,16 @@ fn test_yaml_rules_missing_file() {
 
 #[test]
 fn test_pattern_scan_large_input() {
-    let engine = PatternEngine::load(&common::rules_dir()).unwrap();
+    let engine = PatternEngine::load(Some(&common::rules_dir())).unwrap();
     // 1 MB of printable text with one embedded secret
     let mut text = String::with_capacity(1_100_000);
     for _ in 0..10_000 {
-        text.push_str("This is a normal line of configuration data that contains nothing interesting.\n");
+        text.push_str(
+            "This is a normal line of configuration data that contains nothing interesting.\n",
+        );
     }
     // Embed an AWS key in the middle
-    text.push_str("aws_access_key_id = AKIAIOSFODNN7EXAMPLE1234\n");
+    text.push_str("aws_access_key_id = AKIAIOSFODNN7EXAMPLE\n");
     for _ in 0..10_000 {
         text.push_str("More normal text padding to make the input large enough for testing.\n");
     }
@@ -95,7 +97,7 @@ fn test_pattern_scan_large_input() {
 
 #[test]
 fn test_pattern_scan_empty_input() {
-    let engine = PatternEngine::load(&common::rules_dir()).unwrap();
+    let engine = PatternEngine::load(Some(&common::rules_dir())).unwrap();
     let matches = engine.scan("", "empty.txt");
     assert!(matches.is_empty(), "Empty input should produce no matches");
 }
@@ -114,6 +116,10 @@ fn test_secret_dedup_large_volume() {
             severity: Severity::High,
             matched_value: "AKIAIOSFODNN7EXAMPLE1234".to_string(),
             file_path: Some("config.json".to_string()),
+            cwe: None,
+            owasp_mobile: None,
+            owasp_masvs: None,
+            remediation: None,
         })
         .collect();
 
@@ -131,6 +137,10 @@ fn test_secret_dedup_many_distinct() {
             severity: Severity::High,
             matched_value: format!("AKIAIOSFODNN7{:016}", i),
             file_path: None,
+            cwe: None,
+            owasp_mobile: None,
+            owasp_masvs: None,
+            remediation: None,
         })
         .collect();
 
@@ -223,7 +233,10 @@ fn test_url_dedup_single_domain() {
         .filter(|d| d.domain == "api.example.net")
         .count();
     // Domains should be deduplicated or at least not multiply indefinitely
-    assert!(count <= 3, "Domain should appear at most once per URL, got {count}");
+    assert!(
+        count <= 3,
+        "Domain should appear at most once per URL, got {count}"
+    );
 }
 
 // ------------------------------------------------------------------ //
@@ -261,7 +274,10 @@ fn test_email_extraction_no_false_positives_in_code() {
 fn test_entropy_url_filtered() {
     let url = "https://api.example.com/v2/users/authenticate";
     let results = scan_for_high_entropy(&[url], "config.plist");
-    assert!(results.is_empty(), "URL should be filtered, got: {results:?}");
+    assert!(
+        results.is_empty(),
+        "URL should be filtered, got: {results:?}"
+    );
 }
 
 #[test]
@@ -300,26 +316,57 @@ fn test_entropy_objc_symbol_filtered() {
 
 #[test]
 fn test_tracker_detection_loads() {
-    let detector =
-        pavise::patterns::trackers::TrackerDetector::load(&common::rules_dir())
-            .expect("Tracker rules should load");
+    let detector = pavise::patterns::trackers::TrackerDetector::load(Some(&common::rules_dir()))
+        .expect("Tracker rules should load");
     // Detect with empty inputs — should return empty, not crash
-    let results = detector.detect(&[], &[]);
+    let results = detector.detect(&[], &[], &[]);
     assert!(results.is_empty());
 }
 
 #[test]
 fn test_tracker_detection_by_domain() {
-    let detector = pavise::patterns::trackers::TrackerDetector::load(&common::rules_dir()).unwrap();
+    let detector =
+        pavise::patterns::trackers::TrackerDetector::load(Some(&common::rules_dir())).unwrap();
     // Try common tracker domains
     let domains = vec![
         "graph.facebook.com".to_string(),
         "api.myapp.com".to_string(),
     ];
-    let results = detector.detect(&domains, &[]);
-    // Facebook SDK tracker should be detected if it's in the rules
-    // Just verify no panic and reasonable output
-    let _ = results;
+    let results = detector.detect(&domains, &[], &[]);
+    let names: Vec<&str> = results.iter().map(|t| t.name.as_str()).collect();
+    assert_eq!(names, vec!["Facebook SDK"]);
+}
+
+#[test]
+fn test_tracker_detection_google_prefix_not_firebase() {
+    let detector =
+        pavise::patterns::trackers::TrackerDetector::load(Some(&common::rules_dir())).unwrap();
+    let frameworks = vec!["GoogleMaps".to_string(), "GoogleSignIn".to_string()];
+    let results = detector.detect(&[], &frameworks, &[]);
+    assert!(
+        results.iter().all(|t| t.name != "Google Firebase"),
+        "GoogleMaps/GoogleSignIn mislabeled as Firebase: {:?}",
+        results
+    );
+}
+
+#[test]
+fn test_tracker_detection_by_objc_class() {
+    let detector =
+        pavise::patterns::trackers::TrackerDetector::load(Some(&common::rules_dir())).unwrap();
+    let classes = vec!["AppDelegate".to_string(), "FIRApp".to_string()];
+    let results = detector.detect(&[], &[], &classes);
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].name, "Google Firebase");
+    assert!(results[0].detection_evidence.contains("FIRApp"));
+    // Statically linked only when no framework already accounts for it.
+    assert_eq!(
+        detector.statically_linked(&classes, &[]),
+        vec!["Google Firebase"]
+    );
+    assert!(detector
+        .statically_linked(&classes, &["FirebaseCore".to_string()])
+        .is_empty());
 }
 
 // ------------------------------------------------------------------ //
@@ -328,7 +375,7 @@ fn test_tracker_detection_by_domain() {
 
 #[test]
 fn test_symbol_scanner_loads() {
-    let scanner = pavise::binary::symbols::SymbolScanner::load(&common::rules_dir())
+    let scanner = pavise::binary::symbols::SymbolScanner::load(Some(&common::rules_dir()))
         .expect("Symbol rules should load");
     // Empty imports → no findings
     let results = scanner.scan(&[]);
@@ -337,10 +384,8 @@ fn test_symbol_scanner_loads() {
 
 #[test]
 fn test_symbol_scanner_no_panic_on_large_import_list() {
-    let scanner = pavise::binary::symbols::SymbolScanner::load(&common::rules_dir()).unwrap();
-    let imports: Vec<String> = (0..10_000)
-        .map(|i| format!("_symbol_{}", i))
-        .collect();
+    let scanner = pavise::binary::symbols::SymbolScanner::load(Some(&common::rules_dir())).unwrap();
+    let imports: Vec<String> = (0..10_000).map(|i| format!("_symbol_{}", i)).collect();
     let results = scanner.scan(&imports);
     // Just ensure no panic
     let _ = results;

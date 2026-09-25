@@ -46,6 +46,18 @@ pub fn classify(path: &str, data: &[u8]) -> Option<CertKind> {
         return Some(CertKind::EncryptedKeystore);
     }
 
+    // Java keystores (JKS magic FEEDFEED, JCEKS CECECECE, BKS version 1/2).
+    if lower.ends_with(".jks") || lower.ends_with(".keystore") || lower.ends_with(".bks") {
+        let magic = data.get(..4);
+        let known = matches!(
+            magic,
+            Some([0xFE, 0xED, 0xFE, 0xED])
+                | Some([0xCE, 0xCE, 0xCE, 0xCE])
+                | Some([0, 0, 0, 1 | 2])
+        );
+        return known.then_some(CertKind::EncryptedKeystore);
+    }
+
     // PEM (and most `.key`/`.pem`/`.crt`) files are ASCII-armored: inspect the
     // BEGIN markers, which unambiguously state the payload type.
     if let Some(kind) = classify_pem(data) {
@@ -63,9 +75,9 @@ pub fn classify(path: &str, data: &[u8]) -> Option<CertKind> {
         return None;
     }
 
-    // A `.key` file with no recognizable PEM marker: treat as a raw private key
-    // only if it has non-trivial content (avoids flagging empty stubs).
-    if lower.ends_with(".key") && data.len() > 32 {
+    // A `.key`/`.p8` file with no PEM marker is a private key only if it is
+    // DER. `.key` is also Keynote's extension (a ZIP), which must not be flagged.
+    if (lower.ends_with(".key") || lower.ends_with(".p8")) && looks_like_der(data) {
         return Some(CertKind::PrivateKey);
     }
 
@@ -135,14 +147,18 @@ mod tests {
 
     #[test]
     fn pem_encrypted_key_is_keystore() {
-        let pem = b"-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIF...\n-----END ENCRYPTED PRIVATE KEY-----";
+        let pem =
+            b"-----BEGIN ENCRYPTED PRIVATE KEY-----\nMIIF...\n-----END ENCRYPTED PRIVATE KEY-----";
         assert_eq!(classify("k.pem", pem), Some(CertKind::EncryptedKeystore));
     }
 
     #[test]
     fn pem_certificate_is_public() {
         let pem = b"-----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE-----\n";
-        assert_eq!(classify("server.pem", pem), Some(CertKind::PublicCertificate));
+        assert_eq!(
+            classify("server.pem", pem),
+            Some(CertKind::PublicCertificate)
+        );
         assert!(!classify("server.pem", pem).unwrap().is_private());
     }
 
@@ -156,8 +172,14 @@ mod tests {
 
     #[test]
     fn p12_is_keystore_regardless_of_content() {
-        assert_eq!(classify("id.p12", b"\x30\x82binarygarbage"), Some(CertKind::EncryptedKeystore));
-        assert_eq!(classify("id.pfx", &[0u8; 8]), Some(CertKind::EncryptedKeystore));
+        assert_eq!(
+            classify("id.p12", b"\x30\x82binarygarbage"),
+            Some(CertKind::EncryptedKeystore)
+        );
+        assert_eq!(
+            classify("id.pfx", &[0u8; 8]),
+            Some(CertKind::EncryptedKeystore)
+        );
     }
 
     #[test]
@@ -165,8 +187,14 @@ mod tests {
         // DER SEQUENCE header (0x30 0x82 len len ...).
         let mut der = vec![0x30, 0x82, 0x01, 0x00];
         der.extend(std::iter::repeat(0xAB).take(64));
-        assert_eq!(classify("anchor.der", &der), Some(CertKind::PublicCertificate));
-        assert_eq!(classify("anchor.cer", &der), Some(CertKind::PublicCertificate));
+        assert_eq!(
+            classify("anchor.der", &der),
+            Some(CertKind::PublicCertificate)
+        );
+        assert_eq!(
+            classify("anchor.cer", &der),
+            Some(CertKind::PublicCertificate)
+        );
     }
 
     #[test]
@@ -177,10 +205,36 @@ mod tests {
     }
 
     #[test]
-    fn bare_key_file_is_private_when_substantial() {
-        let key = vec![0x42u8; 64];
+    fn bare_der_key_file_is_private() {
+        let mut key = vec![0x30, 0x82, 0x04, 0xA4];
+        key.extend(std::iter::repeat(0x42).take(64));
         assert_eq!(classify("priv.key", &key), Some(CertKind::PrivateKey));
+        assert_eq!(
+            classify("AuthKey_ABC123.p8", &key),
+            Some(CertKind::PrivateKey)
+        );
         // Tiny stub is ignored.
         assert_eq!(classify("priv.key", b"x"), None);
+    }
+
+    #[test]
+    fn keynote_key_file_is_not_a_private_key() {
+        let mut keynote = b"PK\x03\x04".to_vec();
+        keynote.extend(std::iter::repeat(0x42).take(64));
+        assert_eq!(classify("Presentation.key", &keynote), None);
+    }
+
+    #[test]
+    fn java_keystore_by_magic() {
+        let mut jks = vec![0xFE, 0xED, 0xFE, 0xED, 0, 0, 0, 2];
+        jks.extend(std::iter::repeat(0).take(32));
+        assert_eq!(
+            classify("release.jks", &jks),
+            Some(CertKind::EncryptedKeystore)
+        );
+        assert_eq!(
+            classify("release.keystore", b"not a keystore at all........"),
+            None
+        );
     }
 }

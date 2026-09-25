@@ -12,59 +12,131 @@ fn url_re() -> &'static Regex {
     })
 }
 
-/// URL substrings (all lowercase) that indicate a reference/schema/test URL,
-/// not a real runtime network call. Matched against a lowercased URL.
-const NOISE_URL_PATTERNS: &[&str] = &[
-    "apple.com/dtds/",       // XML plist DOCTYPE declarations
-    "apple.com/xmlschemas/", // Apple XML schemas
-    "www.w3.org/",           // XML schema declarations
-    "xmlpull.org/",          // XML pull parser schema
-    "schemas.android.com/",  // Android XML namespace
-    "schemas.microsoft.com/",
-    "schemas.xmlsoap.org/", // SOAP namespaces
-    "videolan.org",         // VLC-related links (About UI, etc.)
-    "jquery.org/license",   // Documentation/License links
-    "example.invalid",      // RFC 2606 — used in gRPC and other test code
-    "example.com",          // Generic test URLs in third-party libraries
+/// Hosts (and their subdomains) whose URLs are identifiers, documentation or
+/// test fixtures rather than runtime endpoints.
+const NOISE_HOSTS: &[&str] = &[
+    // XML / RDF / metadata namespaces
+    "w3.org",
+    "xmlpull.org",
+    "schemas.android.com",
+    "schemas.microsoft.com",
+    "schemas.xmlsoap.org",
+    "schemas.openxmlformats.org",
+    "ns.adobe.com",
+    "iec.ch",
+    "color.org",
+    "purl.org",
+    "ogp.me",
+    "rdfs.org",
+    "dashif.org",
+    "cipa.jp", // EXIF namespace
+    // XMPP protocol namespaces (`http://jabber.org/protocol/caps`)
+    "jabber.org",
+    "xmpp.org",
+    // Licenses, specs and bug/docs links embedded in third-party code
+    "apache.org",
+    "gnu.org",
+    "opensource.org",
+    "creativecommons.org",
+    "ietf.org",
+    "scripts.sil.org",
+    "anglebug.com",
+    "crbug.com",
+    "fb.me",
+    "momentjs.com",
+    "jquery.com",
+    "jquery.org",
+    "jqueryui.com",
+    "vt100.net",
+    "videolan.org",
+    // RFC 2606 / test fixtures
+    "example.com",
     "example.org",
-    "www.google.com/", // gRPC test URLs
+    "example.net",
+    "example.invalid",
     "localhost",
-    "127.0.0.1",
-    "0.0.0.0",
-    "mozilla.org/mpl", // License header URLs
-    "gnu.org/licenses",
-    "opensource.org/licenses",
-    "creativecommons.org/",
-    // Apple PKI infrastructure embedded in code signatures — not app network calls
-    "ocsp.apple.com/",
-    "crl.apple.com/",
-    "certs.apple.com/",
-    "pki.apple.com/",
-    // XML namespace identifiers (not network endpoints, just namespace URIs)
-    "ns.adobe.com/", // XMP, TIFF, EXIF metadata namespace
-    "www.iec.ch",    // ICC color profile standards
-    "www.color.org", // ICC color profile standards
-    "purl.org/",     // Dublin Core / persistent URL namespace
-    "ogp.me/",       // Open Graph protocol namespace
-    "rdfs.org/",     // RDF schema namespace
+    "www.google.com",
 ];
 
+/// (host suffix, path prefix) pairs for hosts that also serve real endpoints.
+const NOISE_HOST_PATHS: &[(&str, &str)] = &[
+    ("apple.com", "/dtds/"),
+    ("apple.com", "/xmlschemas/"),
+    ("mozilla.org", "/mpl"),
+    ("webrtc.org", "/experiments/"), // RTP header-extension URIs
+    ("gultsch.de", "/xmpp/"),        // XMPP extension namespaces
+];
+
+/// Host suffix match: `host` is `suffix` or a subdomain of it.
+fn host_matches(host: &str, suffix: &str) -> bool {
+    host == suffix
+        || host
+            .strip_suffix(suffix)
+            .is_some_and(|rest| rest.ends_with('.'))
+}
+
+/// True for a syntactically valid DNS name or IPv4 literal. Rejects fragments
+/// from minified JS (`www.`, `.css`) and run-on strings (`169.254.170.2EnvConfig`).
+fn is_valid_host(host: &str) -> bool {
+    if host.split('.').count() == 4 && host.split('.').all(|p| p.parse::<u8>().is_ok()) {
+        return true;
+    }
+    let labels: Vec<&str> = host.split('.').collect();
+    let tld = labels.last().copied().unwrap_or("");
+    labels.len() >= 2
+        && labels.iter().all(|l| {
+            !l.is_empty()
+                && !l.starts_with('-')
+                && !l.ends_with('-')
+                && l.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        })
+        && (2..=24).contains(&tld.len())
+        && tld.bytes().all(|b| b.is_ascii_alphabetic())
+        // `http://www.` + concatenated word: `www.css`, `www.icon`
+        && !(labels.len() == 2 && labels[0] == "www")
+}
+
+/// Certificate-infrastructure URLs (CRL, OCSP, AIA, CPS) embedded in DER
+/// certificates. They use HTTP by design — the payloads are signed.
+fn is_pki_url(host: &str, path: &str) -> bool {
+    let path = path.to_lowercase();
+    ["crl", "ocsp", "cacerts", "certs."]
+        .iter()
+        .any(|p| host.starts_with(p))
+        || ["/pki/", "/appleca", "/certificateauthority", "/repository", "/cps"]
+            .iter()
+            .any(|p| path.contains(p))
+        // DER-embedded URLs often carry a trailing tag byte ('0') after the extension.
+        || [".crl", ".crt", ".cer", ".p7c"]
+            .iter()
+            .any(|e| path.ends_with(e) || path.ends_with(&format!("{}0", e)))
+}
+
 fn is_noise_url(url: &str) -> bool {
-    // Compare lowercase URL against lowercase patterns
-    let lower = url.to_lowercase();
-    if NOISE_URL_PATTERNS.iter().any(|pat| lower.contains(*pat)) {
-        return true;
-    }
-    // Filter malformed URLs with no real host (e.g., "http://,")
-    let host = lower
+    let rest = url
         .strip_prefix("http://")
-        .or_else(|| lower.strip_prefix("https://"))
+        .or_else(|| url.strip_prefix("https://"))
         .unwrap_or("");
-    let host = host.split('/').next().unwrap_or("");
-    if host.is_empty() || !host.contains('.') || host.len() < 4 {
+    let split = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let (authority, path) = rest.split_at(split);
+    let host = authority
+        .rsplit('@')
+        .next()
+        .unwrap_or("")
+        .split(':')
+        .next()
+        .unwrap_or("")
+        .to_lowercase();
+
+    if !is_valid_host(&host) || host.starts_with("127.") || host == "0.0.0.0" {
         return true;
     }
-    false
+    let path_lower = path.to_lowercase();
+    NOISE_HOSTS.iter().any(|h| host_matches(&host, h))
+        || NOISE_HOST_PATHS
+            .iter()
+            .any(|(h, p)| host_matches(&host, h) && path_lower.starts_with(p))
+        || is_pki_url(&host, path)
 }
 
 pub struct UrlExtractResult {
@@ -193,6 +265,38 @@ mod tests {
             result.findings.iter().all(|f| f.id != "QS-NET-001"),
             "Apple DTD URL should not emit QS-NET-001"
         );
+    }
+
+    #[test]
+    fn test_reference_urls_not_flagged() {
+        for url in [
+            "http://jabber.org/protocol/caps",
+            "http://www.apache.org/licenses/LICENSE-2.0",
+            "http://www.apple.com/appleca/root.crl0",
+            "http://crl3.digicert.com/DigiCertGlobalRootCA.crl",
+            "http://www.microsoft.com/pki/certs/MicRooCerAut_2010-06-23.crt0",
+            "http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
+            "http://www.",
+            "http://.css",
+            "http://www.icon",
+            "http://169.254.170.2EnvConfigCredentialsinvalid",
+        ] {
+            let result = extract(url, "Frameworks/X.framework/X");
+            assert!(result.findings.is_empty(), "{} should not be flagged", url);
+        }
+    }
+
+    #[test]
+    fn test_noise_host_is_matched_on_host_not_substring() {
+        // `example.com` inside another host's path or name must not hide it.
+        for url in [
+            "http://api.notexample.com/v1",
+            "http://evil.net/example.com/",
+            "http://www.microsoft.com/api/login",
+        ] {
+            let result = extract(url, "config.json");
+            assert_eq!(result.findings.len(), 1, "{} should be flagged", url);
+        }
     }
 
     #[test]

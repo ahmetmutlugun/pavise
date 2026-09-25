@@ -12,10 +12,12 @@ use zip::ZipWriter;
 
 fn default_opts() -> ScanOptions {
     ScanOptions {
-        rules_dir: common::rules_dir(),
+        rules_dir: Some(common::rules_dir()),
         min_severity: Severity::Info,
         network: false,
         show_progress: false,
+        max_extracted_bytes: None,
+        max_in_flight_bytes: None,
     }
 }
 
@@ -27,8 +29,7 @@ fn default_opts() -> ScanOptions {
 fn test_truncated_zip() {
     let mut tmp = NamedTempFile::new().unwrap();
     // Write bytes that start like a ZIP but are truncated
-    tmp.write_all(b"PK\x03\x04truncated garbage here")
-        .unwrap();
+    tmp.write_all(b"PK\x03\x04truncated garbage here").unwrap();
     tmp.flush().unwrap();
 
     let result = scan_ipa(tmp.path(), &default_opts());
@@ -147,7 +148,10 @@ fn test_truncated_macho_header() {
 fn test_invalid_magic_number() {
     // 16 bytes of zeros — not a valid Mach-O magic
     let result = pavise::binary::macho::analyze(&[0u8; 16], "test_binary");
-    assert!(result.is_err(), "Invalid magic number should fail gracefully");
+    assert!(
+        result.is_err(),
+        "Invalid magic number should fail gracefully"
+    );
 }
 
 #[test]
@@ -211,10 +215,8 @@ fn test_zip_bomb_high_compression_ratio() {
         let plist_path = "Payload/BombApp.app/Info.plist";
         zip.start_file(plist_path, SimpleFileOptions::default())
             .unwrap();
-        zip.write_all(
-            common::minimal_info_plist("BombApp").as_bytes(),
-        )
-        .unwrap();
+        zip.write_all(common::minimal_info_plist("BombApp").as_bytes())
+            .unwrap();
 
         // This entry has extremely high compression ratio
         zip.start_file("Payload/BombApp.app/bigfile.bin", options)
@@ -473,11 +475,73 @@ fn test_plist_missing_bundle_executable() {
     tmp.write_all(&buf).unwrap();
     tmp.flush().unwrap();
 
-    let report = scan_ipa(tmp.path(), &default_opts()).expect("scan should succeed");
-    // With no CFBundleExecutable, main_binary should be None
+    // No main binary means no protection checks: fail rather than report an
+    // inflated score.
+    let err = scan_ipa(tmp.path(), &default_opts()).unwrap_err();
     assert!(
-        report.main_binary.is_none(),
-        "Missing CFBundleExecutable should result in no main binary"
+        format!("{:#}", err).contains("CFBundleExecutable"),
+        "unexpected error: {:#}",
+        err
     );
-    assert_eq!(report.app_info.name, "NoExec");
+}
+
+// ------------------------------------------------------------------ //
+// Zip-bomb limits
+// ------------------------------------------------------------------ //
+
+/// A stored entry whose headers claim fewer bytes than it holds must not be
+/// read past the declared size. Entries are inflated lazily, so the lie is
+/// caught when the entry is read (the scan propagates that error).
+#[test]
+fn test_entry_larger_than_declared_size_rejected() {
+    let payload = vec![b'A'; 4096];
+    let mut buf = Vec::new();
+    {
+        let mut zip = ZipWriter::new(std::io::Cursor::new(&mut buf));
+        let stored =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+        zip.start_file("Payload/Lie.app/blob.bin", stored).unwrap();
+        zip.write_all(&payload).unwrap();
+        zip.finish().unwrap();
+    }
+    // Patch the uncompressed size (local header offset 22, central directory
+    // offset 24) from 4096 down to 16, leaving the compressed size intact.
+    let lie = 16u32.to_le_bytes();
+    let real = 4096u32.to_le_bytes();
+    let local = 0;
+    assert_eq!(&buf[local + 22..local + 26], &real);
+    buf[local + 22..local + 26].copy_from_slice(&lie);
+    let central = buf
+        .windows(4)
+        .position(|w| w == [0x50, 0x4b, 0x01, 0x02])
+        .unwrap();
+    assert_eq!(&buf[central + 24..central + 28], &real);
+    buf[central + 24..central + 28].copy_from_slice(&lie);
+
+    let mut tmp = NamedTempFile::new().unwrap();
+    tmp.write_all(&buf).unwrap();
+    let unpacked = pavise::unpacker::ipa::unpack(tmp.path()).expect("directory is valid");
+    let archive = &unpacked.archive;
+    let entry = archive.find("blob.bin").expect("entry listed");
+    assert_eq!(entry.size, 16);
+    let err = archive.read(entry).expect_err("lying entry must fail");
+    assert!(format!("{err:#}").contains("declared size"), "{err:#}");
+}
+
+#[test]
+fn test_total_extraction_cap() {
+    let ipa = common::IpaBuilder::new("Cap")
+        // Incompressible, so the compression-ratio check doesn't skip it first.
+        .add_bundle_file(
+            "a.bin",
+            (0..8 * 1024u32)
+                .map(|i| (i.wrapping_mul(2654435761) >> 13) as u8)
+                .collect::<Vec<u8>>(),
+        )
+        .build();
+    let err = pavise::unpacker::ipa::unpack_with_limit(ipa.path(), 4 * 1024)
+        .err()
+        .expect("cap must trip");
+    assert!(format!("{err:#}").contains("limit"), "{err:#}");
+    assert!(pavise::unpacker::ipa::unpack_with_limit(ipa.path(), 1 << 20).is_ok());
 }

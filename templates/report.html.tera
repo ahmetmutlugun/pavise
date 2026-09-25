@@ -201,6 +201,58 @@ details[open] summary::before{content:"▼ "}
   .stats-bar .stat{min-width:calc(50% - 2px)}
   .score-panel{flex-direction:column;align-items:flex-start}
 }
+
+/* ── Print / PDF theme ──────────────────────────────────────────────────────
+   Rendered by headless Chrome for PDF output. The screen report stays dark;
+   here we redefine the design tokens to a light "editorial" palette (cream
+   surfaces, navy headings, mint for secure states) so the document is clean
+   on paper, and add page-break rules so cards never split across pages. */
+@media print{
+  :root{
+    --bg:#ffffff;--surface:#faf7f0;--surface2:#f1ece0;
+    --border:#e0dac9;--border-inner:#ece7da;
+    --text-heading:#1b2a4a;--text-body:#33405a;--text-dim:#6b7484;
+    --accent:#1e3a5f;
+    --high:#b4341f;--high-bg:#fbeee9;--high-border:#eccabb;--high-subtle:#fdf5f1;
+    --warn:#9a6700;--warn-bg:#fbf3df;--warn-border:#e8d6a8;--warn-subtle:#fdf9ee;
+    --info:#1e40af;--info-bg:#eaf0fb;--info-border:#c6d6f0;
+    --secure:#1f7a52;--secure-bg:#e8f5ee;--secure-border:#bfe3cf;--secure-text:#1f7a52;--secure-subtle:#f2faf5;
+    --code-blue:#1e40af;--code-orange:#9a5b00;
+  }
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{background:#fff;font-size:10px;line-height:1.45}
+  a{color:var(--accent);text-decoration:none}
+  .container{max-width:none;margin:0;padding:0 4px}
+  .skip-link{display:none}
+
+  /* Header → clean masthead instead of the dark gradient banner */
+  .header{background:#fff;border-bottom:2px solid var(--accent);padding:0 0 14px;margin-bottom:18px}
+  .header .container{padding:0 4px}
+  .app-name{font-size:23px}
+  .pill{background:var(--surface);border-color:var(--border)}
+  .score-panel{background:var(--surface);border-color:var(--border);padding:14px 20px;min-width:130px}
+  .grade{font-size:46px}
+  .grade-a{color:#1f7a52}.grade-b{color:#2f9e6b}.grade-c{color:#9a6700}.grade-d{color:#b4571f}.grade-f{color:#b4341f}
+
+  /* Keep section titles attached to their bodies */
+  .section{margin-bottom:18px}
+  .section-title{font-size:13px;break-after:avoid}
+  .section-body{break-before:avoid}
+
+  /* Never split an individual record across a page boundary */
+  .finding,.secret-item,.tracker-item,.protection-item,.owasp-cell,
+  .firebase-item,.diff-card,.stat,tr,details{break-inside:avoid}
+  .stats-bar,.owasp-grid,.diff-cards{break-inside:avoid}
+
+  /* Light equivalents for the few hardcoded dark accents */
+  .prot-icon.ok{background:var(--secure-bg);color:var(--secure)}
+  .prot-icon.bad{background:var(--high-bg);color:var(--high)}
+  .prot-icon.warn{background:var(--warn-bg);color:var(--warn)}
+
+  details summary{background:var(--surface)}
+  details[open]{break-inside:auto}
+  .footer{margin-top:24px;border-top:1px solid var(--border)}
+}
 </style>
 </head>
 <body>
@@ -356,6 +408,31 @@ details[open] summary::before{content:"▼ "}
   <div class="section-title">Framework Binaries <span class="count">{{ report.framework_binaries | length }}</span></div>
   <div class="section-body">
     {% for fw in report.framework_binaries %}
+    <details>
+      <summary>Binary protections — {{ fw.path }} ({{ fw.arch }})</summary>
+      <div class="protections-grid" style="border-top:1px solid var(--border-inner)">
+        {% for p in fw.protections %}
+        <div class="protection-item" aria-label="{{ p.name }}: {% if p.enabled %}enabled{% elif p.severity == "high" %}disabled{% else %}warning{% endif %}">
+          {% if p.enabled %}<div class="prot-icon ok" aria-hidden="true">✓</div>
+          {% elif p.severity == "high" %}<div class="prot-icon bad" aria-hidden="true">✗</div>
+          {% else %}<div class="prot-icon warn" aria-hidden="true">!</div>{% endif %}
+          <div>
+            <div class="prot-name">{{ p.name }}</div>
+            <div class="prot-desc">{{ p.description }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% if report.extension_binaries %}
+<div class="section">
+  <div class="section-title">App Extensions <span class="count">{{ report.extension_binaries | length }}</span></div>
+  <div class="section-body">
+    {% for fw in report.extension_binaries %}
     <details>
       <summary>Binary protections — {{ fw.path }} ({{ fw.arch }})</summary>
       <div class="protections-grid" style="border-top:1px solid var(--border-inner)">
@@ -657,6 +734,7 @@ details[open] summary::before{content:"▼ "}
     <div class="firebase-grid">
       {% if report.firebase.project_id %}<div class="firebase-item"><div class="firebase-key">Project ID</div><div class="firebase-val">{{ report.firebase.project_id }}</div></div>{% endif %}
       {% if report.firebase.database_url %}<div class="firebase-item"><div class="firebase-key">Database URL</div><div class="firebase-val">{{ report.firebase.database_url }}</div></div>{% endif %}
+      {% if report.firebase.storage_bucket %}<div class="firebase-item"><div class="firebase-key">Storage Bucket</div><div class="firebase-val">{{ report.firebase.storage_bucket }}</div></div>{% endif %}
       {% if report.firebase.api_key %}<div class="firebase-item"><div class="firebase-key">API Key</div><div class="firebase-val">{{ report.firebase.api_key }}</div></div>{% endif %}
       {% if report.firebase.bundle_id %}<div class="firebase-item"><div class="firebase-key">Bundle ID</div><div class="firebase-val">{{ report.firebase.bundle_id }}</div></div>{% endif %}
       {% if report.firebase.google_app_id %}<div class="firebase-item"><div class="firebase-key">Google App ID</div><div class="firebase-val">{{ report.firebase.google_app_id }}</div></div>{% endif %}

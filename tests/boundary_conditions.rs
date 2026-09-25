@@ -6,40 +6,17 @@ mod common;
 use pavise::patterns::engine::extract_printable_strings;
 use pavise::patterns::entropy::{scan_for_high_entropy, shannon_entropy};
 use pavise::scoring::owasp::compute_score;
-use pavise::types::{BinaryInfo, BinaryProtection, Finding, SecretMatch, Severity};
+use pavise::types::{Finding, SecretMatch, Severity};
 use pavise::{scan_ipa, ScanOptions};
 
 fn default_opts() -> ScanOptions {
     ScanOptions {
-        rules_dir: common::rules_dir(),
+        rules_dir: Some(common::rules_dir()),
         min_severity: Severity::Info,
         network: false,
         show_progress: false,
-    }
-}
-
-fn make_protection(name: &str, enabled: bool) -> BinaryProtection {
-    BinaryProtection {
-        name: name.to_string(),
-        enabled,
-        severity: if enabled {
-            Severity::Secure
-        } else {
-            Severity::High
-        },
-        description: String::new(),
-    }
-}
-
-fn make_binary(protections: &[(&str, bool)]) -> BinaryInfo {
-    BinaryInfo {
-        path: "TestApp".to_string(),
-        arch: "arm64".to_string(),
-        bits: 64,
-        protections: protections
-            .iter()
-            .map(|(n, e)| make_protection(n, *e))
-            .collect(),
+        max_extracted_bytes: None,
+        max_in_flight_bytes: None,
     }
 }
 
@@ -49,7 +26,7 @@ fn make_finding(id: &str, severity: Severity) -> Finding {
         title: String::new(),
         description: String::new(),
         severity,
-        category: String::new(),
+        category: String::new(), // scoring class is derived from the ID prefix
         cwe: None,
         owasp_mobile: None,
         owasp_masvs: None,
@@ -58,13 +35,17 @@ fn make_finding(id: &str, severity: Severity) -> Finding {
     }
 }
 
-fn make_secret(severity: Severity) -> SecretMatch {
+fn make_secret(rule_id: &str, severity: Severity) -> SecretMatch {
     SecretMatch {
-        rule_id: "QS-TEST".to_string(),
+        rule_id: rule_id.to_string(),
         title: "Test".to_string(),
         severity,
         matched_value: "secret".to_string(),
         file_path: None,
+        cwe: None,
+        owasp_mobile: None,
+        owasp_masvs: None,
+        remediation: None,
     }
 }
 
@@ -74,43 +55,48 @@ fn make_secret(severity: Severity) -> SecretMatch {
 
 #[test]
 fn test_score_all_high_findings_is_zero() {
-    // Maximally bad binary + max secrets + many findings → score should floor at 0
-    let bin = make_binary(&[
-        ("PIE", false),
-        ("Stack Canary", false),
-        ("ARC", false),
-        ("Encryption", false),
-        ("Symbols", false),
-        ("RPATH", false),
-    ]);
-    let secrets: Vec<SecretMatch> = (0..10).map(|_| make_secret(Severity::High)).collect();
-    let findings: Vec<Finding> = vec![
-        make_finding("QS-ATS-002", Severity::High),
-        make_finding("QS-CVE-001", Severity::High),
-        make_finding("QS-CVE-002", Severity::High),
-        make_finding("QS-CVE-003", Severity::High),
-    ];
+    // Missing protections + secrets + network + CVEs → score floors at 0
+    let findings: Vec<Finding> = [
+        "QS-BIN-001",
+        "QS-BIN-002",
+        "QS-BIN-003",
+        "QS-ATS-002",
+        "QS-NET-002",
+        "QS-ENT-001",
+        "QS-ENT-003",
+        "QS-CVE-001",
+        "QS-CVE-002",
+        "QS-CVE-003",
+    ]
+    .iter()
+    .map(|id| make_finding(id, Severity::High))
+    .collect();
+    let secrets: Vec<SecretMatch> = (1..=5)
+        .map(|i| make_secret(&format!("QS-SEC-{:03}", i), Severity::High))
+        .collect();
 
-    let (score, grade) = compute_score(Some(&bin), &[], &findings, &secrets, false);
+    let (score, grade) = compute_score(&findings, &secrets);
     assert!(score <= 5, "All-bad config should be near 0, got {}", score);
     assert_eq!(grade, "F");
 }
 
 #[test]
 fn test_score_zero_findings_is_100() {
-    let (score, grade) = compute_score(None, &[], &[], &[], false);
-    assert_eq!(score, 100, "No binary + no findings = perfect score");
+    let (score, grade) = compute_score(&[], &[]);
+    assert_eq!(score, 100, "No findings = perfect score");
     assert_eq!(grade, "A");
 }
 
 #[test]
 fn test_score_deterministic() {
-    let bin = make_binary(&[("PIE", false), ("ARC", false)]);
-    let secrets = vec![make_secret(Severity::High)];
-    let findings = vec![make_finding("QS-ATS-002", Severity::High)];
+    let secrets = vec![make_secret("QS-SEC-002", Severity::High)];
+    let findings = vec![
+        make_finding("QS-ATS-002", Severity::High),
+        make_finding("QS-BIN-001", Severity::High),
+    ];
 
-    let (s1, g1) = compute_score(Some(&bin), &[], &findings, &secrets, false);
-    let (s2, g2) = compute_score(Some(&bin), &[], &findings, &secrets, false);
+    let (s1, g1) = compute_score(&findings, &secrets);
+    let (s2, g2) = compute_score(&findings, &secrets);
     assert_eq!(s1, s2, "Score must be deterministic");
     assert_eq!(g1, g2, "Grade must be deterministic");
 }
@@ -125,11 +111,7 @@ fn test_entropy_at_exact_5_0() {
     // Build a string with exactly 32 distinct characters + digit and letter classes
     let token = "aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpP"; // 32 distinct, upper + lower
     let h = shannon_entropy(token);
-    assert!(
-        (h - 5.0).abs() < 0.01,
-        "Expected entropy ~5.0, got {}",
-        h
-    );
+    assert!((h - 5.0).abs() < 0.01, "Expected entropy ~5.0, got {}", h);
     // At exactly 5.0 this should be at the Warning threshold boundary
     let results = scan_for_high_entropy(&[token], "test.json");
     // Whether it triggers depends on >= vs > — just ensure no panic
@@ -160,7 +142,8 @@ fn test_empty_plist() {
 </dict>
 </plist>"#;
 
-    let result = pavise::manifest::info_plist::analyze(empty_plist.as_bytes(), &common::rules_dir());
+    let result =
+        pavise::manifest::info_plist::analyze(empty_plist.as_bytes(), Some(&common::rules_dir()));
     // Should succeed with empty/default AppInfo, not crash
     match result {
         Ok(r) => {
@@ -243,43 +226,19 @@ fn test_ipa_only_directories() {
 // ------------------------------------------------------------------ //
 
 #[test]
-fn test_framework_canary_deduction_capped() {
-    // 10 frameworks missing Stack Canary — max deduction should be 8 (2 each, capped)
-    let frameworks: Vec<BinaryInfo> = (0..10)
-        .map(|i| BinaryInfo {
-            path: format!("Framework{}", i),
-            arch: "arm64".to_string(),
-            bits: 64,
-            protections: vec![make_protection("Stack Canary", false)],
-        })
+fn test_framework_canary_counted_once() {
+    // QS-BIN-008 is aggregated across frameworks; it deducts once (Warning = 3)
+    // and framework protections are not scored a second time.
+    let findings: Vec<Finding> = (0..10)
+        .map(|_| make_finding("QS-BIN-008", Severity::Warning))
         .collect();
-
-    let (score, _) = compute_score(None, &frameworks, &[], &[], false);
-    // 100 - 8 (canary cap) = 92
-    assert_eq!(
-        score, 92,
-        "Framework canary deduction should cap at 8, got {}",
-        score
-    );
+    let (score, _) = compute_score(&findings, &[]);
+    assert_eq!(score, 97);
 }
 
 #[test]
-fn test_framework_arc_deduction_capped() {
-    // 10 frameworks missing ARC — max deduction should be 15 (3 each, capped)
-    let frameworks: Vec<BinaryInfo> = (0..10)
-        .map(|i| BinaryInfo {
-            path: format!("Framework{}", i),
-            arch: "arm64".to_string(),
-            bits: 64,
-            protections: vec![make_protection("ARC", false)],
-        })
-        .collect();
-
-    let (score, _) = compute_score(None, &frameworks, &[], &[], false);
-    // 100 - 15 (ARC cap) = 85
-    assert_eq!(
-        score, 85,
-        "Framework ARC deduction should cap at 15, got {}",
-        score
-    );
+fn test_framework_arc_is_info_only() {
+    let findings = vec![make_finding("QS-BIN-009", Severity::Info)];
+    let (score, _) = compute_score(&findings, &[]);
+    assert_eq!(score, 100);
 }

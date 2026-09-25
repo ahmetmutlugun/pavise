@@ -32,9 +32,9 @@ docker run --rm -v "$PWD:/work" ghcr.io/ahmetmutlugun/pavise pavise /work/app.ip
 |----------|----------|
 | Binary protections | NX, PIE, ARC, encryption, RPATH, stack canaries |
 | Manifest analysis | Info.plist, entitlements, provisioning profiles |
-| Secret detection | 23 patterns — AWS, GCP, Azure, GitHub, Stripe, Slack, OpenAI, etc. |
+| Secret detection | 28 patterns — AWS, GCP, Azure, GitHub, Stripe, Slack, OpenAI, etc. |
 | Dangerous APIs | 15+ risky iOS APIs (strcpy, NSLog, malloc, etc.) |
-| Tracker detection | 30+ advertising/analytics SDKs |
+| Tracker detection | 20 advertising/analytics SDKs |
 | Supply chain | Framework inventory with version tracking |
 | Network intel | DNS resolution and IP geolocation (`--network`) |
 
@@ -65,17 +65,17 @@ Exit codes: `0` clean, `1` high-severity findings, `2` scan error.
 
 ## Custom Rules
 
-```yaml
-rules:
-  - id: QS-SECRET-001
-    name: AWS Access Key
-    type: secret
-    severity: high
-    patterns:
-      - "AKIA[0-9A-Z]{16}"
-```
+The default rules in `rules/` (`secrets.yaml`, `ios_apis.yaml`, `trackers.yaml`, `permissions.yaml`) are
+compiled into the binary. `--rules DIR` replaces the whole set, so copy all four files and edit them; a
+missing or unparseable file is a scan error (exit 2). Secret rules look like:
 
-Pass a custom rules directory with `--rules ./my-rules/`.
+```yaml
+- id: QS-SEC-002
+  title: "AWS Access Key ID"
+  pattern: "AKIA[0-9A-Z]{16}"
+  severity: high          # high | warning | info
+  category: secrets
+```
 
 ## License
 

@@ -32,13 +32,19 @@ pub fn parse_google_service_info(data: &[u8]) -> Option<FirebaseInfo> {
         .and_then(|v| v.as_string())
         .map(|s| s.to_string());
 
+    let storage_bucket = dict
+        .get("STORAGE_BUCKET")
+        .and_then(|v| v.as_string())
+        .map(|s| s.to_string());
+
     debug!(
-        "Firebase detected: project_id={}, database_url={}, api_key={}, bundle_id={}, google_app_id={}",
+        "Firebase detected: project_id={}, database_url={}, api_key={}, bundle_id={}, google_app_id={}, storage_bucket={}",
         project_id.is_some(),
         database_url.is_some(),
         api_key.is_some(),
         bundle_id.is_some(),
         google_app_id.is_some(),
+        storage_bucket.is_some(),
     );
 
     Some(FirebaseInfo {
@@ -47,5 +53,6 @@ pub fn parse_google_service_info(data: &[u8]) -> Option<FirebaseInfo> {
         api_key,
         bundle_id,
         google_app_id,
+        storage_bucket,
     })
 }

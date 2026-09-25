@@ -87,6 +87,8 @@
   title: "Use of UIPasteboard (clipboard access)"
   symbols:
     - _UIPasteboardNameGeneral
+    # +[UIPasteboard generalPasteboard] is reached through the class reference.
+    - _OBJC_CLASS_$_UIPasteboard
   severity: info
   cwe: "CWE-200"
   owasp_masvs: "MSTG-PLATFORM-4"
@@ -148,7 +150,7 @@
 - id: QS-API-014
   title: "NSUserDefaults used for data storage"
   symbols:
-    - _NSUserDefaults
+    - _OBJC_CLASS_$_NSUserDefaults
   severity: info
   cwe: "CWE-312"
   owasp_mobile: "M2"
@@ -158,7 +160,7 @@
 - id: QS-API-015
   title: "Use of UIWebView (deprecated, no JIT isolation)"
   symbols:
-    - _UIWebView
+    - _OBJC_CLASS_$_UIWebView
   severity: warning
   cwe: "CWE-676"
   owasp_mobile: "M1"
@@ -167,10 +169,17 @@
 
 - id: QS-API-016
   title: "Use of DES or 3DES encryption (weak cipher)"
+  # kCCAlgorithmDES/3DES are enum constants, not symbols; CommonCrypto DES use
+  # is detected by the cipher string scan. These are real OpenSSL functions.
   symbols:
-    - _kCCAlgorithmDES
-    - _kCCAlgorithm3DES
-    - _CCCryptorCreateWithMode
+    - _DES_ecb_encrypt
+    - _DES_ncbc_encrypt
+    - _DES_ede3_cbc_encrypt
+    - _DES_set_key
+    - _DES_set_key_checked
+    - _EVP_des_cbc
+    - _EVP_des_ecb
+    - _EVP_des_ede3_cbc
   severity: high
   cwe: "CWE-327"
   owasp_mobile: "M5"
@@ -179,8 +188,12 @@
 
 - id: QS-API-017
   title: "ECB mode encryption (insecure block cipher mode)"
+  # kCCOptionECBMode is an enum constant, not a symbol.
   symbols:
-    - _kCCOptionECBMode
+    - _AES_ecb_encrypt
+    - _EVP_aes_128_ecb
+    - _EVP_aes_192_ecb
+    - _EVP_aes_256_ecb
   severity: high
   cwe: "CWE-327"
   owasp_mobile: "M5"
@@ -190,8 +203,8 @@
 - id: QS-API-018
   title: "CoreData persistent store (verify encryption)"
   symbols:
-    - _NSPersistentStoreCoordinator
-    - _NSPersistentContainer
+    - _OBJC_CLASS_$_NSPersistentStoreCoordinator
+    - _OBJC_CLASS_$_NSPersistentContainer
   severity: info
   cwe: "CWE-312"
   owasp_mobile: "M2"
@@ -201,8 +214,8 @@
 - id: QS-API-019
   title: "Realm database usage (verify encryption)"
   symbols:
-    - _RLMRealm
-    - _RLMRealmConfiguration
+    - _OBJC_CLASS_$_RLMRealm
+    - _OBJC_CLASS_$_RLMRealmConfiguration
   severity: info
   cwe: "CWE-312"
   owasp_mobile: "M2"
@@ -227,32 +240,47 @@
 - id: QS-API-021
   title: "WKWebView with JavaScript (verify content trust)"
   symbols:
-    - _WKWebViewConfiguration
-    - _WKPreferences
+    - _OBJC_CLASS_$_WKWebViewConfiguration
+    - _OBJC_CLASS_$_WKPreferences
   severity: info
   cwe: "CWE-79"
   owasp_mobile: "M1"
   owasp_masvs: "MSTG-PLATFORM-5"
   remediation: "Ensure WKWebView only loads trusted HTTPS content. Set WKPreferences.javaScriptEnabled to false for views that do not require it, and never inject untrusted user data into JS"
 
-- id: QS-API-022
-  title: "Plist written to file path (verify protection class)"
-  symbols:
-    - _writeToFile
-    - _writeToURL
-  severity: info
-  cwe: "CWE-312"
-  owasp_mobile: "M2"
-  owasp_masvs: "MSTG-STORAGE-1"
-  remediation: "Write sensitive plist files with NSFileProtectionComplete. Avoid writing credentials or tokens to plist files at all; use the Keychain instead"
-
 - id: QS-API-023
   title: "SSL certificate pinning implementation detected"
   symbols:
+    # Only calls that are specific to pinning; SecCertificateCreateWithData and
+    # SecTrustCopyPublicKey are used by ordinary cert handling.
     - _SecTrustSetAnchorCertificates
-    - _SecCertificateCreateWithData
-    - _SecTrustCopyPublicKey
-    - _TrustKit
+    - _SecTrustSetAnchorCertificatesOnly
+    - _OBJC_CLASS_$_TrustKit
+    - _OBJC_CLASS_$_TSKPinningValidator
   severity: info
   owasp_masvs: "MSTG-NETWORK-4"
   remediation: "Certificate pinning is present. Ensure pins are updated before certificate expiry and that a backup pin or fallback mechanism exists to prevent a bricked app"
+
+- id: QS-API-024
+  title: "Keychain 'Always' accessibility class referenced"
+  # Deprecated since iOS 12: items stay decryptable with no passcode unlock.
+  # Info, not warning: keychain wrappers (KeychainAccess, react-native-keychain)
+  # reference every accessibility constant whether or not the app uses it.
+  symbols:
+    - _kSecAttrAccessibleAlways
+    - _kSecAttrAccessibleAlwaysThisDeviceOnly
+  severity: info
+  cwe: "CWE-311"
+  owasp_mobile: "M9"
+  owasp_masvs: "MASVS-STORAGE-1"
+  remediation: "Check whether items are stored with a kSecAttrAccessibleAlways class; use kSecAttrAccessibleWhenUnlockedThisDeviceOnly (or AfterFirstUnlockThisDeviceOnly for background access) instead"
+
+- id: QS-API-025
+  title: "Third-party keyboards restricted"
+  # Referenced from application(_:shouldAllowExtensionPointIdentifier:) to
+  # refuse custom keyboards, which can log and cache everything typed.
+  symbols:
+    - _UIApplicationKeyboardExtensionPointIdentifier
+  severity: info
+  owasp_masvs: "MASVS-STORAGE-2"
+  remediation: "Third-party keyboard blocking is present. Also disable autocorrection and set secureTextEntry on fields holding secrets so the system keyboard cache never stores them"

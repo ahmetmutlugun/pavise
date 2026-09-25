@@ -8,44 +8,84 @@ window.addEventListener("scroll", onScroll, { passive: true });
 onScroll();
 
 // ── Halftone shield ──
+// The hero mark: a pavise (tall ridged shield) rendered as a halftone. The
+// central ridge splits it into a lit left facet and a shaded right facet, and
+// a scan band sweeps down, turning the dots it passes mint.
 (function renderHalftoneShield() {
   const svg = document.getElementById("halftone-shield");
   if (!svg) return;
   const accent = "#6fe3a8";
   const color = "#1c1b2a";
+  const cream = "#ece6d8";
+  // Same silhouette as the logo (viewBox 0 0 100 128), scaled 3.4× about x=50.
   const shieldPath =
-    "M 70 30 Q 70 22 78 22 L 282 22 Q 290 22 290 30 L 290 260 Q 290 360 180 446 Q 70 360 70 260 Z";
+    "M 180 29.6 L 309.2 63.6 L 292.2 356 Q 288.8 383.2 265 396.8 L 180 437.6 L 95 396.8 Q 71.2 383.2 67.8 356 L 50.8 63.6 Z";
+  const ridgeX = 180;
+  const top = 29.6,
+    bottom = 437.6;
   const step = 9;
-  const lightX = 130,
-    lightY = 100;
+  const lightX = 110,
+    lightY = 90;
   const dots = [];
-  for (let y = 24; y < 444; y += step) {
-    for (let x = 70; x < 292; x += step) {
-      const ox = Math.floor((y - 24) / step) % 2 === 0 ? 0 : step / 2;
+  for (let y = top; y < bottom; y += step) {
+    const row = Math.round((y - top) / step);
+    const ox = row % 2 === 0 ? 0 : step / 2;
+    for (let x = 50; x < 312; x += step) {
       const px = x + ox;
-      const dx = px - lightX,
-        dy = y - lightY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const t = Math.min(1, dist / 280);
-      const r = 0.3 + Math.pow(t, 1.05) * 3.6;
-      dots.push(
-        `<circle cx="${px}" cy="${y}" r="${r.toFixed(2)}" fill="${color}"/>`,
-      );
+      const t = Math.min(1, Math.hypot(px - lightX, y - lightY) / 330);
+      let r =
+        px < ridgeX
+          ? 0.35 + Math.pow(t, 1.1) * 3.2 // lit facet
+          : 1.2 + Math.pow(t, 0.9) * 2.9; // shaded facet
+      // Specular strip along the lit side of the ridge.
+      if (px > ridgeX - 16 && px < ridgeX) r *= 0.45;
+      r = Math.min(r, step / 2 - 0.4);
+      dots.push(`<circle cx="${px}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}"/>`);
     }
   }
+
+  const reduceMotion = window.matchMedia(
+    "(prefers-reduced-motion: reduce)",
+  ).matches;
+  const band = 70;
+  const sweep = `values="${top - band};${bottom};${bottom}" keyTimes="0;0.8;1" dur="5s" repeatCount="indefinite"`;
+  const bandAnim = reduceMotion
+    ? ""
+    : `<animate attributeName="y" ${sweep}/>`;
+  const lineAnim = reduceMotion
+    ? ""
+    : `<animateTransform attributeName="transform" type="translate" values="0 ${top - band / 2};0 ${bottom + band / 2};0 ${bottom + band / 2}" keyTimes="0;0.8;1" dur="5s" repeatCount="indefinite"/>`;
+  const restY = 250; // band position when motion is reduced
+
   svg.innerHTML = `
-        <defs><clipPath id="ps-shield"><path d="${shieldPath}"/></clipPath></defs>
+        <defs>
+            <clipPath id="ps-shield"><path d="${shieldPath}"/></clipPath>
+            <linearGradient id="ps-band-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+                <stop offset="0.5" stop-color="#fff" stop-opacity="1"/>
+                <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+            </linearGradient>
+            <mask id="ps-scan" maskUnits="userSpaceOnUse" x="0" y="0" width="360" height="460">
+                <rect x="0" y="${restY - band / 2}" width="360" height="${band}" fill="url(#ps-band-grad)">${bandAnim}</rect>
+            </mask>
+        </defs>
         <path d="${shieldPath}" fill="none" stroke="${accent}" stroke-width="2" transform="translate(8,8)" opacity="0.85"/>
+        <path d="${shieldPath}" fill="${cream}"/>
         <g clip-path="url(#ps-shield)">
-            <rect x="70" y="22" width="220" height="424" fill="${accent}" opacity="0.04"/>
-            ${dots.join("")}
+            <rect x="0" y="0" width="360" height="460" fill="${accent}" opacity="0.22" mask="url(#ps-scan)"/>
+            <rect x="${ridgeX}" y="0" width="180" height="460" fill="${color}" opacity="0.05"/>
+            <g id="ps-dots" fill="${color}">${dots.join("")}</g>
+            <use href="#ps-dots" fill="${accent}" mask="url(#ps-scan)"/>
         </g>
-        <path d="${shieldPath}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.95"/>
-        <line x1="180" y1="38" x2="180" y2="440" stroke="${color}" stroke-width="1" opacity="0.15" stroke-dasharray="2 3"/>
-        <g transform="translate(180,200)">
-            <line x1="0" y1="-30" x2="0" y2="30" stroke="${accent}" stroke-width="3"/>
-            <circle cx="0" cy="0" r="5" fill="${accent}"/>
+        <path d="${shieldPath}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>
+        <line x1="${ridgeX}" y1="${top}" x2="${ridgeX}" y2="${bottom}" stroke="${accent}" stroke-width="3"/>
+        <g transform="translate(0,${reduceMotion ? restY : top - band / 2})">
+            ${lineAnim}
+            <line x1="34" y1="0" x2="326" y2="0" stroke="${accent}" stroke-width="1.25" opacity="0.9"/>
+            <line x1="34" y1="-5" x2="34" y2="5" stroke="${color}" stroke-width="1" opacity="0.5"/>
+            <line x1="326" y1="-5" x2="326" y2="5" stroke="${color}" stroke-width="1" opacity="0.5"/>
         </g>
+        <path d="M ${ridgeX} 148 L ${ridgeX + 16} 166 L ${ridgeX} 184 L ${ridgeX - 16} 166 Z" fill="${accent}" stroke="${cream}" stroke-width="5" paint-order="stroke" stroke-linejoin="round"/>
     `;
 })();
 
