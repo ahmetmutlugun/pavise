@@ -121,8 +121,14 @@ fn test_password_field_names_not_flagged() {
     ] {
         assert!(rule_hits(text, "QS-SEC-006").is_empty(), "{text}");
     }
-    assert_eq!(rule_hits(r#"password: "Tr0ub4dor3xyz""#, "QS-SEC-006").len(), 1);
-    assert_eq!(rule_hits(r#"password: "correcthorsebattery""#, "QS-SEC-006").len(), 1);
+    assert_eq!(
+        rule_hits(r#"password: "Tr0ub4dor3xyz""#, "QS-SEC-006").len(),
+        1
+    );
+    assert_eq!(
+        rule_hits(r#"password: "correcthorsebattery""#, "QS-SEC-006").len(),
+        1
+    );
 }
 
 #[test]

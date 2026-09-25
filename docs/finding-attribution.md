@@ -47,6 +47,10 @@ Xcode gives extensions `@executable_path/../../Frameworks`, so that path is safe
 - QS-BIN-010 uses N_SO/N_OSO build paths from the main executable only.
 - The 64 KB launcher-stub canary exemption applies to main executables only. A small C
   framework without a canary is QS-BIN-008.
+- Any `#available` check that back-deploys links compiler-rt's `__isOSVersionAtLeast`. It
+  parses `SystemVersion.plist` with `sscanf`. When `__cstring` holds that path and
+  `CFPropertyListCreateWithData`, `api_imports()` drops `_sscanf` before the API rules run.
+  8 of 33 corpus apps had API-001 from this import alone.
 - QS-ENT-003 (HealthKit) is Info unless `healthkit.access` has `health-records`.
 
 ## Distribution context

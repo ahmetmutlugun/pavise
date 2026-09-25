@@ -9,6 +9,56 @@ pub struct MachoAnalysisResult {
     pub binary_info: BinaryInfo,
     pub findings: Vec<Finding>,
     pub imports: Vec<String>,
+    /// compiler-rt's OS version check is linked in (see `links_compiler_rt_version_check`).
+    pub compiler_rt_version_check: bool,
+}
+
+impl MachoAnalysisResult {
+    /// Imports attributable to the binary's own code, for the API rules:
+    /// drops what compiler-rt's version check imports on the app's behalf.
+    pub fn api_imports(&self) -> Vec<String> {
+        self.imports
+            .iter()
+            .filter(|s| {
+                !(self.compiler_rt_version_check && COMPILER_RT_IMPORTS.contains(&s.as_str()))
+            })
+            .cloned()
+            .collect()
+    }
+}
+
+/// Rule symbols compiler-rt's `__isOSVersionAtLeast` imports. Its fallback path
+/// parses SystemVersion.plist's version string with `sscanf`; it also imports
+/// `malloc`, left in because QS-API-003 is Info and unscored.
+const COMPILER_RT_IMPORTS: &[&str] = &["_sscanf"];
+
+/// C strings of that fallback path, in every compiler-rt generation (with and
+/// without `_availability_version_check`). Any `#available` / `@available`
+/// check back-deploying below the SDK links it.
+const COMPILER_RT_VERSION_CHECK_STRINGS: &[&[u8]] = &[
+    b"/System/Library/CoreServices/SystemVersion.plist",
+    b"CFPropertyListCreateWithData",
+];
+
+fn links_compiler_rt_version_check(macho: &MachO) -> bool {
+    let Some(cstrings) = section_data(macho, "__TEXT", "__cstring") else {
+        return false;
+    };
+    let entries: HashSet<&[u8]> = cstrings.split(|&b| b == 0).collect();
+    COMPILER_RT_VERSION_CHECK_STRINGS
+        .iter()
+        .all(|s| entries.contains(s))
+}
+
+fn section_data<'a>(macho: &MachO<'a>, segment: &str, section: &str) -> Option<&'a [u8]> {
+    macho
+        .segments
+        .iter()
+        .filter(|seg| seg.name().ok() == Some(segment))
+        .filter_map(|seg| seg.sections().ok())
+        .flatten()
+        .find(|(sec, _)| sec.name().ok() == Some(section))
+        .map(|(_, data)| data)
 }
 
 pub fn analyze(data: &[u8], path: &str) -> Result<MachoAnalysisResult> {
@@ -607,6 +657,7 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
         binary_info,
         findings,
         imports,
+        compiler_rt_version_check: links_compiler_rt_version_check(macho),
     })
 }
 
@@ -1083,10 +1134,26 @@ mod tests {
             strtab.push(0);
         }
         let mut b = Vec::new();
-        for w in [0xFEED_FACFu32, 0x0100_000C, 0, 2, 1, cmd_len, 0x0020_0000, 0] {
+        for w in [
+            0xFEED_FACFu32,
+            0x0100_000C,
+            0,
+            2,
+            1,
+            cmd_len,
+            0x0020_0000,
+            0,
+        ] {
             b.extend_from_slice(&w.to_le_bytes());
         }
-        for w in [0x2u32, cmd_len, symoff, syms.len() as u32, stroff, strtab.len() as u32] {
+        for w in [
+            0x2u32,
+            cmd_len,
+            symoff,
+            syms.len() as u32,
+            stroff,
+            strtab.len() as u32,
+        ] {
             b.extend_from_slice(&w.to_le_bytes());
         }
         b.extend_from_slice(&nlists);
@@ -1119,6 +1186,44 @@ mod tests {
         assert_eq!(extract_stab_source_paths(&macho), vec![src, obj]);
     }
 
+    #[test]
+    fn compiler_rt_version_check_detected_from_cstrings() {
+        let rt =
+            b"x\0/System/Library/CoreServices/SystemVersion.plist\0CFPropertyListCreateWithData\0";
+        let bin = macho_with_text_section("__cstring", rt);
+        assert!(links_compiler_rt_version_check(
+            &MachO::parse(&bin, 0).unwrap()
+        ));
+        // One string alone (an app reading SystemVersion.plist itself) is not it.
+        let bin = macho_with_text_section(
+            "__cstring",
+            b"/System/Library/CoreServices/SystemVersion.plist\0",
+        );
+        assert!(!links_compiler_rt_version_check(
+            &MachO::parse(&bin, 0).unwrap()
+        ));
+    }
+
+    #[test]
+    fn api_imports_drop_compiler_rt_sscanf_only() {
+        let result = |rt| MachoAnalysisResult {
+            binary_info: BinaryInfo {
+                path: String::new(),
+                arch: String::new(),
+                bits: 64,
+                protections: Vec::new(),
+            },
+            findings: Vec::new(),
+            imports: imports(&["_sscanf", "_malloc", "_strcpy"]),
+            compiler_rt_version_check: rt,
+        };
+        assert_eq!(result(true).api_imports(), ["_malloc", "_strcpy"]);
+        assert_eq!(
+            result(false).api_imports(),
+            ["_sscanf", "_malloc", "_strcpy"]
+        );
+    }
+
     fn imports(names: &[&str]) -> Vec<String> {
         names.iter().map(|s| s.to_string()).collect()
     }
@@ -1126,7 +1231,9 @@ mod tests {
     #[test]
     fn canary_na_for_stub_main() {
         // Telegram: 520-byte __text, all code in TelegramUI.framework.
-        assert!(canary_not_applicable(&imports(&["_swift_release", "_memcpy"]), true, 520).is_some());
+        assert!(
+            canary_not_applicable(&imports(&["_swift_release", "_memcpy"]), true, 520).is_some()
+        );
     }
 
     #[test]

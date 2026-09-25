@@ -158,7 +158,10 @@ fn quoted_value(m: &str) -> Option<&str> {
 /// lowerCamelCase identifier (`loginSecretField`).
 fn is_field_name(v: &str) -> bool {
     let lower = v.to_ascii_lowercase();
-    if ["password", "passwd", "pwd"].iter().any(|w| lower.contains(w)) {
+    if ["password", "passwd", "pwd"]
+        .iter()
+        .any(|w| lower.contains(w))
+    {
         return true;
     }
     v.bytes().all(|b| b.is_ascii_alphabetic())

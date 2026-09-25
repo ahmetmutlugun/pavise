@@ -249,31 +249,31 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         .as_deref()
         .and_then(|p| unpacked.archive.files.iter().find(|f| f.path == p));
     let main_data = main_binary.map(|f| unpacked.archive.read(f)).transpose()?;
-    let (main_binary_result, main_binary_findings, main_imports) = if let Some(ref bin_path) =
-        unpacked.main_binary_path
-    {
-        if let (Some(bin_file), Some(bin_data)) = (main_binary, main_data.as_deref()) {
-            match macho::analyze(bin_data, &bin_file.path) {
-                Ok(result) => {
-                    let sym_findings = symbol_scanner.scan(&result.imports, bin_path, Origin::App);
-                    let mut findings = result.findings;
-                    findings.extend(sym_findings);
-                    (Some(result.binary_info), findings, result.imports)
+    let (main_binary_result, main_binary_findings, main_imports) =
+        if let Some(ref bin_path) = unpacked.main_binary_path {
+            if let (Some(bin_file), Some(bin_data)) = (main_binary, main_data.as_deref()) {
+                match macho::analyze(bin_data, &bin_file.path) {
+                    Ok(result) => {
+                        let sym_findings =
+                            symbol_scanner.scan(&result.api_imports(), bin_path, Origin::App);
+                        let mut findings = result.findings;
+                        findings.extend(sym_findings);
+                        (Some(result.binary_info), findings, result.imports)
+                    }
+                    // Without the main binary every protection check is
+                    // skipped and the score would be inflated — fail instead.
+                    Err(e) => {
+                        return Err(e).with_context(|| {
+                            format!("Failed to analyze main binary {}", bin_file.path)
+                        });
+                    }
                 }
-                // Without the main binary every protection check is
-                // skipped and the score would be inflated — fail instead.
-                Err(e) => {
-                    return Err(e).with_context(|| {
-                        format!("Failed to analyze main binary {}", bin_file.path)
-                    });
-                }
+            } else {
+                anyhow::bail!("Main binary {} missing from archive", bin_path);
             }
         } else {
-            anyhow::bail!("Main binary {} missing from archive", bin_path);
-        }
-    } else {
-        anyhow::bail!("Main binary not found (CFBundleExecutable unresolved)");
-    };
+            anyhow::bail!("Main binary not found (CFBundleExecutable unresolved)");
+        };
 
     all_findings.extend(main_binary_findings);
 
@@ -376,12 +376,10 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             if framework_paths.contains(f.path.as_str()) {
                 scan.framework = match macho::analyze(&data, &f.path) {
                     Ok(result) => {
+                        let api_findings =
+                            symbol_scanner.scan(&result.api_imports(), &f.path, Origin::Library);
                         let mut findings = result.findings;
-                        findings.extend(symbol_scanner.scan(
-                            &result.imports,
-                            &f.path,
-                            Origin::Library,
-                        ));
+                        findings.extend(api_findings);
                         Some((result.binary_info, findings))
                     }
                     Err(e) => {
@@ -1295,8 +1293,9 @@ fn analyze_extension(
             return None;
         }
     };
+    let api_findings = scanner.scan(&result.api_imports(), path, Origin::App);
     let mut findings = result.findings;
-    findings.extend(scanner.scan(&result.imports, path, Origin::App));
+    findings.extend(api_findings);
     if let Some(ent) = entitlements::extract_from_binary(data) {
         let name = path
             .split('/')
