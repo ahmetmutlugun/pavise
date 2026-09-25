@@ -27,7 +27,7 @@ use super::{
     RATE_LIMIT_WINDOW,
 };
 use crate::{
-    report::{json, pdf},
+    report::{json, pdf, web},
     scan_ipa,
     types::{ScanReport, Severity},
     ScanOptions,
@@ -38,6 +38,9 @@ const PDF_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Chunk size advertised to the browser client (must fit under `CHUNK_LIMIT`).
 const CHUNK_SIZE: usize = 50 * 1024 * 1024;
+
+/// `Retry-After` sent with a busy (503) scan response.
+const BUSY_RETRY_AFTER_SECS: &str = "3";
 
 /// Upload sessions one client IP may hold open at once.
 const MAX_UPLOAD_SESSIONS_PER_IP: usize = 2;
@@ -85,10 +88,20 @@ pub async fn scan_page(
     serve_html(&state, "scan.html", &nonce.0).await
 }
 
+/// Replaced in served pages with `max_upload_bytes`, so the browser can reject
+/// an oversized file before uploading it.
+const MAX_UPLOAD_PLACEHOLDER: &str = "__PAVISE_MAX_UPLOAD_BYTES__";
+
 async fn serve_html(state: &AppState, name: &str, nonce: &str) -> Response {
     let path = state.config.dist_dir.join(name);
     match tokio::fs::read_to_string(&path).await {
-        Ok(html) => Html(inject_nonce(&html, nonce)).into_response(),
+        Ok(html) => {
+            let html = html.replace(
+                MAX_UPLOAD_PLACEHOLDER,
+                &state.config.max_upload_bytes.to_string(),
+            );
+            Html(inject_nonce(&html, nonce)).into_response()
+        }
         Err(e) => {
             tracing::error!("Frontend file not found ({}): {e}", path.display());
             (StatusCode::INTERNAL_SERVER_ERROR, "Frontend not available").into_response()
@@ -210,11 +223,21 @@ fn try_scan_permit(state: &AppState) -> Option<OwnedSemaphorePermit> {
     Arc::clone(&state.semaphore).try_acquire_owned().ok()
 }
 
+/// 503 with `Retry-After`, so the browser client knows to retry the scan
+/// (the chunked-upload session is kept for exactly that).
 fn busy(state: &AppState) -> Response {
-    error_fragment(&format!(
-        "Server busy: maximum {} concurrent scans in progress. Try again shortly.",
-        state.config.max_concurrent_scans
-    ))
+    let mut resp = error_fragment(
+        StatusCode::SERVICE_UNAVAILABLE,
+        &format!(
+            "Server busy: maximum {} concurrent scans in progress. Try again shortly.",
+            state.config.max_concurrent_scans
+        ),
+    );
+    resp.headers_mut().insert(
+        header::RETRY_AFTER,
+        header::HeaderValue::from_static(BUSY_RETRY_AFTER_SECS),
+    );
+    resp
 }
 
 // ── Direct multipart upload ───────────────────────────────────────────────────
@@ -238,7 +261,10 @@ pub async fn scan_handler(
         Ok(f) => f,
         Err(e) => {
             tracing::error!("Failed to create temp file: {e}");
-            return error_fragment("Upload failed due to a server error");
+            return error_fragment(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Upload failed due to a server error",
+            );
         }
     };
 
@@ -264,7 +290,10 @@ pub async fn scan_handler(
                             }
                             if let Err(e) = writer.write_all(&chunk) {
                                 tracing::error!("Failed to write upload chunk: {e}");
-                                return error_fragment("Upload failed due to a server error");
+                                return error_fragment(
+                                    StatusCode::INTERNAL_SERVER_ERROR,
+                                    "Upload failed due to a server error",
+                                );
                             }
                             hasher.update(&chunk);
                         }
@@ -276,7 +305,10 @@ pub async fn scan_handler(
                         }
                         Err(e) => {
                             tracing::error!("Failed to read upload data: {e}");
-                            return error_fragment("Upload failed due to a server error");
+                            return error_fragment(
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                "Upload failed due to a server error",
+                            );
                         }
                     }
                 }
@@ -287,17 +319,23 @@ pub async fn scan_handler(
             }
             Err(e) => {
                 tracing::error!("Multipart parse error: {e}");
-                return error_fragment("Upload failed due to a server error");
+                return error_fragment(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Upload failed due to a server error",
+                );
             }
         }
     }
 
     if received == 0 {
-        return error_fragment("No IPA file received");
+        return error_fragment(StatusCode::BAD_REQUEST, "No IPA file received");
     }
     if let Err(e) = writer.flush() {
         tracing::error!("Failed to flush upload: {e}");
-        return error_fragment("Upload failed due to a server error");
+        return error_fragment(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Upload failed due to a server error",
+        );
     }
     drop(writer);
 
@@ -453,17 +491,24 @@ pub async fn upload_scan(
 
     let session = match state.uploads.write().await.remove(&id) {
         Some(s) => s,
-        None => return error_fragment("Upload session not found or already completed"),
+        None => {
+            return error_fragment(
+                StatusCode::NOT_FOUND,
+                "Upload session not found or already completed",
+            )
+        }
     };
 
     let (path, hash) = {
         let session = match session.session.lock() {
             Ok(s) => s,
-            Err(_) => return error_fragment("Session lock poisoned"),
+            Err(_) => {
+                return error_fragment(StatusCode::INTERNAL_SERVER_ERROR, "Session lock poisoned")
+            }
         };
         if session.received == 0 {
             std::fs::remove_file(&session.path).ok();
-            return error_fragment("No data was uploaded");
+            return error_fragment(StatusCode::BAD_REQUEST, "No data was uploaded");
         }
         let hash = hex::encode(session.hasher.clone().finalize());
         (session.path.clone(), hash)
@@ -558,11 +603,15 @@ async fn run_scan(
             }
             Ok(Err(e)) => {
                 tracing::error!(error = %e, "Scan failed");
-                return error_fragment("Scan failed due to a server error");
+                // Nearly always a malformed or unsupported file, not a server fault.
+                return error_fragment(
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    "Scan failed: the file could not be analysed. Check that it is a valid iOS .ipa.",
+                );
             }
             Err(e) => {
                 tracing::error!(error = %e, "Scan task panicked");
-                return error_fragment("Internal server error");
+                return error_fragment(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error");
             }
         };
 
@@ -595,7 +644,7 @@ fn format_scan_response(
     json_response: bool,
 ) -> Response {
     if !json_response {
-        return Html(result_fragment(id, report, cached)).into_response();
+        return result_response(id, report, cached);
     }
     match json::to_string(report) {
         Ok(s) => ([(header::CONTENT_TYPE, "application/json")], s).into_response(),
@@ -620,8 +669,11 @@ async fn stored_report(state: &AppState, id: &str) -> Option<Arc<ScanReport>> {
 
 pub async fn get_scan_fragment(State(state): State<AppState>, Path(id): Path<String>) -> Response {
     match stored_report(&state, &id).await {
-        Some(report) => Html(result_fragment(&id, &report, false)).into_response(),
-        None => error_fragment("Scan expired or not found"),
+        Some(report) => result_response(&id, &report, false),
+        None => error_fragment(
+            StatusCode::NOT_FOUND,
+            "This scan has expired (results are kept for 1 hour). Upload the file again to rescan.",
+        ),
     }
 }
 
@@ -762,175 +814,31 @@ pub async fn security_headers(mut req: Request<Body>, next: Next) -> Response {
 
 // ── HTML helpers ──────────────────────────────────────────────────────────────
 
-fn error_fragment(msg: &str) -> Response {
-    Html(format!(
-        r#"<div class="error-card">
-  <span class="error-icon">✗</span>
+fn error_fragment(status: StatusCode, msg: &str) -> Response {
+    (
+        status,
+        Html(format!(
+            r#"<div class="error-card" role="alert">
+  <span class="error-icon" aria-hidden="true">✗</span>
   <span class="error-msg">{}</span>
 </div>"#,
-        html_escape(msg)
-    ))
-    .into_response()
-}
-
-/// At most `max` characters of `s`. Byte slicing (`&s[..90]`) panics when the
-/// cut lands inside a multi-byte character, e.g. in non-Latin evidence strings.
-fn truncate_chars(s: &str, max: usize) -> &str {
-    match s.char_indices().nth(max) {
-        Some((i, _)) => &s[..i],
-        None => s,
-    }
-}
-
-fn result_fragment(id: &str, report: &ScanReport, cached: bool) -> String {
-    let count = |sev: Severity| {
-        report.findings.iter().filter(|f| f.severity == sev).count()
-            + report.secrets.iter().filter(|s| s.severity == sev).count()
-    };
-    let high = count(Severity::High);
-    let warn = count(Severity::Warning);
-    let info = report
-        .findings
-        .iter()
-        .filter(|f| f.severity == Severity::Info)
-        .count();
-
-    let grade_class = match report.grade.as_str() {
-        "A" => "grade-a",
-        "B" => "grade-b",
-        "C" => "grade-c",
-        "D" => "grade-d",
-        _ => "grade-f",
-    };
-
-    let cache_badge = if cached {
-        r#"<span class="cache-badge">cached</span>"#
-    } else {
-        ""
-    };
-
-    let findings_html: String = report
-        .findings
-        .iter()
-        .take(25)
-        .map(|f| {
-            let (sev_class, sev_label) = match f.severity {
-                Severity::High => ("sev-high", "HIGH"),
-                Severity::Warning => ("sev-warn", "WARN"),
-                Severity::Info => ("sev-info", "INFO"),
-                Severity::Secure => ("sev-secure", "SECURE"),
-            };
-            let evidence = f
-                .evidence
-                .first()
-                .map(|e| {
-                    format!(
-                        r#"<div class="finding-evidence">{}</div>"#,
-                        html_escape(truncate_chars(e, 90))
-                    )
-                })
-                .unwrap_or_default();
-            format!(
-                r#"<div class="finding-row">
-  <span class="sev-badge {sev_class}">{sev_label}</span>
-  <div class="finding-body">
-    <div class="finding-title">{title}</div>
-    {evidence}
-  </div>
-  <code class="finding-id">{fid}</code>
-</div>"#,
-                title = html_escape(&f.title),
-                fid = html_escape(&f.id),
-            )
-        })
-        .collect();
-
-    let more_note = if report.findings.len() > 25 {
-        format!(
-            r#"<div class="more-note">+{} more findings — download JSON for full report</div>"#,
-            report.findings.len() - 25
-        )
-    } else {
-        String::new()
-    };
-
-    let protections_html = if let Some(bin) = &report.main_binary {
-        let rows: String = bin
-            .protections
-            .iter()
-            .map(|p| {
-                let (icon, cls) = if p.enabled {
-                    ("✓", "prot-ok")
-                } else {
-                    ("✗", "prot-fail")
-                };
-                format!(
-                    r#"<div class="prot-row {cls}"><span class="prot-icon">{icon}</span>{name}</div>"#,
-                    name = html_escape(&p.name),
-                )
-            })
-            .collect();
-        format!(
-            r#"<div class="section-label">Binary Protections <span class="arch-badge">{}</span></div>
-<div class="prot-grid">{}</div>"#,
-            html_escape(&bin.arch),
-            rows
-        )
-    } else {
-        String::new()
-    };
-
-    let findings_section = if findings_html.is_empty() {
-        String::new()
-    } else {
-        format!(
-            r#"<div class="section-label">Findings</div><div class="findings-list">{findings_html}</div>"#
-        )
-    };
-
-    format!(
-        r#"<div class="result-card">
-  <div class="result-header">
-    <div class="app-info">
-      <div class="app-name">{name} <span class="app-version">v{version}</span> {cache_badge}</div>
-      <div class="app-id">{bundle_id}</div>
-    </div>
-    <div class="score-block">
-      <div class="grade {grade_class}">{grade}</div>
-      <div class="score-num">{score}<span class="score-denom">/100</span></div>
-    </div>
-  </div>
-
-  <div class="stats-row">
-    <div class="stat stat-high"><div class="stat-num">{high}</div><div class="stat-label">High</div></div>
-    <div class="stat stat-warn"><div class="stat-num">{warn}</div><div class="stat-label">Warn</div></div>
-    <div class="stat stat-info"><div class="stat-num">{info}</div><div class="stat-label">Info</div></div>
-    <div class="stat"><div class="stat-num">{secrets}</div><div class="stat-label">Secrets</div></div>
-    <div class="stat"><div class="stat-num">{trackers}</div><div class="stat-label">Trackers</div></div>
-    <div class="stat"><div class="stat-num">{duration}ms</div><div class="stat-label">Scan Time</div></div>
-  </div>
-
-  <div class="download-row">
-    <a href="/api/scan/{id}/json" class="btn btn-json" download>Download JSON</a>
-    <a href="/api/scan/{id}/pdf" class="btn btn-pdf" download>Download PDF</a>
-  </div>
-
-  {protections_html}
-
-  {findings_section}
-
-  {more_note}
-</div>"#,
-        name = html_escape(&report.app_info.name),
-        version = html_escape(&report.app_info.version),
-        bundle_id = html_escape(&report.app_info.identifier),
-        grade = html_escape(&report.grade),
-        score = report.security_score,
-        secrets = report.secrets.len(),
-        trackers = report.trackers.len(),
-        duration = report.scan_duration_ms,
-        id = html_escape(id),
+            html_escape(msg)
+        )),
     )
+        .into_response()
+}
+
+fn result_response(id: &str, report: &ScanReport, cached: bool) -> Response {
+    match web::fragment(id, report, cached) {
+        Ok(html) => Html(html).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to render result fragment: {e:#}");
+            error_fragment(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to render the scan result",
+            )
+        }
+    }
 }
 
 fn html_escape(s: &str) -> String {
@@ -944,14 +852,6 @@ fn html_escape(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn truncate_chars_respects_utf8_boundaries() {
-        // 'ש' is 2 bytes: byte 90 falls mid-character.
-        let hebrew = "ש".repeat(100);
-        assert_eq!(truncate_chars(&hebrew, 90).chars().count(), 90);
-        assert_eq!(truncate_chars("short", 90), "short");
-    }
 
     #[test]
     fn attachment_never_panics_on_short_id() {

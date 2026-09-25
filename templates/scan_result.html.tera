@@ -1,0 +1,148 @@
+{#- Scan page result fragment. Same view model as report.pdf.tera (report::view).
+    Styles: web/src/styles/scan.css ("Result fragment"). Behaviour (filters,
+    downloads, history) is wired up by web/src/scripts/scan.ts via data-* hooks;
+    the fragment stays readable without it. -#}
+{%- set fix = r.details | length -%}
+{%- set infos = r.info | length -%}
+<article class="rs" data-scan-id="{{ id }}" data-name="{{ r.app.name }}" data-grade="{{ r.grade }}" data-score="{{ r.score }}" aria-label="Scan result for {{ r.app.name }}">
+
+  <header class="rs-mast">
+    <div class="rs-mast-bar">
+      <span class="rs-dot" aria-hidden="true"></span>
+      <span>Static analysis · IPA</span>
+      <span class="rs-mast-meta">
+        {% if cached %}<span class="rs-cached" title="An identical file (same SHA-256) was scanned recently; this is that result.">Cached result</span>{% endif %}
+        <span>{{ r.duration_ms }} ms</span>
+      </span>
+    </div>
+    <div class="rs-mast-main">
+      <div class="rs-id">
+        <h2 class="rs-name{% if r.app.long_name %} long{% endif %}">{{ r.app.name }}</h2>
+        {% if r.app.identifier %}<div class="rs-ident">{{ r.app.identifier }}</div>{% endif %}
+        {% if r.app.meta %}<div class="rs-meta">{{ r.app.meta }}</div>{% endif %}
+      </div>
+      <div class="rs-score" aria-label="Grade {{ r.grade }}, score {{ r.score }} of 100">
+        <div class="rs-lbl">Grade</div>
+        <div class="rs-grade grade-{{ r.grade_class }}">{{ r.grade }}</div>
+        <div class="rs-num">{{ r.score }}<span> / 100</span></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="rs-stats">
+    <div class="rs-stat high{% if r.counts.high == 0 %} zero{% endif %}"><b>{{ r.counts.high }}</b><span>High</span></div>
+    <div class="rs-stat warn{% if r.counts.warning == 0 %} zero{% endif %}"><b>{{ r.counts.warning }}</b><span>Warning</span></div>
+    <div class="rs-stat info{% if r.counts.info == 0 %} zero{% endif %}"><b>{{ r.counts.info }}</b><span>Info</span></div>
+    <div class="rs-stat{% if r.counts.secrets == 0 %} zero{% endif %}"><b>{{ r.counts.secrets }}</b><span>Secrets</span></div>
+    <div class="rs-stat{% if r.counts.trackers == 0 %} zero{% endif %}"><b>{{ r.counts.trackers }}</b><span>Trackers</span></div>
+  </div>
+
+  <div class="rs-verdict{% if r.counts.high > 0 %} has-high{% elif r.counts.warning > 0 %} has-warn{% endif %}">
+    <div class="rs-mark" aria-hidden="true"></div>
+    <div class="rs-verdict-text">
+      <p class="rs-head">{{ r.verdict }}</p>
+      {% if r.verdict_detail %}<p class="rs-sub">{{ r.verdict_detail }}</p>{% endif %}
+    </div>
+    <div class="rs-actions">
+      <a href="/api/scan/{{ id }}/pdf" class="rs-btn primary" data-download="pdf" download><span class="rs-btn-label">Download PDF</span></a>
+      <a href="/api/scan/{{ id }}/json" class="rs-btn" data-download="json" download><span class="rs-btn-label">JSON</span></a>
+    </div>
+  </div>
+  <p class="rs-dl-status" role="status" aria-live="polite" hidden></p>
+
+  <div class="rs-band">
+    <section class="rs-section">
+      {% if r.binary %}
+      <h3 class="rs-label">Binary hardening<span class="rs-aside">{{ r.binary.arch }}</span></h3>
+      <div class="rs-prot">
+        {% for c in r.binary.checks %}
+        <div class="{{ c.state }}"><i aria-hidden="true">{% if c.state == "ok" %}✓{% elif c.state == "fail" %}✕{% else %}!{% endif %}</i><span>{{ c.name }}</span><span class="sr-only">{% if c.state == "ok" %}enabled{% else %}missing{% endif %}</span></div>
+        {% endfor %}
+      </div>
+      <p class="rs-note clip" title="{{ r.binary.path }}">{{ r.binary.path }}</p>
+      {% else %}
+      <h3 class="rs-label">Binary hardening</h3>
+      <div class="rs-empty">The main executable could not be analysed.</div>
+      {% endif %}
+    </section>
+
+    <section class="rs-section">
+      <h3 class="rs-label">OWASP Mobile Top 10<span class="rs-aside">rules per category</span></h3>
+      <div class="rs-owasp">
+        {% for c in r.owasp %}
+        <div class="{{ c.worst }}" title="{{ c.code }} {{ c.label }}: {{ c.count }} rule{% if c.count != 1 %}s{% endif %}"><code>{{ c.code }}</code><b>{{ c.count }}</b><span>{{ c.label }}</span></div>
+        {% endfor %}
+      </div>
+      <p class="rs-note">Top edge shows the most severe finding in each category.</p>
+    </section>
+  </div>
+
+  <section class="rs-section rs-findings" aria-label="Findings">
+    <div class="rs-findings-head">
+      <h3 class="rs-label">Findings<span class="rs-aside">grouped by rule</span></h3>
+      {% if fix + infos > 0 %}
+      <div class="rs-filters" role="group" aria-label="Filter findings">
+        <button type="button" class="rs-filter" data-filter="fix" aria-pressed="{% if fix > 0 %}true{% else %}false{% endif %}"{% if fix == 0 %} disabled{% endif %}>To fix <b>{{ fix }}</b></button>
+        <button type="button" class="rs-filter" data-filter="info" aria-pressed="{% if fix == 0 %}true{% else %}false{% endif %}"{% if infos == 0 %} disabled{% endif %}>Info <b>{{ infos }}</b></button>
+        <button type="button" class="rs-filter" data-filter="all" aria-pressed="false">All <b>{{ fix + infos }}</b></button>
+        <button type="button" class="rs-expand" data-expand aria-pressed="false">Expand all</button>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if fix == 0 %}
+    <div class="rs-empty ok"><span class="rs-ic" aria-hidden="true">✓</span>Nothing needs fixing before release.{% if infos > 0 %} Informational notes are listed below.{% endif %}</div>
+    {% endif %}
+
+    {% if fix + infos > 0 %}
+    <div class="rs-list" data-filter="{% if fix > 0 %}fix{% else %}all{% endif %}">
+      {% for g in r.details %}{% set first_high = loop.first and g.sev == "high" %}{{ self::card(g=g, open=first_high) }}{% endfor %}
+      {% for g in r.info %}{{ self::card(g=g, open=false) }}{% endfor %}
+    </div>
+    {% if r.details_more > 0 or r.info_more > 0 %}<p class="rs-note">+ {{ r.details_more + r.info_more }} more rule groups in the JSON report.</p>{% endif %}
+    {% endif %}
+  </section>
+
+  {% if r.trackers %}
+  <section class="rs-section">
+    <h3 class="rs-label">Third-party trackers<span class="rs-aside">{{ r.counts.trackers }} detected</span></h3>
+    <div class="rs-chips">
+      {% for t in r.trackers %}<span class="rs-chip"><b>{{ t.name }}</b>{% if t.categories %}<span>{{ t.categories }}</span>{% endif %}</span>{% endfor %}
+      {% if r.trackers_more > 0 %}<span class="rs-chip">+ {{ r.trackers_more }} more</span>{% endif %}
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="rs-section">
+    <h3 class="rs-label">Scan details</h3>
+    <dl class="rs-facts">
+      {% for f in r.facts %}<dt>{{ f.label }}</dt><dd{% if f.mono %} class="mono"{% endif %}>{{ f.value }}</dd>{% endfor %}
+    </dl>
+    <p class="rs-note">Results stay available for 1 hour. The uploaded file is deleted as soon as the scan finishes.</p>
+  </section>
+</article>
+
+{%- macro card(g, open) -%}
+<details class="rs-card {{ g.sev }}" data-sev="{% if g.sev == "info" %}info{% else %}fix{% endif %}"{% if open %} open{% endif %}>
+  <summary>
+    <span class="rs-sev {{ g.sev }}">{{ g.sev_label }}</span>
+    <span class="rs-card-main">
+      <span class="rs-t">{{ g.title }}{% if g.count > 1 %} <span class="rs-times">×{{ g.count }}</span>{% endif %}</span>
+      {% if g.preview %}<span class="rs-p">{{ g.preview }}</span>{% endif %}
+    </span>
+    <code class="rs-rid">{{ g.id }}</code>
+    <span class="rs-chev" aria-hidden="true"></span>
+  </summary>
+  <div class="rs-card-body">
+    {% if g.tags %}<div class="rs-tags">{{ g.tags }}</div>{% endif %}
+    {% if g.description %}<p class="rs-desc">{{ g.description }}</p>{% endif %}
+    {% if g.evidence %}
+    <div class="rs-ev">
+      <div class="rs-ev-lbl">Seen</div>
+      <ul>{% for e in g.evidence %}<li>{{ e }}</li>{% endfor %}{% if g.evidence_more > 0 %}<li class="extra">+ {{ g.evidence_more }} more in the JSON report</li>{% endif %}</ul>
+    </div>
+    {% endif %}
+    {% if g.remediation %}<div class="rs-fix"><div class="rs-ev-lbl">Fix</div><p>{{ g.remediation }}</p></div>{% endif %}
+  </div>
+</details>
+{%- endmacro card -%}

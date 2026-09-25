@@ -5,9 +5,10 @@ JSON, SARIF and HTML stay the full-data formats.
 
 ## Pipeline
 
-1. `build_view()` turns `ScanReport` into a small view model: findings are
+1. `report::view::build(report, &PDF_LIMITS)` turns `ScanReport` into a small
+   view model (shared with the scan page, see [scan page](scan-page.md)): findings are
    grouped by rule and severity (`×N`), and evidence, detail cards and info rows
-   are capped (`MAX_*` consts). Every untrusted string goes through `clip`,
+   are capped (`PDF_LIMITS`). Every untrusted string goes through `clip`,
    `clip_middle` (for paths) or `mask` (for secrets).
 2. Tera renders the template under a `.html` name, so autoescape is on.
 3. Headless Chrome loads it from a temp `file://` URL, waits for

@@ -14,7 +14,7 @@ Fast iOS IPA static security analyzer
 - **src/patterns/**: Regex scanning (secrets, trackers, URLs, emails)
 - **src/resources/**: Firebase config, cert classification, SCA
 - **src/scoring/**: severity × class scoring (`owasp.rs`); single rule-ID → OWASP 2024 / MASVS v2 table (`mapping.rs`)
-- **src/report/**: JSON, SARIF 2.1.0, HTML (Tera), PDF (brief summary: own template `report.pdf.tera` printed by headless Chrome — needs Chrome/Chromium; see [PDF docs](docs/pdf-report.md))
+- **src/report/**: JSON, SARIF 2.1.0, HTML (Tera), web result fragment (`web.rs`; shares `view.rs` with the PDF — see [scan page docs](docs/scan-page.md)), PDF (brief summary: own template `report.pdf.tera` printed by headless Chrome — needs Chrome/Chromium; see [PDF docs](docs/pdf-report.md))
 - **src/server/**: axum web server (`build_router`, handlers, proxy-aware rate limit, caps); `src/serve.rs` is startup only — see [server docs](docs/server.md)
 - **src/network/**: DNS + offline IP2Location GeoIP, OSV.dev CVE lookup, Firebase open-backend probes (--network flag)
 - **rules/**: YAML rule files, embedded at build time (`src/rules.rs`); `--rules DIR` replaces them
@@ -29,6 +29,13 @@ Fast iOS IPA static security analyzer
 
 - [Backend remediation plan](docs/remediation-plan.md): scoring, false positives, server hardening, gaps (2026-09-24)
 - [Railway deploy](docs/deploy-railway.md): config, env sizing, CPU/memory measurements (2026-09-25)
+
+## Private Test Suite
+
+Real Xcode-built test IPAs (Fortress, DVIA-NG, score matrix, FP decoys) and their harness live in a separate
+private repo, **`pavise-testapps`**, checked out next to this one at `../pavise-testapps` (plan: `../pavise-testapps/docs/plan.md`).
+This repo must never depend on it; if it's missing, public `tests/` still build and pass. Bugs it finds get a
+synthetic regression test here (`IpaBuilder`).
 
 ## Development Patterns
 

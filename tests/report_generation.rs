@@ -412,6 +412,101 @@ fn test_pdf_html_large_report_is_brief() {
 }
 
 // ------------------------------------------------------------------ //
+// Web result fragment — shares the PDF view model
+// ------------------------------------------------------------------ //
+
+fn web_fragment(report: &ScanReport) -> String {
+    pavise::report::web::fragment("scan-id-123", report, false).expect("fragment should render")
+}
+
+#[test]
+fn test_web_fragment_escapes_untrusted_strings() {
+    let mut f = make_finding("QS-TEST-001", Severity::High);
+    f.title = "<script>alert(1)</script>".to_string();
+    f.evidence = vec!["<img src=x onerror=alert(1)>".to_string()];
+    let mut report = make_report(vec![f], Vec::new(), 50, "D");
+    report.app_info.name = "\"><script>x</script>".to_string();
+
+    let html = web_fragment(&report);
+    assert!(!html.contains("<script"), "no script tag may survive");
+    assert!(!html.contains("<img"), "no injected element may survive");
+    assert!(
+        html.contains(r#"data-name="&quot;&gt;&lt;script&gt;"#),
+        "attribute values (data-name) must stay quoted"
+    );
+}
+
+#[test]
+fn test_web_fragment_masks_secrets() {
+    let secret = "AKIAIOSFODNN7EXAMPLE1234567890";
+    let report = make_report(Vec::new(), vec![make_secret("QS-SEC-001", secret)], 80, "B");
+    let html = web_fragment(&report);
+    assert!(
+        !html.contains(secret),
+        "full secret must not reach the page"
+    );
+    assert!(html.contains("AKIAIO"));
+}
+
+#[test]
+fn test_web_fragment_matches_pdf_counts_and_groups() {
+    let mut findings: Vec<Finding> = (0..12)
+        .map(|i| {
+            let mut f = make_finding("QS-IPC-001", Severity::Warning);
+            f.title = format!("Custom URL Scheme Registered: 'scheme{i}'");
+            f.evidence = vec![format!("CFBundleURLSchemes: scheme{i}")];
+            f
+        })
+        .collect();
+    findings.push(make_finding("QS-TEST-100", Severity::High));
+    findings.push(make_finding("QS-TEST-200", Severity::Info));
+    findings.push(make_finding("QS-TEST-201", Severity::Info));
+    let report = make_report(
+        findings,
+        vec![make_secret("QS-SEC-001", "abcdefghijklmnop")],
+        60,
+        "C",
+    );
+
+    let html = web_fragment(&report);
+    assert!(html.contains(r#"data-scan-id="scan-id-123""#));
+    assert!(html.contains(r#"data-grade="C""#));
+    assert!(html.contains(r#"href="/api/scan/scan-id-123/pdf""#));
+    // Counts include secrets (like the PDF): 2 high = finding + secret.
+    assert!(html.contains("<b>2</b><span>High</span>"), "{html}");
+    assert!(html.contains("<b>12</b><span>Warning</span>"));
+    // Groups: high finding, URL-scheme group, secret group → 3 to fix; 2 info.
+    assert!(html.contains("To fix <b>3</b>"));
+    assert!(html.contains("Info <b>2</b>"));
+    assert_eq!(html.matches(r#"data-sev="fix""#).count(), 3);
+    assert_eq!(html.matches(r#"data-sev="info""#).count(), 2);
+    assert!(html.contains("×12"));
+    // Most severe group first, and it starts expanded.
+    let first = html.find("<details").unwrap();
+    assert!(html[first..].starts_with(r#"<details class="rs-card high" data-sev="fix" open>"#));
+    // Web shows more evidence than the PDF (cap 4) but still caps it.
+    assert!(html.contains("CFBundleURLSchemes: scheme11"));
+    assert!(
+        !html.contains("more in the JSON report"),
+        "12 items fit the web cap"
+    );
+}
+
+#[test]
+fn test_web_fragment_clean_report() {
+    let report = make_report(
+        vec![make_finding("QS-TEST-200", Severity::Info)],
+        Vec::new(),
+        100,
+        "A",
+    );
+    let html = web_fragment(&report);
+    assert!(html.contains("Nothing needs fixing before release."));
+    assert!(html.contains(r#"<div class="rs-list" data-filter="all">"#));
+    assert!(html.contains(r#"data-filter="fix" aria-pressed="false" disabled"#));
+}
+
+// ------------------------------------------------------------------ //
 // Baseline Diff Edge Cases
 // ------------------------------------------------------------------ //
 

@@ -50,5 +50,8 @@ visitor shares the proxy's rate-limit bucket.
 - TTLs are checked on read, not only by the 10-minute `evict_expired` sweep.
   An oversized direct upload returns 413 even when axum's body limit trips first.
 
+- Error fragments carry real statuses: busy `503` + `Retry-After` (the client
+  retries), bad IPA `422`, expired scan `404`.
+
 Not handled in-process: slow request *headers* (axum 0.7 `serve` has no header
 timeout). Rely on the fronting proxy (Cloudflare) for that.

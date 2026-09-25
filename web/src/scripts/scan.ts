@@ -1,439 +1,660 @@
-// @ts-nocheck
-// ── Elements ──
-const fileInput = document.getElementById("file-input");
-const fileName = document.getElementById("file-name");
-const dropZone = document.getElementById("drop-zone");
-const page = document.getElementById("page");
-const shell = document.getElementById("shell");
-const sidebar = document.getElementById("sidebar");
-const overlay = document.getElementById("sidebar-overlay");
-const toggleBtn = document.getElementById("toggle-sidebar");
-const historyEl = document.getElementById("history-list");
-const emptyEl = document.getElementById("history-empty");
-const submitBtn = document.getElementById("submit-btn");
-const cancelBtn = document.getElementById("cancel-btn");
-const loading = document.getElementById("loading");
-const progressEl = document.getElementById("upload-progress");
-const progressFill = document.getElementById("progress-fill");
-const progressLabel = document.getElementById("progress-label");
-const progressPct = document.getElementById("progress-pct");
-const results = document.getElementById("results");
-const scanMsgEl = document.getElementById("scan-msg");
+// Scan page: upload + scan flow, live status, result interactions, history.
+//
+// Status shown to the user is always derived from what is actually
+// happening: upload progress comes from XHR byte counts, the analyse step is
+// an honest indeterminate wait (with elapsed time) on the scan request, and
+// busy/failed/cancelled states come from the server's status codes.
 
-// ── Sidebar toggle ──
+const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
+    document.getElementById(id) as T;
+
+// ── Elements ──
+const fileInput = $<HTMLInputElement>("file-input");
+const fileName = $("file-name");
+const dropZone = $("drop-zone");
+const dropHint = $("drop-hint");
+const page = $("page");
+const shell = $("shell");
+const overlay = $("sidebar-overlay");
+const toggleBtn = $("toggle-sidebar");
+const historyEl = $("history-list");
+const emptyEl = $("history-empty");
+const submitBtn = $<HTMLButtonElement>("submit-btn");
+const cancelBtn = $<HTMLButtonElement>("cancel-btn");
+const statusEl = $("scan-status");
+const progressTrack = $("progress-track");
+const progressFill = $("progress-fill");
+const progressLabel = $("progress-label");
+const progressDetail = $("progress-detail");
+const alertEl = $("scan-alert");
+const results = $("results");
+const eyebrow = $("scan-eyebrow");
+const eyebrowText = $("eyebrow-text");
+const topbarStatus = $("topbar-status");
+const topbarStatusText = $("topbar-status-text");
+const crumb = $("crumb-current");
+
+/** Server results live this long (`RESULT_TTL` in src/server/mod.rs). */
+const RESULT_TTL_MS = 60 * 60 * 1000;
+/** Fallback when the page is not served by pavise-server (e.g. `vite dev`). */
+const DEFAULT_MAX_UPLOAD = 512 * 1024 * 1024;
+const CHUNK_SIZE = 50 * 1024 * 1024;
+const CHUNK_MAX_RETRIES = 3;
+/** Busy (503) scan responses are retried for up to about a minute. */
+const BUSY_MAX_RETRIES = 20;
+
+const MAX_UPLOAD_BYTES = (() => {
+    const v = document
+        .querySelector('meta[name="pavise-max-upload-bytes"]')
+        ?.getAttribute("content");
+    const n = v ? Number(v) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_UPLOAD;
+})();
+
+// ── Storage (may throw in private modes) ──
+function storageGet(key: string): string | null {
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+}
+function storageSet(key: string, value: string) {
+    try {
+        localStorage.setItem(key, value);
+    } catch {
+        /* storage unavailable */
+    }
+}
+
+// ── Sidebar ──
 const isMobile = () => window.innerWidth <= 768;
 
-document
-    .querySelector(".sidebar-head")
-    .addEventListener("click", () => {
-        window.location.href = "/";
-    });
+document.querySelector(".sidebar-head")?.addEventListener("click", () => {
+    window.location.href = "/";
+});
 
 toggleBtn.addEventListener("click", () => {
     if (isMobile()) {
         shell.classList.toggle("sidebar-open");
     } else {
         shell.classList.toggle("sidebar-collapsed");
-        localStorage.setItem(
-"pavise-sidebar",
-shell.classList.contains("sidebar-collapsed")
-    ? "collapsed"
-    : "open",
+        storageSet(
+            "pavise-sidebar",
+            shell.classList.contains("sidebar-collapsed") ? "collapsed" : "open",
         );
     }
 });
-overlay.addEventListener("click", () =>
-    shell.classList.remove("sidebar-open"),
-);
+overlay.addEventListener("click", () => shell.classList.remove("sidebar-open"));
 
-cancelBtn.addEventListener("click", () => {
-    if (activeAbort) activeAbort.abort();
-});
-
-if (
-    !isMobile() &&
-    localStorage.getItem("pavise-sidebar") === "collapsed"
-) {
+if (!isMobile() && storageGet("pavise-sidebar") === "collapsed") {
     shell.classList.add("sidebar-collapsed");
 }
 
 // ── View switching ──
-const views = document.querySelectorAll(".view");
-const navItems = document.querySelectorAll(".nav-item[data-view]");
+const views = document.querySelectorAll<HTMLElement>(".view");
+const navItems = document.querySelectorAll<HTMLElement>(".nav-item[data-view]");
 
-function switchView(viewId) {
-    views.forEach((v) =>
-        v.classList.toggle("active", v.id === "view-" + viewId),
-    );
-    navItems.forEach((n) =>
-        n.classList.toggle("active", n.dataset.view === viewId),
-    );
+function switchView(viewId: string) {
+    views.forEach((v) => v.classList.toggle("active", v.id === "view-" + viewId));
+    navItems.forEach((n) => n.classList.toggle("active", n.dataset.view === viewId));
     if (isMobile()) shell.classList.remove("sidebar-open");
 }
-
 navItems.forEach((n) =>
-    n.addEventListener("click", () => switchView(n.dataset.view)),
+    n.addEventListener("click", () => switchView(n.dataset.view ?? "scan")),
 );
 
-// ── File validation ──
-const MAX_FILE_SIZE = 15 * 1024 * 1024 * 1024; // 15 GB
-function validateFile(file) {
+// ── Helpers ──
+function formatBytes(bytes: number): string {
+    // "512 MB", not "512.0 MB".
+    const fmt = (n: number, digits: number) => String(Number(n.toFixed(digits)));
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1048576) return fmt(bytes / 1024, 1) + " KB";
+    if (bytes < 1073741824) return fmt(bytes / 1048576, 1) + " MB";
+    return fmt(bytes / 1073741824, 2) + " GB";
+}
+
+function formatSeconds(ms: number): string {
+    return (ms / 1000).toFixed(ms < 10000 ? 1 : 0) + " s";
+}
+
+function escapeHtml(s: string): string {
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+// Sanitize server-returned HTML before injection to prevent XSS from
+// any attacker-controlled data embedded in scan results (app names, paths, etc.)
+function sanitizeHtml(html: string): string {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    doc.querySelectorAll("script, object, embed, iframe, base, form, style, link, meta").forEach((el) =>
+        el.remove(),
+    );
+    doc.querySelectorAll("*").forEach((el) => {
+        for (const attr of Array.from(el.attributes)) {
+            if (
+                /^on/i.test(attr.name) ||
+                ((attr.name === "href" || attr.name === "src") &&
+                    /^\s*(javascript|data):/i.test(attr.value))
+            ) {
+                el.removeAttribute(attr.name);
+            }
+        }
+    });
+    return doc.body.innerHTML;
+}
+
+/** Error text from a server response: an error fragment or plain text. */
+function responseMessage(body: string, status: number): string {
+    const text = /<[a-z]/i.test(body)
+        ? new DOMParser()
+              .parseFromString(body, "text/html")
+              .querySelector(".error-msg")?.textContent
+        : body;
+    const msg = (text ?? "").trim();
+    if (msg) return msg;
+    if (status === 429) return "Too many requests. Wait a minute and try again.";
+    if (status >= 500) return "The server hit an error. Try again shortly.";
+    return `Request failed (HTTP ${status}).`;
+}
+
+class HttpError extends Error {
+    constructor(
+        message: string,
+        readonly status: number,
+    ) {
+        super(message);
+    }
+}
+
+const isAbort = (err: unknown) =>
+    err instanceof DOMException && err.name === "AbortError";
+
+const sleep = (ms: number, signal: AbortSignal) =>
+    new Promise<void>((resolve, reject) => {
+        const t = setTimeout(resolve, ms);
+        signal.addEventListener(
+            "abort",
+            () => {
+                clearTimeout(t);
+                reject(new DOMException("Aborted", "AbortError"));
+            },
+            { once: true },
+        );
+    });
+
+// ── Page state (eyebrow, topbar, crumb) ──
+type PageState = "idle" | "ready" | "uploading" | "analysing" | "done" | "error" | "cancelled";
+
+function setPageState(state: PageState, text: string) {
+    page.dataset.state = state;
+    topbarStatusText.textContent = text;
+    topbarStatus.dataset.state = state;
+    eyebrow.dataset.state = state;
+    eyebrowText.textContent = text;
+}
+
+function showAlert(msg: string | null) {
+    alertEl.hidden = !msg;
+    alertEl.textContent = msg ?? "";
+}
+
+// ── File selection ──
+function validateFile(file: File | undefined): string | null {
     if (!file) return null;
-    if (!file.name.toLowerCase().endsWith('.ipa')) {
-        return 'Only .ipa files are supported.';
-    }
-    if (file.size === 0) {
-        return 'File is empty.';
-    }
-    if (file.size > MAX_FILE_SIZE) {
-        return 'File exceeds the 15 GB size limit.';
+    if (!file.name.toLowerCase().endsWith(".ipa")) return "Only .ipa files are supported.";
+    if (file.size === 0) return "This file is empty.";
+    if (file.size > MAX_UPLOAD_BYTES) {
+        return `This file is ${formatBytes(file.size)}; the limit is ${formatBytes(MAX_UPLOAD_BYTES)}.`;
     }
     return null;
 }
 
-function setFileState(file) {
-    const name = file?.name ?? '';
-    fileName.textContent = name;
-    dropZone.classList.toggle('has-file', !!name);
-}
+dropHint.textContent = `Up to ${formatBytes(MAX_UPLOAD_BYTES)} · ARM64 / ARM64e · deleted after the scan`;
 
-// ── File handling ──
-fileInput.addEventListener("change", () => {
-    const file = fileInput.files[0];
+function selectFile(file: File | undefined) {
     const err = validateFile(file);
-    if (err) {
-        results.innerHTML = `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(err)}</span></div>`;
-        page.classList.add("has-results");
-        fileInput.value = '';
-        setFileState(null);
+    if (!file || err) {
+        fileInput.value = "";
+        fileName.textContent = "";
+        dropZone.classList.remove("has-file");
+        if (err) {
+            showAlert(err);
+            setPageState("error", "File rejected");
+        }
         return;
     }
-    setFileState(file);
-});
+    showAlert(null);
+    fileName.textContent = `${file.name} · ${formatBytes(file.size)}`;
+    dropZone.classList.add("has-file");
+    setPageState("ready", "File ready · press Scan");
+}
 
-dropZone.addEventListener("dragover", (e) => {
+fileInput.addEventListener("change", () => selectFile(fileInput.files?.[0]));
+
+// dragenter/dragleave fire for every child; count them so the highlight
+// doesn't flicker while the pointer moves across the zone.
+let dragDepth = 0;
+dropZone.addEventListener("dragenter", (e) => {
     e.preventDefault();
+    dragDepth++;
     dropZone.classList.add("drag-over");
 });
-dropZone.addEventListener("dragleave", () =>
-    dropZone.classList.remove("drag-over"),
-);
+dropZone.addEventListener("dragover", (e) => e.preventDefault());
+dropZone.addEventListener("dragleave", () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) dropZone.classList.remove("drag-over");
+});
 dropZone.addEventListener("drop", (e) => {
     e.preventDefault();
+    dragDepth = 0;
     dropZone.classList.remove("drag-over");
-    if (e.dataTransfer.files.length) {
-        const file = e.dataTransfer.files[0];
-        const err = validateFile(file);
-        if (err) {
-results.innerHTML = `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(err)}</span></div>`;
-page.classList.add("has-results");
-return;
-        }
-        fileInput.files = e.dataTransfer.files;
-        setFileState(file);
+    const files = e.dataTransfer?.files;
+    if (!files?.length || scanInProgress) return;
+    const file = files[0];
+    if (!validateFile(file)) {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
     }
+    selectFile(file);
 });
 
-// ── Phase animation during scan ──
-let phaseInterval = null;
-let msgInterval = null;
-let currentPhase = 0;
-let currentMsgIdx = 0;
-const phases = document.querySelectorAll(".scan-phase");
+// ── Status panel ──
+type Step = "upload" | "analyse" | "results";
+type StepState = "pending" | "active" | "done" | "failed";
+const steps = Array.from(statusEl.querySelectorAll<HTMLElement>(".step"));
 
-const phaseMessages = [
-    [
-        "Streaming IPA to analysis pipeline...",
-        "Computing SHA-256...",
-    ],
-    [
-        "Inflating ZIP archive...",
-        "Locating Mach-O binaries...",
-        "Reading Info.plist...",
-    ],
-    [
-        "Parsing Mach-O load commands...",
-        "Checking PIE and stack canaries...",
-        "Inspecting encryption flags...",
-        "Extracting symbol table...",
-    ],
-    [
-        "Running secret pattern matching...",
-        "Scanning for hardcoded credentials...",
-        "Checking URL schemes...",
-        "Analyzing embedded strings...",
-    ],
-    [
-        "Computing OWASP M-series scores...",
-        "Grading security posture...",
-        "Building findings summary...",
-    ],
-];
-
-function updateScanMsg(text) {
-    scanMsgEl.style.opacity = "0";
-    setTimeout(() => {
-        scanMsgEl.textContent = text;
-        scanMsgEl.style.opacity = "1";
-    }, 160);
+function setStep(step: Step, state: StepState) {
+    const el = steps.find((s) => s.dataset.step === step);
+    if (el) el.dataset.state = state;
 }
 
-function startPhases() {
-    currentPhase = 0;
-    currentMsgIdx = 0;
-    phases.forEach((p) => p.classList.remove("active", "done"));
-    phases[0].classList.add("active");
-    updateScanMsg(phaseMessages[0][0]);
-
-    phaseInterval = setInterval(() => {
-        if (currentPhase < phases.length) {
-phases[currentPhase].classList.remove("active");
-phases[currentPhase].classList.add("done");
-        }
-        currentPhase++;
-        currentMsgIdx = 0;
-        if (currentPhase < phases.length) {
-phases[currentPhase].classList.add("active");
-const msgs = phaseMessages[currentPhase];
-if (msgs && msgs[0]) updateScanMsg(msgs[0]);
-        }
-    }, 600);
-
-    msgInterval = setInterval(() => {
-        const msgs = phaseMessages[currentPhase] || [];
-        if (msgs.length > 1) {
-currentMsgIdx = (currentMsgIdx + 1) % msgs.length;
-updateScanMsg(msgs[currentMsgIdx]);
-        }
-    }, 1500);
+function resetSteps() {
+    steps.forEach((s) => (s.dataset.state = "pending"));
 }
 
-function stopPhases() {
-    clearInterval(phaseInterval);
-    clearInterval(msgInterval);
-    phases.forEach((p) => {
-        p.classList.remove("active");
-        p.classList.add("done");
+/** `pct` = null shows an indeterminate bar. */
+function setProgress(pct: number | null, label: string, detail = "") {
+    statusEl.classList.toggle("indeterminate", pct === null);
+    if (pct === null) {
+        progressFill.style.width = "";
+        progressTrack.removeAttribute("aria-valuenow");
+    } else {
+        progressFill.style.width = pct + "%";
+        progressTrack.setAttribute("aria-valuenow", String(Math.round(pct)));
+    }
+    progressLabel.textContent = label;
+    progressDetail.textContent = detail;
+}
+
+// ── Chunked upload ──
+interface XhrResult {
+    status: number;
+    body: string;
+}
+
+/** PUT with upload progress (fetch can't report request-body progress). */
+function putWithProgress(
+    url: string,
+    body: Blob,
+    signal: AbortSignal,
+    onProgress: (loaded: number) => void,
+): Promise<XhrResult> {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("PUT", url);
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+        xhr.upload.onprogress = (e) => onProgress(e.loaded);
+        xhr.onload = () => resolve({ status: xhr.status, body: xhr.responseText });
+        xhr.onerror = () => reject(new TypeError("Network error"));
+        xhr.onabort = () => reject(new DOMException("Aborted", "AbortError"));
+        const abort = () => xhr.abort();
+        signal.addEventListener("abort", abort, { once: true });
+        xhr.onloadend = () => signal.removeEventListener("abort", abort);
+        xhr.send(body);
     });
-    scanMsgEl.style.opacity = "0";
 }
 
-// ── Helpers ──
-function formatBytes(bytes) {
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
-    if (bytes < 1073741824)
-        return (bytes / 1048576).toFixed(1) + " MB";
-    return (bytes / 1073741824).toFixed(2) + " GB";
-}
-
-function setProgress(pct, label) {
-    progressFill.style.width = pct + "%";
-    progressPct.textContent = Math.round(pct) + "%";
-    if (label) progressLabel.textContent = label;
-}
-
-// ── Chunked upload + scan ──
-const CHUNK_SIZE = 50 * 1024 * 1024; // 50 MB
-const CHUNK_MAX_RETRIES = 3;
-let activeAbort = null;
-
-async function fetchWithRetry(url, opts, retries = CHUNK_MAX_RETRIES) {
-    for (let attempt = 0; attempt <= retries; attempt++) {
+async function putChunk(
+    uploadId: string,
+    index: number,
+    chunk: Blob,
+    signal: AbortSignal,
+    onProgress: (loaded: number) => void,
+) {
+    for (let attempt = 0; ; attempt++) {
+        let res: XhrResult | null = null;
         try {
-const res = await fetch(url, opts);
-if (res.ok || res.status < 500) return res;
-if (attempt === retries) return res;
+            res = await putWithProgress(`/api/upload/${uploadId}/${index}`, chunk, signal, onProgress);
         } catch (err) {
-if (err.name === 'AbortError') throw err;
-if (attempt === retries) throw new Error('Network error: check your connection and try again.');
+            if (isAbort(err)) throw err;
+            if (attempt >= CHUNK_MAX_RETRIES) {
+                throw new Error("Upload interrupted. Check your connection and try again.");
+            }
         }
-        await new Promise(r => setTimeout(r, 100 * Math.pow(2, attempt)));
+        if (res) {
+            if (res.status >= 200 && res.status < 300) return;
+            // The server stored this chunk but the response was lost: a retry
+            // is told it already has it.
+            const expected = /Expected chunk index (\d+)/.exec(res.body);
+            if (res.status === 400 && expected && Number(expected[1]) === index + 1) return;
+            if (res.status < 500 || attempt >= CHUNK_MAX_RETRIES) {
+                throw new HttpError(responseMessage(res.body, res.status), res.status);
+            }
+        }
+        onProgress(0);
+        await sleep(250 * 2 ** attempt, signal);
     }
 }
 
-async function uploadChunked(file, signal) {
-    // 1. Init upload session
+async function upload(file: File, signal: AbortSignal): Promise<string> {
     const initRes = await fetch("/api/upload", { method: "POST", signal });
-    if (!initRes.ok) throw new Error("Failed to init upload");
-    const { upload_id } = await initRes.json();
+    if (!initRes.ok) {
+        throw new HttpError(responseMessage(await initRes.text(), initRes.status), initRes.status);
+    }
+    const init = (await initRes.json()) as { upload_id: string; chunk_size?: number };
+    const chunkSize = init.chunk_size && init.chunk_size > 0 ? init.chunk_size : CHUNK_SIZE;
 
-    // 2. Upload chunks with retry
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-
-        const res = await fetchWithRetry(`/api/upload/${upload_id}/${i}`, {
-method: "PUT",
-body: chunk,
-headers: { "Content-Type": "application/octet-stream" },
-signal,
-        });
-
-        if (!res.ok) {
-const msg = await res.text();
-throw new Error(`Chunk ${i} failed: ${msg}`);
-        }
-
-        const uploaded = end;
-        const pct = (uploaded / file.size) * 100;
+    const started = performance.now();
+    const report = (sent: number) => {
+        const pct = (sent / file.size) * 100;
+        const secs = (performance.now() - started) / 1000;
+        const rate = secs > 0.5 ? ` · ${formatBytes(sent / secs)}/s` : "";
         setProgress(
-pct,
-`Uploading ${formatBytes(uploaded)} / ${formatBytes(file.size)}`,
+            pct,
+            `Uploading ${formatBytes(sent)} of ${formatBytes(file.size)}`,
+            `${Math.floor(pct)}%${rate}`,
+        );
+        setPageState("uploading", `Uploading · ${Math.floor(pct)}%`);
+    };
+    report(0);
+
+    const total = Math.max(1, Math.ceil(file.size / chunkSize));
+    for (let i = 0; i < total; i++) {
+        const start = i * chunkSize;
+        const chunk = file.slice(start, Math.min(start + chunkSize, file.size));
+        await putChunk(init.upload_id, i, chunk, signal, (loaded) =>
+            report(start + Math.min(loaded, chunk.size)),
         );
     }
+    report(file.size);
+    return init.upload_id;
+}
 
-    // 3. Trigger scan
-    setProgress(100, "Scanning...");
-    const scanRes = await fetch(`/api/upload/${upload_id}/scan`, {
-        method: "POST",
-        signal,
-    });
-    if (!scanRes.ok) {
-        const msg = await scanRes.text();
-        throw new Error(msg);
+/** Ask the server to scan an uploaded file; retries while it is busy. */
+async function runScan(uploadId: string, signal: AbortSignal): Promise<string> {
+    const started = performance.now();
+    let waitNote = "";
+    const tick = () =>
+        setProgress(
+            null,
+            waitNote || "Analysing binary, manifests and resources",
+            formatSeconds(performance.now() - started),
+        );
+    tick();
+    const timer = setInterval(tick, 100);
+    try {
+        for (let attempt = 1; ; attempt++) {
+            const res = await fetch(`/api/upload/${uploadId}/scan`, { method: "POST", signal });
+            const body = await res.text();
+            if (res.ok) return body;
+            if (res.status !== 503 || attempt > BUSY_MAX_RETRIES) {
+                throw new HttpError(responseMessage(body, res.status), res.status);
+            }
+            // All scan slots are taken; the upload is kept server-side.
+            const wait = Math.min(10, Math.max(1, Number(res.headers.get("Retry-After")) || 3));
+            for (let s = wait; s > 0; s--) {
+                waitNote = `Server busy · retrying in ${s} s (attempt ${attempt} of ${BUSY_MAX_RETRIES})`;
+                tick();
+                await sleep(1000, signal);
+            }
+            waitNote = "";
+        }
+    } finally {
+        clearInterval(timer);
     }
-    return scanRes.text();
 }
 
 // ── Form submission ──
 let scanInProgress = false;
-document
-    .getElementById("scan-form")
-    .addEventListener("submit", async (e) => {
+let activeAbort: AbortController | null = null;
+
+cancelBtn.addEventListener("click", () => activeAbort?.abort());
+
+function setBusy(busy: boolean) {
+    scanInProgress = busy;
+    submitBtn.disabled = busy;
+    fileInput.disabled = busy;
+    dropZone.classList.toggle("busy", busy);
+    cancelBtn.hidden = !busy;
+    results.classList.toggle("is-stale", busy);
+    results.setAttribute("aria-busy", String(busy));
+}
+
+$("scan-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (scanInProgress) return;
+    const file = fileInput.files?.[0];
+    if (!file) {
+        showAlert("Choose an .ipa file first.");
+        return;
+    }
+    const fileErr = validateFile(file);
+    if (fileErr) {
+        showAlert(fileErr);
+        return;
+    }
+
+    const ctrl = new AbortController();
+    activeAbort = ctrl;
+    let step: Step = "upload";
+    setBusy(true);
+    showAlert(null);
+    resetSteps();
+    statusEl.hidden = false;
+    statusEl.dataset.state = "running";
+    setStep("upload", "active");
+
+    try {
+        const uploadId = await upload(file, ctrl.signal);
+        setStep("upload", "done");
+        step = "analyse";
+        setStep("analyse", "active");
+        setPageState("analysing", "Analysing");
+        const html = await runScan(uploadId, ctrl.signal);
+        setStep("analyse", "done");
+        step = "results";
+        showResult(html, true);
+        setStep("results", "done");
+        const rs = results.querySelector<HTMLElement>(".rs");
+        const cached = !!rs?.querySelector(".rs-cached");
+        setProgress(100, cached ? "Done · identical file scanned earlier, cached result shown" : "Scan complete", "");
+        statusEl.dataset.state = "done";
+        // Nothing left to act on; the result speaks for itself.
+        setTimeout(() => {
+            if (!scanInProgress && statusEl.dataset.state === "done") statusEl.hidden = true;
+        }, 2500);
+    } catch (err) {
+        setStep(step, "failed");
+        statusEl.dataset.state = "failed";
+        if (isAbort(err)) {
+            setProgress(0, "Scan cancelled", "");
+            setPageState("cancelled", "Cancelled");
+        } else {
+            const msg = !navigator.onLine
+                ? "You appear to be offline. Check your connection and try again."
+                : err instanceof Error
+                  ? err.message
+                  : String(err);
+            // Keep the bar where it stopped; the failed step is marked.
+            statusEl.classList.remove("indeterminate");
+            if (step !== "upload") progressFill.style.width = "100%";
+            progressLabel.textContent = step === "upload" ? "Upload failed" : "Scan failed";
+            progressDetail.textContent = "";
+            showAlert(msg);
+            setPageState("error", step === "upload" ? "Upload failed" : "Scan failed");
+        }
+    } finally {
+        activeAbort = null;
+        setBusy(false);
+    }
+});
+
+// ── Results ──
+function showResult(html: string, fresh: boolean) {
+    results.innerHTML = sanitizeHtml(html);
+    const rs = results.querySelector<HTMLElement>(".rs");
+    if (!rs) {
+        // An error fragment (e.g. an expired scan).
+        page.classList.toggle("has-results", !!results.firstElementChild);
+        return;
+    }
+    page.classList.add("has-results");
+    const entry: HistoryEntry = {
+        id: rs.dataset.scanId ?? "",
+        name: rs.dataset.name || "Unknown",
+        grade: rs.dataset.grade || "?",
+        score: rs.dataset.score || "0",
+        ts: Date.now(),
+    };
+    crumb.textContent = entry.name;
+    document.title = `${entry.name} · Grade ${entry.grade} — Pavise`;
+    setPageState("done", `Scan complete · Grade ${entry.grade}`);
+    if (fresh && entry.id) addToHistory(entry);
+    markActiveHistory(entry.id);
+    rs.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// Filters, expand-all and downloads (event delegation: the fragment is
+// replaced wholesale on every scan).
+results.addEventListener("click", (e) => {
+    const target = e.target as HTMLElement;
+
+    const filter = target.closest<HTMLButtonElement>(".rs-filter");
+    if (filter && !filter.disabled) {
+        const list = results.querySelector<HTMLElement>(".rs-list");
+        if (list) list.dataset.filter = filter.dataset.filter ?? "all";
+        results
+            .querySelectorAll(".rs-filter")
+            .forEach((b) => b.setAttribute("aria-pressed", String(b === filter)));
+        return;
+    }
+
+    const expand = target.closest<HTMLButtonElement>("[data-expand]");
+    if (expand) {
+        const open = expand.getAttribute("aria-pressed") !== "true";
+        results.querySelectorAll<HTMLDetailsElement>(".rs-card").forEach((d) => (d.open = open));
+        expand.setAttribute("aria-pressed", String(open));
+        expand.textContent = open ? "Collapse all" : "Expand all";
+        return;
+    }
+
+    const dl = target.closest<HTMLAnchorElement>("a[data-download]");
+    if (dl) {
         e.preventDefault();
-        if (scanInProgress) return;
-        const file = fileInput.files[0];
-        if (!file) return;
+        download(dl);
+    }
+});
 
-        const fileErr = validateFile(file);
-        if (fileErr) {
-results.innerHTML = `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(fileErr)}</span></div>`;
-page.classList.add("has-results");
-return;
+/** Fetch a report so errors and PDF render time are visible, not a broken file. */
+async function download(link: HTMLAnchorElement) {
+    if (link.getAttribute("aria-busy") === "true") return;
+    const kind = link.dataset.download === "pdf" ? "PDF" : "JSON";
+    const label = link.querySelector(".rs-btn-label");
+    const original = label?.textContent ?? "";
+    const status = results.querySelector<HTMLElement>(".rs-dl-status");
+    const setStatus = (msg: string | null, isError = false) => {
+        if (!status) return;
+        status.hidden = !msg;
+        status.textContent = msg ?? "";
+        status.classList.toggle("error", isError);
+    };
+
+    link.setAttribute("aria-busy", "true");
+    if (label) label.textContent = kind === "PDF" ? "Rendering PDF…" : "Preparing…";
+    setStatus(kind === "PDF" ? "Rendering the PDF report — this takes a few seconds." : null);
+    try {
+        const res = await fetch(link.href);
+        if (!res.ok) {
+            const msg = responseMessage(await res.text(), res.status);
+            throw new Error(res.status === 404 ? "This scan has expired. Upload the file again to rescan." : msg);
         }
-
-        scanInProgress = true;
-        activeAbort = new AbortController();
-        submitBtn.disabled = true;
-        cancelBtn.removeAttribute("hidden");
-        loading.classList.add("active");
-        progressEl.classList.add("active");
-        results.setAttribute("aria-busy", "true");
-        setProgress(0, "Starting upload...");
-        startPhases();
-
-        try {
-const html = await uploadChunked(file, activeAbort.signal);
-results.innerHTML = sanitizeHtml(html);
-page.classList.add("has-results");
-
-// Pulse first few critical/high findings to draw the eye
-results
-    .querySelectorAll(".sev-high")
-    .forEach((badge, i) => {
-        if (i >= 4) return;
-        const row = badge.closest(".finding-row");
-        if (row) {
-setTimeout(
-    () => {
-        row.classList.add("crit-attn");
-        row.addEventListener(
-            "animationend",
-            () =>
-                row.classList.remove(
-                    "crit-attn",
-                ),
-            { once: true },
+        const blob = await res.blob();
+        const name =
+            /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ??
+            `pavise-report.${kind.toLowerCase()}`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
+        setStatus(null);
+    } catch (err) {
+        setStatus(
+            `${kind} download failed: ${err instanceof Error ? err.message : String(err)}`,
+            true,
         );
-    },
-    700 + i * 120,
-);
-        }
-    });
-
-// Extract scan info for history
-const resultCard =
-    results.querySelector(".result-card");
-if (resultCard) {
-    const appName =
-        resultCard
-.querySelector(".app-name")
-?.childNodes[0]?.textContent?.trim() ||
-        "Unknown";
-    const grade =
-        resultCard
-.querySelector(".grade")
-?.textContent?.trim() || "?";
-    const score =
-        resultCard
-.querySelector(".score-num")
-?.childNodes[0]?.textContent?.trim() || "0";
-    const jsonLink =
-        resultCard.querySelector(".btn-json");
-    const scanId = jsonLink
-        ? jsonLink.getAttribute("href").split("/")[3]
-        : null;
-    if (scanId) {
-        addToHistory({
-id: scanId,
-name: appName,
-grade,
-score,
-ts: Date.now(),
-        });
+    } finally {
+        link.removeAttribute("aria-busy");
+        if (label) label.textContent = original;
     }
 }
-        } catch (err) {
-if (err.name === 'AbortError') return;
-const msg = !navigator.onLine
-    ? 'You appear to be offline. Check your connection and try again.'
-    : err.message;
-results.innerHTML = `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(msg)}</span></div>`;
-page.classList.add("has-results");
-        } finally {
-scanInProgress = false;
-activeAbort = null;
-submitBtn.disabled = false;
-cancelBtn.setAttribute("hidden", "");
-loading.classList.remove("active");
-progressEl.classList.remove("active");
-results.removeAttribute("aria-busy");
-stopPhases();
-        }
-    });
 
 // ── Scan history (localStorage) ──
+interface HistoryEntry {
+    id: string;
+    name: string;
+    grade: string;
+    score: string;
+    ts: number;
+    /** Set once the server reported the result gone. */
+    expired?: boolean;
+}
+
 const HISTORY_KEY = "pavise-history";
 const MAX_HISTORY = 50;
 
-function getHistory() {
+function getHistory(): HistoryEntry[] {
     try {
-        return JSON.parse(localStorage.getItem(HISTORY_KEY)) || [];
+        const items = JSON.parse(storageGet(HISTORY_KEY) ?? "[]");
+        return Array.isArray(items) ? items : [];
     } catch {
         return [];
     }
 }
 
-function saveHistory(items) {
-    localStorage.setItem(
-        HISTORY_KEY,
-        JSON.stringify(items.slice(0, MAX_HISTORY)),
-    );
+function saveHistory(items: HistoryEntry[]) {
+    storageSet(HISTORY_KEY, JSON.stringify(items.slice(0, MAX_HISTORY)));
 }
 
-function addToHistory(entry) {
-    const items = getHistory().filter((h) => h.id !== entry.id);
+function addToHistory(entry: HistoryEntry) {
+    // Rescanning the same build (e.g. a cached hit) replaces its old entry.
+    const same = (h: HistoryEntry) =>
+        h.id === entry.id ||
+        (h.name === entry.name && h.grade === entry.grade && h.score === entry.score);
+    const items = getHistory().filter((h) => !same(h));
     items.unshift(entry);
     saveHistory(items);
     renderHistory();
 }
 
-function formatTimeAgo(ts) {
-    const diff = Date.now() - ts;
-    const mins = Math.floor(diff / 60000);
+function markExpired(id: string) {
+    saveHistory(getHistory().map((h) => (h.id === id ? { ...h, expired: true } : h)));
+    renderHistory();
+}
+
+const isExpired = (h: HistoryEntry) => h.expired || Date.now() - h.ts > RESULT_TTL_MS;
+
+function formatTimeAgo(ts: number): string {
+    const mins = Math.floor((Date.now() - ts) / 60000);
     if (mins < 1) return "just now";
     if (mins < 60) return mins + "m ago";
     const hrs = Math.floor(mins / 60);
@@ -443,139 +664,101 @@ function formatTimeAgo(ts) {
     return new Date(ts).toLocaleDateString();
 }
 
-function gradeClass(g) {
-    const l = g.toLowerCase();
-    if (l === "a") return "hg-a";
-    if (l === "b") return "hg-b";
-    if (l === "c") return "hg-c";
-    if (l === "d") return "hg-d";
-    return "hg-f";
+function gradeClass(g: string): string {
+    const l = g.charAt(0).toLowerCase();
+    return ["a", "b", "c", "d"].includes(l) ? "hg-" + l : "hg-f";
+}
+
+let activeHistoryId: string | null = null;
+
+function markActiveHistory(id: string | null) {
+    activeHistoryId = id;
+    historyEl
+        .querySelectorAll<HTMLElement>(".history-item")
+        .forEach((b) => b.classList.toggle("active", b.dataset.id === id));
 }
 
 function renderHistory() {
     const items = getHistory();
-    emptyEl.style.display = items.length ? "none" : "block";
+    emptyEl.style.display = items.length ? "none" : "";
 
     const frag = document.createDocumentFragment();
     items.forEach((item) => {
+        const expired = isExpired(item);
+        const when = formatTimeAgo(item.ts);
         const btn = document.createElement("button");
-        btn.className = "history-item";
+        btn.className = "history-item" + (expired ? " expired" : "");
+        btn.dataset.id = item.id;
+        btn.title = expired ? "Result expired on the server (kept for 1 hour)" : "Open this result";
         btn.setAttribute(
             "aria-label",
-            `Grade ${item.grade} — ${item.name}, scanned ${formatTimeAgo(item.ts)}`,
+            `Grade ${item.grade}, ${item.name}, scanned ${when}${expired ? ", expired" : ""}`,
         );
         btn.innerHTML = `
-          <span class="history-grade ${gradeClass(item.grade)}" aria-hidden="true">${item.grade}</span>
+          <span class="history-grade ${gradeClass(item.grade)}" aria-hidden="true">${escapeHtml(item.grade)}</span>
           <div class="history-meta">
-<div class="history-name">${escapeHtml(item.name)}</div>
-<div class="history-time">${formatTimeAgo(item.ts)}</div>
+            <div class="history-name">${escapeHtml(item.name)}</div>
+            <div class="history-time">${escapeHtml(when)}${expired ? ' · <span class="history-expired">expired</span>' : ""}</div>
           </div>
         `;
-        btn.addEventListener("click", () =>
-            loadHistoryScan(item.id),
-        );
+        btn.addEventListener("click", () => loadHistoryScan(item));
         frag.appendChild(btn);
     });
     historyEl.replaceChildren(emptyEl, frag);
+    markActiveHistory(activeHistoryId);
 }
 
-function escapeHtml(s) {
-    return s
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-// Sanitize server-returned HTML before injection to prevent XSS from
-// any attacker-controlled data embedded in scan results (app names, paths, etc.)
-function sanitizeHtml(html: string): string {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    doc.querySelectorAll('script, object, embed, iframe, base').forEach(el => el.remove());
-    doc.querySelectorAll('*').forEach(el => {
-        for (const attr of Array.from(el.attributes)) {
-            if (/^on/i.test(attr.name) || (attr.name === 'href' && /^\s*javascript:/i.test(attr.value))) {
-                el.removeAttribute(attr.name);
-            }
-        }
-    });
-    return doc.body.innerHTML;
-}
-
-function loadHistoryScan(id) {
+function loadHistoryScan(item: HistoryEntry) {
+    if (scanInProgress) return;
     switchView("scan");
+    showAlert(null);
+    statusEl.hidden = true;
+    markActiveHistory(item.id);
     results.innerHTML =
-        '<div style="display:flex;align-items:center;gap:0.65rem;padding:1.5rem 0;color:var(--text-dim);font-size:0.85rem;"><div class="spinner"></div>Loading scan...</div>';
+        '<div class="rs-loading"><div class="spinner"></div>Loading scan…</div>';
     page.classList.add("has-results");
 
     const ctrl = new AbortController();
     const timeout = setTimeout(() => ctrl.abort(), 15000);
 
-    fetch("/api/scan/" + encodeURIComponent(id), { signal: ctrl.signal })
-        .then((r) => {
-if (!r.ok) throw new Error("Scan expired");
-return r.text();
-        })
-        .then((html) => {
-results.innerHTML = sanitizeHtml(html);
+    fetch("/api/scan/" + encodeURIComponent(item.id), { signal: ctrl.signal })
+        .then(async (r) => {
+            const body = await r.text();
+            if (r.status === 404) markExpired(item.id);
+            if (!r.ok) throw new HttpError(responseMessage(body, r.status), r.status);
+            showResult(body, false);
         })
         .catch((err) => {
-const msg = err.name === 'AbortError'
-    ? 'Request timed out. Please try again.'
-    : !navigator.onLine
-    ? 'You appear to be offline. Check your connection and try again.'
-    : 'Scan result has expired. Re-upload the file to scan again.';
-results.innerHTML =
-    `<div class="error-card"><span class="error-icon" aria-hidden="true">\u2717</span><span class="error-msg">${escapeHtml(msg)}</span></div>`;
+            const msg = isAbort(err)
+                ? "Request timed out. Please try again."
+                : !navigator.onLine
+                  ? "You appear to be offline. Check your connection and try again."
+                  : err instanceof Error
+                    ? err.message
+                    : String(err);
+            results.innerHTML = `<div class="error-card" role="alert"><span class="error-icon" aria-hidden="true">✗</span><span class="error-msg">${escapeHtml(msg)}</span></div>`;
+            crumb.textContent = item.name;
+            setPageState("error", "Result unavailable");
         })
         .finally(() => clearTimeout(timeout));
 }
 
 renderHistory();
-
-// ── Pick up results from landing page ──
-(function checkLandingResult() {
-    let landingHtml;
-    try { landingHtml = sessionStorage.getItem('pavise-landing-result'); } catch { return; }
-    if (landingHtml) {
-        try {
-sessionStorage.removeItem('pavise-landing-result');
-sessionStorage.removeItem('pavise-landing-file');
-        } catch { /* storage unavailable */ }
-        results.innerHTML = sanitizeHtml(landingHtml);
-        page.classList.add('has-results');
-        // Extract scan info for history
-        const resultCard = results.querySelector('.result-card');
-        if (resultCard) {
-const appName = resultCard.querySelector('.app-name')?.childNodes[0]?.textContent?.trim() || 'Unknown';
-const grade = resultCard.querySelector('.grade')?.textContent?.trim() || '?';
-const score = resultCard.querySelector('.score-num')?.childNodes[0]?.textContent?.trim() || '0';
-const jsonLink = resultCard.querySelector('.btn-json');
-const scanId = jsonLink ? jsonLink.getAttribute('href').split('/')[3] : null;
-if (scanId) {
-    addToHistory({ id: scanId, name: appName, grade, score, ts: Date.now() });
-}
-        }
-    }
-})();
+// Expiry is time-based; keep the labels honest while the page stays open.
+setInterval(renderHistory, 60_000);
+setPageState("idle", "Ready");
 
 // ── Keyboard shortcut: U to open file picker ──
 document.addEventListener("keydown", (e) => {
     if (e.key !== "u" && e.key !== "U") return;
-    const active = document.activeElement;
+    if (e.metaKey || e.ctrlKey || e.altKey || scanInProgress) return;
+    const active = document.activeElement as HTMLElement | null;
     if (
         active &&
-        (active.tagName === "INPUT" ||
-active.tagName === "TEXTAREA" ||
-active.isContentEditable)
+        (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable)
     )
         return;
-    if (
-        document
-.getElementById("view-scan")
-.classList.contains("active")
-    ) {
+    if ($("view-scan").classList.contains("active")) {
         e.preventDefault();
         fileInput.click();
     }
@@ -584,7 +767,9 @@ active.isContentEditable)
 // ── Console easter egg ──
 console.log(
     "%c⬡ Pavise%c  iOS Security Analyzer\n%cParsing Mach-O since 2024. Built with Rust.\ngithub.com/ahmetmutlugun",
-    "color:#3b82f6;font-size:15px;font-weight:900;letter-spacing:-0.02em;",
+    "color:#4ec98a;font-size:15px;font-weight:900;letter-spacing:-0.02em;",
     "color:#8b949e;font-size:12px;font-weight:600;",
     "color:#4a5568;font-size:11px;line-height:1.6;",
 );
+
+export {};

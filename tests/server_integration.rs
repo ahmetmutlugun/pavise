@@ -384,7 +384,13 @@ async fn test_busy_scan_keeps_upload_then_scan_cleans_up() {
         .acquire_many_owned(all)
         .await
         .unwrap();
-    let (_, body) = send(&app, scan_req(&id)).await;
+    let resp = app.clone().oneshot(scan_req(&id)).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert!(
+        resp.headers().contains_key("retry-after"),
+        "busy tells the client when to retry"
+    );
+    let body = String::from_utf8_lossy(&body_bytes(resp).await).into_owned();
     assert!(body.contains("Server busy"), "{body}");
     assert!(
         state.uploads.read().await.contains_key(&id),
@@ -410,7 +416,8 @@ async fn test_failed_scan_cleans_up_upload() {
     let dir = tempfile::tempdir().unwrap();
     let app = make_app(isolated_config(dir.path()));
     let id = upload(&app, b"definitely not a zip".to_vec()).await;
-    let (_, body) = send(&app, scan_req(&id)).await;
+    let (status, body) = send(&app, scan_req(&id)).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(body.contains("Scan failed"), "{body}");
     assert_eq!(files_in(dir.path()), 0);
 }
@@ -622,4 +629,38 @@ async fn test_pdf_download_of_stored_report() {
         1,
         "permit released"
     );
+}
+
+/// The browser flow: the scan returns the HTML result fragment, which can be
+/// re-fetched by scan id; unknown ids are a 404 error fragment.
+#[tokio::test]
+async fn test_browser_scan_returns_result_fragment() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = make_app(isolated_config(dir.path()));
+    let id = upload(&app, fixture_ipa()).await;
+    let req = Request::builder()
+        .method("POST")
+        .uri(format!("/api/upload/{id}/scan"))
+        .header("User-Agent", "Mozilla/5.0")
+        .extension(test_addr())
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = send(&app, req).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body.starts_with(r#"<article class="rs""#), "{body}");
+    let scan_id = body
+        .split(r#"data-scan-id=""#)
+        .nth(1)
+        .and_then(|s| s.split('"').next())
+        .expect("scan id attribute")
+        .to_string();
+
+    let get = |uri: String| Request::builder().uri(uri).body(Body::empty()).unwrap();
+    let (status, again) = send(&app, get(format!("/api/scan/{scan_id}"))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(again.contains(&format!(r#"href="/api/scan/{scan_id}/json""#)));
+
+    let (status, missing) = send(&app, get("/api/scan/unknown".into())).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(missing.contains("expired"), "{missing}");
 }

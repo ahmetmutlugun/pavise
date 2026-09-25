@@ -44,6 +44,8 @@
         }
         </script>
 
+        <meta name="pavise-max-upload-bytes" content="__PAVISE_MAX_UPLOAD_BYTES__" />
+
         <title>Scan iOS IPA — Pavise Security Analyzer</title>
 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -123,19 +125,19 @@
                     <div class="topbar-crumb">
                         <span>Scanner</span>
                         <span class="sep">/</span>
-                        <b>New scan</b>
+                        <b id="crumb-current">New scan</b>
                     </div>
                     <div class="topbar-spacer"></div>
-                    <span class="topbar-status">Static analysis</span>
+                    <span class="topbar-status" id="topbar-status"><span class="dot" aria-hidden="true"></span><span id="topbar-status-text">Ready</span></span>
                 </div>
 
                 <main class="main" id="main-content">
                     <div class="container">
                         <div class="view active" id="view-scan">
                             <div class="scan-hero">
-                                <span class="scan-eyebrow"><span class="dot"></span>Ready · processed locally</span>
+                                <span class="scan-eyebrow" id="scan-eyebrow"><span class="dot"></span><span id="eyebrow-text">Ready · files are deleted after the scan</span></span>
                                 <h1 class="scan-title">Drop an IPA to start<br /><em>your security scan.</em></h1>
-                                <p class="scan-hero-desc">Binary analysis, secret detection, OWASP scoring, tracker SDKs, transport security and supply-chain CVE matching — all in under three seconds.</p>
+                                <p class="scan-hero-desc">Binary analysis, secret detection, OWASP scoring, tracker SDKs, transport security and supply-chain CVE matching — results in seconds, grouped and prioritised like the PDF report.</p>
                             </div>
                             <div class="upload">
                                 <form id="scan-form">
@@ -147,37 +149,31 @@
                                         <span class="regmark" style="bottom: 12px; right: 12px"></span>
                                         <div class="ipa-glyph" aria-hidden="true">.IPA</div>
                                         <div class="drop-label">Drop an <strong>.ipa</strong> file here</div>
-                                        <div class="drop-hint">Max 15 GB · ARM64 / ARM64e · processed locally</div>
+                                        <div class="drop-hint" id="drop-hint">ARM64 / ARM64e · deleted after the scan</div>
                                         <div class="file-name" id="file-name"></div>
-                                    </div>
-
-                                    <div class="upload-progress" id="upload-progress">
-                                        <div class="progress-bar-track">
-                                            <div class="progress-bar-fill" id="progress-fill"></div>
-                                        </div>
-                                        <div class="progress-text">
-                                            <span id="progress-label">Uploading...</span>
-                                            <span id="progress-pct">0%</span>
-                                        </div>
                                     </div>
 
                                     <div class="controls">
                                         <button class="btn-scan" type="submit" id="submit-btn">Scan</button>
                                         <button class="btn-cancel" type="button" id="cancel-btn" hidden>Cancel</button>
-                                        <div id="loading" class="scan-loading">
-                                            <div class="scan-loading-row">
-                                                <div class="spinner"></div>
-                                                <div class="scan-phases">
-                                                    <span class="scan-phase" data-phase="0">upload</span>
-                                                    <span class="scan-phase" data-phase="1">extract</span>
-                                                    <span class="scan-phase" data-phase="2">binary</span>
-                                                    <span class="scan-phase" data-phase="3">patterns</span>
-                                                    <span class="scan-phase" data-phase="4">report</span>
-                                                </div>
-                                            </div>
-                                            <div class="scan-msg" id="scan-msg"></div>
+                                    </div>
+
+                                    <div class="scan-status" id="scan-status" data-state="idle" hidden>
+                                        <ol class="steps" aria-label="Scan progress">
+                                            <li class="step" data-step="upload"><span class="step-ic" aria-hidden="true"></span><span class="step-name">Upload</span></li>
+                                            <li class="step" data-step="analyse"><span class="step-ic" aria-hidden="true"></span><span class="step-name">Analyse</span></li>
+                                            <li class="step" data-step="results"><span class="step-ic" aria-hidden="true"></span><span class="step-name">Results</span></li>
+                                        </ol>
+                                        <div class="progress-bar-track" id="progress-track" role="progressbar" aria-label="Scan progress" aria-valuemin="0" aria-valuemax="100">
+                                            <div class="progress-bar-fill" id="progress-fill"></div>
+                                        </div>
+                                        <div class="progress-text" aria-live="polite">
+                                            <span id="progress-label"></span>
+                                            <span id="progress-detail"></span>
                                         </div>
                                     </div>
+
+                                    <div class="scan-alert" id="scan-alert" role="alert" hidden></div>
                                 </form>
                             </div>
 
