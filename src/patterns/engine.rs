@@ -141,6 +141,15 @@ fn is_plausible(rule_id: &str, value: &str) -> bool {
             .is_some_and(|(_, v)| v.bytes().any(|b| b.is_ascii_digit())),
         // The anon key has the same shape; only a service_role key is a finding.
         "QS-SEC-024" => jwt_role(value).as_deref() == Some("service_role"),
+        // A real secret access key is random base64: digits and both cases.
+        "QS-SEC-003" => value
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '/' || c == '+'))
+            .any(|t| {
+                t.len() == 40
+                    && t.bytes().any(|b| b.is_ascii_digit())
+                    && t.bytes().any(|b| b.is_ascii_uppercase())
+                    && t.bytes().any(|b| b.is_ascii_lowercase())
+            }),
         // `password: "loginPassword"` names a form field or DOM id, not a secret.
         "QS-SEC-006" => !quoted_value(value).is_some_and(is_field_name),
         _ => true,

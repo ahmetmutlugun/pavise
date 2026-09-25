@@ -112,6 +112,29 @@ fn test_matches_never_span_extracted_strings() {
 }
 
 #[test]
+fn test_aws_secret_key_forms() {
+    // AWS's documented example secret key.
+    let key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+    for text in [
+        format!(r#"{{"aws_secret_access_key": "{key}"}}"#), // JSON (pavise-testapps DVIA-NG)
+        format!("aws_secret_access_key = {key}\n"),         // ~/.aws/credentials
+        format!(r#"AWSSecretKey = "{key}""#),               // flattened plist
+        format!(r#"awsSecret = @"{key}";"#),                // ObjC literal
+        format!(r#"AWS secret "{key}""#),                   // quoted value near "aws"
+    ] {
+        assert_eq!(rule_hits(&text, "QS-SEC-003").len(), 1, "{text}");
+    }
+    // Not a 40-char random value: too long, or no digits / single case.
+    for text in [
+        format!("aws_secret_access_key = {key}Z\n"),
+        "aws_path = abcdefghijabcdefghijabcdefghijabcdefghij\n".to_string(),
+        "aws_sdk_build = /Users/ci/checkout/aws-sdk-ios/AWSCore/AWSCoreX\n".to_string(),
+    ] {
+        assert!(rule_hits(&text, "QS-SEC-003").is_empty(), "{text}");
+    }
+}
+
+#[test]
 fn test_password_field_names_not_flagged() {
     // DOM ids / form field names in minified JS (pavise-testapps Decoy).
     for text in [
