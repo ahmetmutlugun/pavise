@@ -468,8 +468,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         file_pinning_signal |= scan.pinning_signal;
     }
 
-    // Deduplicate
-    all_secrets = deduplicate(all_secrets);
+    // Secrets are deduplicated after the private-key-file filter below.
     all_emails.sort();
     all_emails.dedup();
     // Where a domain appears in several files, keep an endpoint source (see
@@ -495,7 +494,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     all_findings = deduplicate_findings(all_findings);
 
     log.record(format!(
-        "String scan: {} secrets, {} unique domains, {} emails extracted",
+        "String scan: {} raw secret matches, {} unique domains, {} emails extracted",
         all_secrets.len(),
         all_domains.len(),
         all_emails.len()
@@ -577,7 +576,6 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     for matches in plist_secret_results.into_iter().flatten() {
         all_secrets.extend(matches);
     }
-    all_secrets = deduplicate(all_secrets);
 
     // 3d-iii. Embedded certificate / private key file detection.
     // Classify by *content*, not just extension: a bundled public certificate
@@ -685,6 +683,9 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                 .as_deref()
                 .is_some_and(|p| private_key_paths.contains(p))
     });
+    // Deduplicate only now: an earlier (rule, value) pass could keep the key
+    // file's copy of an inline key, which the filter above then drops.
+    all_secrets = deduplicate(all_secrets);
     all_secrets = patterns::secrets::drop_superseded(all_secrets);
 
     // 3d-iv. Bundled database file detection

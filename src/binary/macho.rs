@@ -154,7 +154,7 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
     let canary_na = if has_canary {
         None
     } else {
-        canary_not_applicable(&imports, text_section_size(macho))
+        canary_not_applicable(&imports, is_executable, text_section_size(macho))
     };
     protections.push(BinaryProtection {
         name: "Stack Canary".to_string(),
@@ -540,7 +540,7 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
         enabled: !has_debug_symbols,
         severity: if has_debug_symbols { Severity::Warning } else { Severity::Secure },
         description: if has_debug_symbols {
-            "Debug symbols or DWARF sections detected. Symbol stripping is recommended for release builds.".to_string()
+            "Debug symbols (DWARF or debug map) detected. Symbol stripping is recommended for release builds.".to_string()
         } else {
             "Binary appears to have symbols stripped.".to_string()
         },
@@ -548,15 +548,15 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
 
     // Only the main executable's strip state is reported. Bundled frameworks
     // commonly retain symbols and are lower signal; flagging each one inflates
-    // the report. (See check_debug_symbols: detection is DWARF-based, not a
-    // symbol-count heuristic, so a stripped binary with a dynamic symbol table
-    // is no longer misreported as "not stripped".)
+    // the report. (See check_debug_symbols: detection is DWARF/stab-based, not
+    // a symbol-count heuristic, so a stripped binary with a dynamic symbol
+    // table is no longer misreported as "not stripped".)
     if has_debug_symbols && is_executable {
         findings.push(Finding {
             id: "QS-BIN-007".to_string(),
             title: "Debug Symbols Not Stripped".to_string(),
             description: format!(
-                "The binary '{}' contains debug symbols or DWARF sections. This makes reverse engineering significantly easier.",
+                "The binary '{}' contains debug symbols (DWARF or debug-map stabs). This makes reverse engineering significantly easier.",
                 path
             ),
             severity: Severity::Warning,
@@ -569,14 +569,19 @@ fn analyze_single(macho: &MachO, raw_data: &[u8], path: &str) -> Result<MachoAna
         });
     }
 
-    // --- DWARF Source Path Leaks ---
-    let dwarf_paths = extract_dwarf_source_paths(macho);
+    // --- Debug-info Source Path Leaks ---
+    // Debug-map paths only count for the main executable, like QS-BIN-007:
+    // an unstripped vendor framework leaks the vendor's machine, not the app's.
+    let mut dwarf_paths = extract_dwarf_source_paths(macho);
+    if is_executable {
+        dwarf_paths.extend(extract_stab_source_paths(macho));
+    }
     if !dwarf_paths.is_empty() {
         findings.push(Finding {
             id: "QS-BIN-010".to_string(),
-            title: "Source File Paths Leaked in DWARF Debug Info".to_string(),
+            title: "Source File Paths Leaked in Debug Info".to_string(),
             description: format!(
-                "The binary '{}' contains absolute build-machine paths in its DWARF debug sections. \
+                "The binary '{}' contains absolute build-machine paths in its debug info (DWARF or debug-map symbols). \
                 These paths reveal developer usernames, CI system layout, and project directory structure, \
                 aiding attackers in targeted reverse engineering.",
                 path
@@ -774,8 +779,24 @@ fn extract_dwarf_source_paths(macho: &MachO) -> Vec<String> {
     paths
 }
 
+/// Build-machine paths in the debug map: source directories (N_SO) and
+/// object files (N_OSO).
+fn extract_stab_source_paths(macho: &MachO) -> Vec<String> {
+    let mut paths: Vec<String> = debug_stabs(macho)
+        .filter(|&(name, n_type)| {
+            (n_type == N_SO || n_type == N_OSO)
+                && BUILD_PATH_PREFIXES.iter().any(|p| name.starts_with(p))
+        })
+        .map(|(name, _)| name.to_string())
+        .collect();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
 /// Main executables below this `__text` size are launcher stubs (Telegram,
-/// Flutter) whose real code lives in an embedded framework.
+/// Flutter) whose real code lives in an embedded framework. Frameworks are
+/// never stubs: a small one with C buffer code still needs a canary.
 const STUB_TEXT_SIZE: u64 = 64 * 1024;
 
 /// libc calls that operate on caller-provided buffers. A Swift binary that
@@ -808,8 +829,12 @@ const BUFFER_FUNCS: &[&str] = &[
 ];
 
 /// Why a missing stack canary is not a finding, or `None` if it is one.
-fn canary_not_applicable(imports: &[String], text_size: u64) -> Option<&'static str> {
-    if text_size < STUB_TEXT_SIZE {
+fn canary_not_applicable(
+    imports: &[String],
+    is_executable: bool,
+    text_size: u64,
+) -> Option<&'static str> {
+    if is_executable && text_size < STUB_TEXT_SIZE {
         return Some("its __text section is a small launcher stub");
     }
     let is_swift = imports.iter().any(|s| s.starts_with("_swift_"));
@@ -931,7 +956,26 @@ fn check_debug_symbols(macho: &MachO) -> bool {
         }
     }
 
-    false
+    // ld64 never embeds DWARF; an unstripped Xcode build instead keeps the
+    // debug map (N_SO/N_OSO/N_FUN… stabs pointing dsymutil at the .o files).
+    debug_stabs(macho).next().is_some()
+}
+
+const N_STAB: u8 = 0xe0;
+/// `radr://5614542`: the one stab `strip` always leaves behind.
+const N_OPT: u8 = 0x3c;
+const N_SO: u8 = 0x64;
+const N_OSO: u8 = 0x66;
+
+/// Symbol-table debugging entries, excluding the N_OPT marker stripped
+/// binaries keep. Yields (name, n_type).
+fn debug_stabs<'a>(macho: &'a MachO) -> impl Iterator<Item = (&'a str, u8)> + 'a {
+    macho
+        .symbols
+        .iter()
+        .flat_map(|syms| syms.iter().flatten())
+        .filter(|(_, n)| n.n_type & N_STAB != 0 && n.n_type != N_OPT)
+        .map(|(name, n)| (name, n.n_type))
 }
 
 #[cfg(test)]
@@ -1024,6 +1068,57 @@ mod tests {
         assert_eq!(objc_class_names(&bin), vec!["FIRApp", "AppDelegate"]);
     }
 
+    /// MH_EXECUTE with only an LC_SYMTAB holding `syms` as (name, n_type).
+    fn macho_with_symtab(syms: &[(&str, u8)]) -> Vec<u8> {
+        let (header_len, cmd_len) = (32u32, 24u32);
+        let symoff = header_len + cmd_len;
+        let stroff = symoff + 16 * syms.len() as u32;
+        let mut strtab = vec![0u8];
+        let mut nlists = Vec::new();
+        for (name, n_type) in syms {
+            nlists.extend_from_slice(&(strtab.len() as u32).to_le_bytes());
+            nlists.extend_from_slice(&[*n_type, 0, 0, 0]);
+            nlists.extend_from_slice(&0u64.to_le_bytes());
+            strtab.extend_from_slice(name.as_bytes());
+            strtab.push(0);
+        }
+        let mut b = Vec::new();
+        for w in [0xFEED_FACFu32, 0x0100_000C, 0, 2, 1, cmd_len, 0x0020_0000, 0] {
+            b.extend_from_slice(&w.to_le_bytes());
+        }
+        for w in [0x2u32, cmd_len, symoff, syms.len() as u32, stroff, strtab.len() as u32] {
+            b.extend_from_slice(&w.to_le_bytes());
+        }
+        b.extend_from_slice(&nlists);
+        b.extend_from_slice(&strtab);
+        b
+    }
+
+    #[test]
+    fn stripped_binary_keeps_only_radr_stab() {
+        let bin = macho_with_symtab(&[("radr://5614542", N_OPT), ("_objc_msgSend", 0x01)]);
+        let macho = MachO::parse(&bin, 0).unwrap();
+        assert!(!check_debug_symbols(&macho));
+        assert!(extract_stab_source_paths(&macho).is_empty());
+    }
+
+    #[test]
+    fn debug_map_marks_binary_unstripped() {
+        // Shape of an Xcode Release build with stripping off (DVIA-NG).
+        let src = "/Users/dev/App/Sources/";
+        let obj = "/Users/dev/Library/DerivedData/App/Objects-normal/arm64/Foo.o";
+        let bin = macho_with_symtab(&[
+            ("radr://5614542", N_OPT),
+            (src, N_SO),
+            ("Foo.m", N_SO),
+            (obj, N_OSO),
+            ("_helper", 0x24), // N_FUN
+        ]);
+        let macho = MachO::parse(&bin, 0).unwrap();
+        assert!(check_debug_symbols(&macho));
+        assert_eq!(extract_stab_source_paths(&macho), vec![src, obj]);
+    }
+
     fn imports(names: &[&str]) -> Vec<String> {
         names.iter().map(|s| s.to_string()).collect()
     }
@@ -1031,32 +1126,39 @@ mod tests {
     #[test]
     fn canary_na_for_stub_main() {
         // Telegram: 520-byte __text, all code in TelegramUI.framework.
-        assert!(canary_not_applicable(&imports(&["_swift_release", "_memcpy"]), 520).is_some());
+        assert!(canary_not_applicable(&imports(&["_swift_release", "_memcpy"]), true, 520).is_some());
+    }
+
+    #[test]
+    fn small_framework_is_not_a_stub() {
+        // A 12 KB C framework built with -fno-stack-protector (pavise-testapps).
+        let i = imports(&["_strcpy", "_sprintf"]);
+        assert_eq!(canary_not_applicable(&i, false, 12 << 10), None);
     }
 
     #[test]
     fn canary_na_for_swift_without_buffers() {
         let i = imports(&["_swift_retain", "_objc_msgSend", "___chkstk_darwin"]);
-        assert!(canary_not_applicable(&i, 10 << 20).is_some());
+        assert!(canary_not_applicable(&i, true, 10 << 20).is_some());
     }
 
     #[test]
     fn canary_required_for_large_c_binary() {
         // FunkiniOS: 26 MB of C/C++ calling memcpy/snprintf with no canary.
         let i = imports(&["_memcpy", "_snprintf", "_objc_msgSend"]);
-        assert_eq!(canary_not_applicable(&i, 26 << 20), None);
+        assert_eq!(canary_not_applicable(&i, true, 26 << 20), None);
     }
 
     #[test]
     fn canary_required_for_swift_using_buffers() {
         let i = imports(&["_swift_retain", "___memcpy_chk"]);
-        assert_eq!(canary_not_applicable(&i, 10 << 20), None);
+        assert_eq!(canary_not_applicable(&i, true, 10 << 20), None);
     }
 
     #[test]
     fn missing_text_section_is_not_a_stub() {
         assert_eq!(
-            canary_not_applicable(&imports(&["_memcpy"]), u64::MAX),
+            canary_not_applicable(&imports(&["_memcpy"]), true, u64::MAX),
             None
         );
     }

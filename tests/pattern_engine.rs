@@ -112,6 +112,20 @@ fn test_matches_never_span_extracted_strings() {
 }
 
 #[test]
+fn test_password_field_names_not_flagged() {
+    // DOM ids / form field names in minified JS (pavise-testapps Decoy).
+    for text in [
+        r#"{password:"loginPassword",user:"loginUser"}"#,
+        r#"password = "passwordInput""#,
+        r#"pwd: 'userSecretField'"#,
+    ] {
+        assert!(rule_hits(text, "QS-SEC-006").is_empty(), "{text}");
+    }
+    assert_eq!(rule_hits(r#"password: "Tr0ub4dor3xyz""#, "QS-SEC-006").len(), 1);
+    assert_eq!(rule_hits(r#"password: "correcthorsebattery""#, "QS-SEC-006").len(), 1);
+}
+
+#[test]
 fn test_minified_js_password_not_flagged() {
     let js = r#"password: "+t.hex;e=t.hex}if(void 0!==t.utf8&&(e=Rt(t.utf8)),void 0!=="#;
     assert!(rule_hits(js, "QS-SEC-006").is_empty());

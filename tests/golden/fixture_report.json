@@ -304,7 +304,7 @@
     },
     {
       "elapsed_ms": 0,
-      "step": "String scan: 2 secrets, 1 unique domains, 0 emails extracted"
+      "step": "String scan: 2 raw secret matches, 1 unique domains, 0 emails extracted"
     },
     {
       "elapsed_ms": 0,

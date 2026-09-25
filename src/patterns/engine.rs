@@ -141,8 +141,29 @@ fn is_plausible(rule_id: &str, value: &str) -> bool {
             .is_some_and(|(_, v)| v.bytes().any(|b| b.is_ascii_digit())),
         // The anon key has the same shape; only a service_role key is a finding.
         "QS-SEC-024" => jwt_role(value).as_deref() == Some("service_role"),
+        // `password: "loginPassword"` names a form field or DOM id, not a secret.
+        "QS-SEC-006" => !quoted_value(value).is_some_and(is_field_name),
         _ => true,
     }
+}
+
+/// The contents of the last quoted string in a `key: "value"` match.
+fn quoted_value(m: &str) -> Option<&str> {
+    let m = m.trim_end_matches(['"', '\'']);
+    m.rfind(['"', '\'']).map(|i| &m[i + 1..])
+}
+
+/// A value that names a credential field rather than holding one: it contains
+/// the word itself (`passwordInput`, `user_pwd`) or is a letters-only
+/// lowerCamelCase identifier (`loginSecretField`).
+fn is_field_name(v: &str) -> bool {
+    let lower = v.to_ascii_lowercase();
+    if ["password", "passwd", "pwd"].iter().any(|w| lower.contains(w)) {
+        return true;
+    }
+    v.bytes().all(|b| b.is_ascii_alphabetic())
+        && v.as_bytes()[0].is_ascii_lowercase()
+        && v.bytes().any(|b| b.is_ascii_uppercase())
 }
 
 /// Decode a JWT's payload and return its `role` claim.

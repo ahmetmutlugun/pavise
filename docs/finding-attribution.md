@@ -39,6 +39,16 @@ Xcode gives extensions `@executable_path/../../Frameworks`, so that path is safe
 - Versions from library banners and end-of-life lines (QS-SCA-001): see
   [eol-data.md](eol-data.md).
 
+## Binary hardening (`src/binary/macho.rs`)
+
+- Apple's `ld` never embeds DWARF. An unstripped build keeps the debug map as stabs instead
+  (N_SO/N_OSO/N_FUN…). Any stab other than N_OPT `radr://5614542`, which `strip` always leaves,
+  means QS-BIN-007. Local symbols alone (Feather, Delta) are not flagged.
+- QS-BIN-010 uses N_SO/N_OSO build paths from the main executable only.
+- The 64 KB launcher-stub canary exemption applies to main executables only. A small C
+  framework without a canary is QS-BIN-008.
+- QS-ENT-003 (HealthKit) is Info unless `healthkit.access` has `health-records`.
+
 ## Distribution context
 
 - QS-PROV-001 (development/ad-hoc profile) is unscored, like QS-BIN-005 and profile expiry.

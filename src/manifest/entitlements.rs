@@ -100,19 +100,37 @@ pub fn analyze(plist_data: &[u8]) -> Vec<Finding> {
     }
 
     // ------------------------------------------------------------------ //
-    // com.apple.developer.healthkit  →  WARNING (medical data access)
+    // com.apple.developer.healthkit  →  INFO (WARNING with clinical records)
+    // The capability marks the data as sensitive, not the app as weak; only
+    // Health Records (FHIR clinical data) access is raised to a warning.
     // ------------------------------------------------------------------ //
     if dict.contains_key("com.apple.developer.healthkit") {
+        let clinical = dict
+            .get("com.apple.developer.healthkit.access")
+            .and_then(|v| v.as_array())
+            .is_some_and(|a| a.iter().any(|v| v.as_string() == Some("health-records")));
+        let mut evidence = vec!["com.apple.developer.healthkit: present".to_string()];
+        if clinical {
+            evidence.push("com.apple.developer.healthkit.access: health-records".to_string());
+        }
         findings.push(Finding {
             id: "QS-ENT-003".to_string(),
-            title: "HealthKit Access Entitlement".to_string(),
-            description: "The app has the HealthKit entitlement. It can read and write sensitive health and fitness data from the user's Health app. Ensure HealthKit data is handled in compliance with HIPAA/GDPR and Apple's HealthKit guidelines.".to_string(),
-            severity: Severity::Warning,
+            title: if clinical {
+                "HealthKit Clinical Records Entitlement".to_string()
+            } else {
+                "HealthKit Access Entitlement".to_string()
+            },
+            description: if clinical {
+                "The app has the HealthKit entitlement with Health Records access. It can read the user's clinical records (FHIR data from healthcare providers), which carry the highest privacy and regulatory exposure. Ensure this data is handled in compliance with HIPAA/GDPR and Apple's HealthKit guidelines.".to_string()
+            } else {
+                "The app has the HealthKit entitlement. It can access sensitive health and fitness data from the user's Health app. Ensure HealthKit data is handled in compliance with HIPAA/GDPR and Apple's HealthKit guidelines.".to_string()
+            },
+            severity: if clinical { Severity::Warning } else { Severity::Info },
             category: "entitlements".to_string(),
             cwe: Some("CWE-359".to_string()),
             owasp_mobile: Some("M6".to_string()),
             owasp_masvs: Some("MSTG-STORAGE-1".to_string()),
-            evidence: vec!["com.apple.developer.healthkit: present".to_string()],
+            evidence,
             remediation: Some("Review HealthKit data usage. Store health data only in encrypted storage and never transmit it without user consent.".to_string()),
         });
     }
@@ -466,6 +484,31 @@ mod tests {
   <key>dynamic-codesigning</key><true/>
 </dict></plist>"#;
         assert_eq!(ids(xml), vec!["QS-ENT-008"]);
+    }
+
+    #[test]
+    fn healthkit_info_unless_clinical_records() {
+        let sev = |extra: &str| {
+            let xml = format!(
+                r#"<plist version="1.0"><dict>
+  <key>com.apple.developer.healthkit</key><true/>{extra}
+</dict></plist>"#
+            );
+            analyze(xml.as_bytes())
+                .into_iter()
+                .find(|f| f.id == "QS-ENT-003")
+                .expect("finding")
+                .severity
+        };
+        assert_eq!(sev(""), Severity::Info);
+        assert_eq!(
+            sev("<key>com.apple.developer.healthkit.access</key><array></array>"),
+            Severity::Info
+        );
+        assert_eq!(
+            sev("<key>com.apple.developer.healthkit.access</key><array><string>health-records</string></array>"),
+            Severity::Warning
+        );
     }
 
     #[test]

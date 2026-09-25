@@ -328,3 +328,26 @@ fn test_privacy_manifest_and_plist_platform_checks() {
     let report = scan_ipa(ipa.path(), &default_opts()).expect("scan");
     assert!(report.findings.iter().all(|f| f.id != "QS-PRIV-001"));
 }
+
+#[test]
+fn test_inline_key_survives_same_key_bundled_as_pem() {
+    // pavise-testapps: the .pem copy is reported as QS-CERT-001 and its regex
+    // hit dropped; the inline copy must still be reported as QS-SEC-004.
+    let key = "-----BEGIN RSA PRIVATE KEY-----\n\
+               MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu\n\
+               -----END RSA PRIVATE KEY-----\n";
+    let ipa = common::IpaBuilder::new("TestApp")
+        .add_bundle_file("server.pem", key)
+        .add_bundle_file("config.js", format!("const k = `{key}`;"))
+        .build();
+    let report = scan_ipa(ipa.path(), &default_opts()).expect("scan_ipa should succeed");
+    let inline: Vec<_> = report
+        .secrets
+        .iter()
+        .filter(|s| s.rule_id == "QS-SEC-004")
+        .map(|s| s.file_path.as_deref().unwrap_or(""))
+        .collect();
+    assert_eq!(inline.len(), 1, "{inline:?}");
+    assert!(inline[0].ends_with("config.js"), "{inline:?}");
+    assert!(report.findings.iter().any(|f| f.id == "QS-CERT-001"));
+}
