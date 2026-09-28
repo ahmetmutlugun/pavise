@@ -192,54 +192,51 @@
                         <div class="view" id="view-about">
                             <div class="about-content">
                                 <div class="about-hero">
-                                    <svg viewBox="0 0 100 128" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                                        <path d="M 50 4 L 88 14 L 83 100 Q 82 108 75 112 L 50 124 L 25 112 Q 18 108 17 100 L 12 14 Z" fill="#1c1b2a" />
-                                        <path d="M 50 4 L 88 14 L 83 100 Q 82 108 75 112 L 50 124 Z" fill="#3d3b56" />
-                                        <path d="M 50 4 L 50 124" stroke="#6fe3a8" stroke-width="4" />
-                                        <path d="M 50 34 L 59 44 L 50 54 L 41 44 Z" fill="#6fe3a8" />
-                                    </svg>
-                                    <div class="about-hero-text">
-                                        <h1>Pavise</h1>
-                                        <p>Fast iOS app static security analysis</p>
-                                    </div>
+                                    <span class="scan-eyebrow"><span class="dot"></span><span>About · open source, MPL-2.0</span></span>
+                                    <h1 class="about-title">A static analyzer<br /><em>for iOS apps.</em></h1>
+                                    <p class="about-lede">Pavise reads an IPA the way a reviewer would, without running it. It unpacks the archive, parses the Mach-O binary and every manifest inside, and reports what it finds, ordered by how much it matters.</p>
                                 </div>
 
-                                <div class="about-section">
-                                    <h2>What it does</h2>
-                                    <p>Pavise performs deep static analysis of iOS IPA files in under 3 seconds. It inspects binaries, manifests, embedded resources, and source patterns to surface security issues before they ship.</p>
-                                </div>
+                                <section class="about-section">
+                                    <h2>What gets checked</h2>
+                                    <dl class="about-list">
+                                        <div><dt>Binary</dt><dd>PIE, ARC, stack canaries, NX, RPATH and FairPlay encryption. Also flags risky C and Objective-C APIs like <code>strcpy</code> and <code>NSLog</code>.</dd></div>
+                                        <div><dt>Secrets</dt><dd>29 patterns for hardcoded credentials, including AWS, GCP, Azure, GitHub, Stripe, Slack and OpenAI keys. Bundled private keys are flagged too. Matches are masked in the report.</dd></div>
+                                        <div><dt>Manifests</dt><dd>Info.plist, entitlements, the privacy manifest, permission usage strings and the embedded provisioning profile.</dd></div>
+                                        <div><dt>Transport</dt><dd>App Transport Security exceptions, cleartext <code>http://</code> endpoints and certificate pinning.</dd></div>
+                                        <div><dt>Trackers</dt><dd>20 advertising and analytics SDKs, identified by their frameworks and domains.</dd></div>
+                                        <div><dt>Supply chain</dt><dd>An inventory of embedded frameworks, with end-of-life library versions (OpenSSL, FFmpeg, Qt, Unity and more) and Firebase configuration issues.</dd></div>
+                                    </dl>
+                                </section>
 
-                                <div class="about-section">
-                                    <h2>Analysis coverage</h2>
-                                    <div class="about-checks">
-                                        <div class="about-check"><span class="about-check-icon">+</span>Binary protections (PIE, ARC, stack canaries)</div>
-                                        <div class="about-check"><span class="about-check-icon">+</span>Hardcoded secrets and API keys</div>
-                                        <div class="about-check"><span class="about-check-icon">+</span>OWASP Mobile Top 10 mapping</div>
-                                        <div class="about-check"><span class="about-check-icon">+</span>Third-party tracker detection</div>
-                                        <div class="about-check"><span class="about-check-icon">+</span>Transport security (ATS) audit</div>
-                                        <div class="about-check"><span class="about-check-icon">+</span>Framework SCA with CVE lookup</div>
-                                        <div class="about-check"><span class="about-check-icon">+</span>Entitlements and permissions</div>
-                                        <div class="about-check"><span class="about-check-icon">+</span>Firebase and cloud misconfig</div>
-                                        <div class="about-check"><span class="about-check-icon">+</span>URL and email extraction</div>
-                                        <div class="about-check"><span class="about-check-icon">+</span>Provisioning profile analysis</div>
-                                    </div>
-                                </div>
+                                <section class="about-section">
+                                    <h2>How the grade works</h2>
+                                    <p>The score starts at 100. Each finding deducts points based on its severity and area: hardening, secrets, network, platform, dependencies or API usage. Each area has a cap, so a pile of weak signals can't outweigh one leaked private key. The result is a grade from A (90 and up) to F (below 40).</p>
+                                    <p>A risky API imported by an embedded library is rated one level lower than the same API in the app's own code. Every rule maps to the OWASP Mobile Top 10 (2024) and MASVS v2, so the report shows which risk categories the app falls short on.</p>
+                                </section>
 
-                                <div class="about-section">
-                                    <h2>Output formats</h2>
-                                    <p>JSON for automation and CI/CD pipelines. PDF for stakeholder reports. SARIF 2.1.0 for IDE integration. HTML for quick review.</p>
-                                </div>
+                                <section class="about-section">
+                                    <h2>What happens to your file</h2>
+                                    <ul class="about-facts">
+                                        <li>The IPA is deleted from the server when the scan finishes, including when it fails.</li>
+                                        <li>The result is kept in memory for one hour so you can reopen it or download the PDF and JSON reports. After that it's gone.</li>
+                                        <li>Scan history lives in your browser's local storage, not on the server.</li>
+                                        <li>The web scanner makes no network lookups for your app. DNS, geolocation and CVE queries run only in the CLI, with <code>--network</code>.</li>
+                                    </ul>
+                                </section>
 
-                                <div class="about-section">
-                                    <h2>Built with</h2>
-                                    <div class="about-tech">
-                                        <span class="about-tech-tag">Rust</span>
-                                        <span class="about-tech-tag">Axum</span>
-                                        <span class="about-tech-tag">Goblin</span>
-                                        <span class="about-tech-tag">Rayon</span>
-                                        <span class="about-tech-tag">Tera</span>
-                                    </div>
-                                </div>
+                                <section class="about-section">
+                                    <h2>Limits</h2>
+                                    <p>Static analysis only sees what's in the package. It can't observe runtime behavior, server-side logic or code downloaded after launch. App Store binaries are FairPlay-encrypted, so most of their code is unreadable. Decrypted or development builds give the most complete results.</p>
+                                </section>
+
+                                <section class="about-section">
+                                    <h2>Run it yourself</h2>
+                                    <p>The same engine is available as a CLI, a Docker image and a GitHub Action. It outputs JSON, SARIF 2.1.0 for code scanning, HTML or PDF, and exits non-zero on high-severity findings, so it can gate a CI build.</p>
+                                    <pre class="about-code"><code>cargo install --locked --git https://github.com/ahmetmutlugun/pavise --bin pavise
+pavise App.ipa --format sarif -o report.sarif</code></pre>
+                                    <p><a class="about-link" href="https://github.com/ahmetmutlugun/pavise" target="_blank" rel="noopener noreferrer">Source, docs and custom rules on GitHub →</a></p>
+                                </section>
                             </div>
                         </div>
                     </div>

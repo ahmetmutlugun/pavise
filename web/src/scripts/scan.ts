@@ -95,10 +95,33 @@ if (!isMobile() && storageGet("pavise-sidebar") === "collapsed") {
 const views = document.querySelectorAll<HTMLElement>(".view");
 const navItems = document.querySelectorAll<HTMLElement>(".nav-item[data-view]");
 
+/** Crumb and title of the scan view, restored when leaving another view. */
+let scanCrumb = crumb.textContent ?? "New scan";
+let scanTitle = document.title;
+let currentView = "scan";
+
 function switchView(viewId: string) {
+    currentView = viewId;
     views.forEach((v) => v.classList.toggle("active", v.id === "view-" + viewId));
     navItems.forEach((n) => n.classList.toggle("active", n.dataset.view === viewId));
+    if (viewId === "about") {
+        crumb.textContent = "About";
+        document.title = "About — Pavise";
+    } else {
+        crumb.textContent = scanCrumb;
+        document.title = scanTitle;
+    }
     if (isMobile()) shell.classList.remove("sidebar-open");
+}
+
+/** Update the scan view's crumb and title; shown now only if it's active. */
+function setScanHeading(name: string, title: string) {
+    scanCrumb = name;
+    scanTitle = title;
+    if (currentView === "scan") {
+        crumb.textContent = name;
+        document.title = title;
+    }
 }
 navItems.forEach((n) =>
     n.addEventListener("click", () => switchView(n.dataset.view ?? "scan")),
@@ -522,8 +545,7 @@ function showResult(html: string, fresh: boolean) {
         score: rs.dataset.score || "0",
         ts: Date.now(),
     };
-    crumb.textContent = entry.name;
-    document.title = `${entry.name} · Grade ${entry.grade} — Pavise`;
+    setScanHeading(entry.name, `${entry.name} · Grade ${entry.grade} — Pavise`);
     setPageState("done", `Scan complete · Grade ${entry.grade}`);
     if (fresh && entry.id) addToHistory(entry);
     markActiveHistory(entry.id);
@@ -714,6 +736,7 @@ function loadHistoryScan(item: HistoryEntry) {
     showAlert(null);
     statusEl.hidden = true;
     markActiveHistory(item.id);
+    setScanHeading(item.name, `${item.name} — Pavise`);
     results.innerHTML =
         '<div class="rs-loading"><div class="spinner"></div>Loading scan…</div>';
     page.classList.add("has-results");
@@ -737,7 +760,7 @@ function loadHistoryScan(item: HistoryEntry) {
                     ? err.message
                     : String(err);
             results.innerHTML = `<div class="error-card" role="alert"><span class="error-icon" aria-hidden="true">✗</span><span class="error-msg">${escapeHtml(msg)}</span></div>`;
-            crumb.textContent = item.name;
+            setScanHeading(item.name, `${item.name} · Unavailable — Pavise`);
             setPageState("error", "Result unavailable");
         })
         .finally(() => clearTimeout(timeout));
