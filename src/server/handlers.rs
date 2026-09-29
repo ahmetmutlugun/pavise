@@ -22,6 +22,7 @@ use tracing::Instrument;
 use uuid::Uuid;
 
 use super::{
+    page_cache,
     proxy::real_ip,
     state::{insert_capped, AppState, RateLimitEntry, UploadSession, UploadSlot},
     RATE_LIMIT_WINDOW,
@@ -735,7 +736,10 @@ pub async fn download_pdf(
         let _permit = permit;
         pdf::to_bytes_with_timeout(&report, PDF_TIMEOUT)
     });
-    match task.await {
+    let result = task.await;
+    // Chrome has exited by now; release its cached files in the background.
+    tokio::task::spawn_blocking(page_cache::evict_chromium);
+    match result {
         Ok(Ok(bytes)) => (
             [
                 (header::CONTENT_TYPE, "application/pdf".to_string()),

@@ -27,6 +27,15 @@ The image sets `MALLOC_ARENA_MAX=2`, `MALLOC_MMAP_THRESHOLD_=131072`,
 `MALLOC_TRIM_THRESHOLD_=131072`. Keep them: glibc otherwise holds freed scan
 buffers, and usage-billed memory never drops after the first big scan.
 
+A PDF render leaves ~350 MB of Chromium binary and libraries in page cache.
+It was measured with `/sys/fs/cgroup/memory.stat` as `anon` 18 MB, `file`
+374 MB. Railway's graph (and its bill) counts that cache, and under an 8 GB limit it is never freed.
+After each render, the server evicts it with `posix_fadvise(DONTNEED)`
+(`src/server/page_cache.rs`): the graph fell from 396 MB to 47 MB. By hand:
+`find /usr/lib/chromium -type f -exec dd if={} iflag=nocache count=0 \;`.
+The image runs `tini` as PID 1; without it every render left zombie Chrome
+helpers behind.
+
 ## Measurements (2026-09-25, Linux container, 8 CPUs)
 
 CLI, peak RSS, committed HEAD vs current tree:

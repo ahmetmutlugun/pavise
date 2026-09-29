@@ -44,12 +44,13 @@ LABEL org.opencontainers.image.licenses="MPL-2.0"
 
 # ca-certs for outbound HTTPS (ip-api.com geolocation); chromium prints the
 # PDF report (templates/report.pdf.tera, fonts embedded; DejaVu/Liberation cover non-Latin fallback);
-# wget is used by the HEALTHCHECK below to probe /healthz.
+# wget is used by the HEALTHCHECK below to probe /healthz; tini is PID 1 (below).
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     chromium \
     fonts-dejavu-core \
     fonts-liberation \
+    tini \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
@@ -85,4 +86,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD wget -qO- --tries=1 --timeout=4 http://127.0.0.1:3000/healthz || exit 1
 
+# tini reaps Chrome's helper processes: headless_chrome kills only the browser
+# process, and the server as PID 1 would leave its children as zombies.
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/app/pavise-server"]

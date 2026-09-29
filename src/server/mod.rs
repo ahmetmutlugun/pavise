@@ -1,5 +1,6 @@
 pub mod config;
 mod handlers;
+mod page_cache;
 pub mod proxy;
 pub mod state;
 
