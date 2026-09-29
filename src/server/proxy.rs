@@ -116,6 +116,30 @@ impl Cidr {
     }
 }
 
+/// True when no secret is configured or the request carries it.
+fn carries_secret(headers: &HeaderMap, edge_secret: Option<&EdgeSecret>) -> bool {
+    match edge_secret {
+        None => true,
+        Some(secret) => headers
+            .get(EDGE_SECRET_HEADER)
+            .is_some_and(|v| secret.matches(v.as_bytes())),
+    }
+}
+
+/// A request that reached a trusted proxy without passing through Cloudflare:
+/// a secret is configured, the peer is trusted, and the secret is missing or
+/// wrong. The server rejects these (`handlers::require_edge`).
+pub fn bypassed_edge(
+    peer: SocketAddr,
+    headers: &HeaderMap,
+    trusted: &[Cidr],
+    edge_secret: Option<&EdgeSecret>,
+) -> bool {
+    edge_secret.is_some()
+        && trusted.iter().any(|c| c.contains(peer.ip()))
+        && !carries_secret(headers, edge_secret)
+}
+
 /// The client IP: the TCP peer, unless the peer is a trusted proxy, in which
 /// case `CF-Connecting-IP` (set by Cloudflare; with `edge_secret` set, only
 /// when the request carries it) or the rightmost `X-Forwarded-For` hop
@@ -131,13 +155,7 @@ pub fn real_ip(
         return peer_ip;
     }
     let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
-    let via_cloudflare = match edge_secret {
-        None => true,
-        Some(secret) => headers
-            .get(EDGE_SECRET_HEADER)
-            .is_some_and(|v| secret.matches(v.as_bytes())),
-    };
-    if via_cloudflare {
+    if carries_secret(headers, edge_secret) {
         if let Some(ip) = header("CF-Connecting-IP").and_then(|s| s.trim().parse().ok()) {
             return ip;
         }
@@ -266,5 +284,26 @@ mod tests {
         let s = EdgeSecret::new(" abc ").unwrap();
         assert!(s.matches(b"abc"));
         assert_eq!(format!("{s:?}"), "EdgeSecret(<redacted>)");
+    }
+
+    #[test]
+    fn bypass_needs_secret_trusted_peer_and_mismatch() {
+        let trusted = Cidr::parse_list("100.64.0.0/10").unwrap();
+        let secret = EdgeSecret::new("s3cret").unwrap();
+        let edge = peer("100.64.0.9");
+        let good = headers(&[(EDGE_SECRET_HEADER, "s3cret")]);
+        let bad = headers(&[(EDGE_SECRET_HEADER, "nope")]);
+        let none = HeaderMap::new();
+        assert!(!bypassed_edge(edge, &good, &trusted, Some(&secret)));
+        assert!(bypassed_edge(edge, &bad, &trusted, Some(&secret)));
+        assert!(bypassed_edge(edge, &none, &trusted, Some(&secret)));
+        // No secret configured, or an untrusted (direct, local) peer: allowed.
+        assert!(!bypassed_edge(edge, &none, &trusted, None));
+        assert!(!bypassed_edge(
+            peer("127.0.0.1"),
+            &none,
+            &trusted,
+            Some(&secret)
+        ));
     }
 }

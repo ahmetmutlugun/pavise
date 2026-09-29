@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 use super::{
     page_cache,
-    proxy::real_ip,
+    proxy::{bypassed_edge, real_ip},
     state::{insert_capped, AppState, RateLimitEntry, UploadSession, UploadSlot},
     RATE_LIMIT_WINDOW,
 };
@@ -789,6 +789,34 @@ pub async fn cache_control_headers(req: Request<Body>, next: Next) -> Response {
         header::HeaderValue::from_static(value),
     );
     resp
+}
+
+/// With `PAVISE_EDGE_SECRET` set, 403 requests that reached Railway's edge
+/// without passing through Cloudflare (so they skip its WAF and could otherwise
+/// be keyed on the edge's own IP). `/healthz` stays open for Railway's probe.
+pub async fn require_edge(
+    State(state): State<AppState>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    let peer = req
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(addr)| *addr);
+    let blocked = req.uri().path() != "/healthz"
+        && peer.is_some_and(|peer| {
+            bypassed_edge(
+                peer,
+                req.headers(),
+                &state.config.trusted_proxies,
+                state.config.edge_secret.as_ref(),
+            )
+        });
+    if blocked {
+        tracing::debug!(path = %req.uri().path(), "Rejected request that bypassed Cloudflare");
+        return (StatusCode::FORBIDDEN, "Forbidden").into_response();
+    }
+    next.run(req).await
 }
 
 pub async fn security_headers(mut req: Request<Body>, next: Next) -> Response {

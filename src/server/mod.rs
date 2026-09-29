@@ -64,6 +64,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/scan/:id/json", get(handlers::download_json))
         .route("/api/scan/:id/pdf", get(handlers::download_pdf))
         .nest_service("/assets", ServeDir::new(dist.join("assets")))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            handlers::require_edge,
+        ))
         .with_state(state)
         .layer(axum::middleware::from_fn(handlers::cache_control_headers))
         .layer(axum::middleware::from_fn(handlers::security_headers))

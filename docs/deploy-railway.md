@@ -42,8 +42,9 @@ helpers behind.
 
 Cloudflare fronts the custom domain (the `*.up.railway.app` domain is off). Add
 a Transform Rule (Rules → Transform Rules → Modify Request Header, all
-requests): set `X-Pavise-Edge` to the `PAVISE_EDGE_SECRET` value. Without it,
-a client that reaches Railway's edge directly could forge `CF-Connecting-IP`.
+requests): set `X-Pavise-Edge` to the `PAVISE_EDGE_SECRET` value. Railway's
+edge also serves the domain directly (`curl --resolve pavise.app:443:<edge>`);
+those requests lack the header and get 403 (verified 2026-09-29).
 To find the proxy peer, run
 `tail -n +2 /proc/net/tcp` in the container (local port `0BB8`, state `01`).
 

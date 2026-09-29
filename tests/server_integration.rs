@@ -377,7 +377,7 @@ async fn test_forwarded_headers_honoured_from_trusted_peer() {
 }
 
 #[tokio::test]
-async fn test_forged_cloudflare_header_needs_edge_secret() {
+async fn test_edge_secret_gates_requests_from_trusted_proxy() {
     let config = Config {
         rate_limit_max: 1,
         trusted_proxies: Cidr::parse_list("127.0.0.1").unwrap(),
@@ -385,10 +385,10 @@ async fn test_forged_cloudflare_header_needs_edge_secret() {
         ..Config::for_testing()
     };
     let app = make_app(config);
-    let req = |client: &str, secret: Option<&str>| {
+    let req = |method: &str, uri: &str, client: &str, secret: Option<&str>| {
         let mut b = Request::builder()
-            .method("POST")
-            .uri("/api/upload")
+            .method(method)
+            .uri(uri)
             .header("CF-Connecting-IP", client)
             .extension(test_addr());
         if let Some(s) = secret {
@@ -397,22 +397,29 @@ async fn test_forged_cloudflare_header_needs_edge_secret() {
         b.body(Body::empty()).unwrap()
     };
     // Through Cloudflare: visitors are limited separately.
+    let via_cf = |client| req("POST", "/api/upload", client, Some("s3cret"));
+    assert_eq!(send(&app, via_cf("1.1.1.1")).await.0, StatusCode::OK);
+    assert_eq!(send(&app, via_cf("2.2.2.2")).await.0, StatusCode::OK);
     assert_eq!(
-        send(&app, req("1.1.1.1", Some("s3cret"))).await.0,
-        StatusCode::OK
+        send(&app, via_cf("1.1.1.1")).await.0,
+        StatusCode::TOO_MANY_REQUESTS
     );
-    assert_eq!(
-        send(&app, req("2.2.2.2", Some("s3cret"))).await.0,
-        StatusCode::OK
-    );
-    // Bypassing Cloudflare: rotating forged IPs all land in the peer's bucket.
-    assert_eq!(send(&app, req("3.3.3.3", None)).await.0, StatusCode::OK);
-    for forged in ["4.4.4.4", "5.5.5.5"] {
-        assert_eq!(
-            send(&app, req(forged, Some("guess"))).await.0,
-            StatusCode::TOO_MANY_REQUESTS
-        );
+    // Bypassing Cloudflare (no or wrong secret): rejected outright, forged IP or not.
+    for secret in [None, Some("guess"), Some("s3cre")] {
+        for uri in ["/api/upload", "/"] {
+            let method = if uri == "/" { "GET" } else { "POST" };
+            assert_eq!(
+                send(&app, req(method, uri, "3.3.3.3", secret)).await.0,
+                StatusCode::FORBIDDEN,
+                "{uri} with secret {secret:?}"
+            );
+        }
     }
+    // Railway's health probe carries no secret and must still pass.
+    assert_eq!(
+        send(&app, req("GET", "/healthz", "3.3.3.3", None)).await.0,
+        StatusCode::OK
+    );
 }
 
 #[tokio::test]

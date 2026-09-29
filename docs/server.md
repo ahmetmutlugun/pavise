@@ -38,8 +38,10 @@ visitor shares the proxy's rate-limit bucket.
 
 A trusted shared edge (Railway) also forwards headers from clients that bypass
 Cloudflare, so a forged `CF-Connecting-IP` would dodge the limiter. With
-`PAVISE_EDGE_SECRET` set, that header is believed only on requests whose
-`X-Pavise-Edge` matches (constant-time); others use the rightmost XFF hop.
+`PAVISE_EDGE_SECRET` set, requests from a trusted peer without a matching
+`X-Pavise-Edge` (constant-time) get 403, except `/healthz` (Railway's probe).
+On Railway the rightmost XFF hop for such a request is the edge's own IP
+(CDN77, rotating per connection), so it could not be rate-limited per client.
 
 ## Invariants (tested)
 
