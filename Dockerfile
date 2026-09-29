@@ -42,12 +42,13 @@ LABEL org.opencontainers.image.source="https://github.com/ahmetmutlugun/pavise"
 LABEL org.opencontainers.image.description="Fast iOS IPA static security analyzer"
 LABEL org.opencontainers.image.licenses="MPL-2.0"
 
-# ca-certs for outbound HTTPS (ip-api.com geolocation); chromium prints the
+# ca-certs for outbound HTTPS (ip-api.com geolocation); Chromium's headless shell
+# (no GTK; about half the memory of full chromium, docs/deploy-railway.md) prints the
 # PDF report (templates/report.pdf.tera, fonts embedded; DejaVu/Liberation cover non-Latin fallback);
 # wget is used by the HEALTHCHECK below to probe /healthz; tini is PID 1 (below).
 RUN apt-get update && apt-get install -y \
     ca-certificates \
-    chromium \
+    chromium-headless-shell \
     fonts-dejavu-core \
     fonts-liberation \
     tini \
@@ -55,7 +56,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Point headless_chrome at the distro browser (it reads $CHROME).
-ENV CHROME=/usr/bin/chromium
+# The real binary, not a /usr/bin launcher: headless_chrome kills the process it spawned.
+ENV CHROME=/usr/lib/chromium/chromium-headless-shell
 
 WORKDIR /app
 

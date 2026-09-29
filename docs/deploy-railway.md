@@ -18,7 +18,7 @@ commits. On a 4 GB build host, pass `CARGO_BUILD_JOBS=2` to avoid OOM.
 |---|---|---|
 | `PAVISE_MAX_SCANS` | 2 | each scan peaks at ~150–850 MB (below) |
 | `PAVISE_MAX_IN_FLIGHT_BYTES` | 268435456 | 256 MiB; trades a little wall time for memory |
-| `PAVISE_MAX_PDF` | 1 | one headless Chrome ≈ 240 MB |
+| `PAVISE_MAX_PDF` | 1 | one headless-shell render peaks at 125–205 MB |
 | `PAVISE_CACHE_MAX_ENTRIES` | 64 | reports are 0.1–0.7 MB each |
 | `PAVISE_TRUSTED_PROXY` | Railway's proxy range | otherwise every visitor shares one rate-limit bucket |
 | `RAYON_NUM_THREADS` | vCPU count | only if the container sees host cores |
@@ -59,7 +59,10 @@ Server RSS (`pavise-server`, 4 sequential + 4 concurrent scans):
 
 mimalloc was also tried: higher peaks (873 MB) and slower release. Chrome
 flags (`--no-zygote`, `--renderer-process-limit=1`, `--in-process-gpu`) did
-not reduce a render below ~240 MB, so none are added.
+not reduce a render below ~240 MB, so none are added. The image uses Debian's
+`chromium-headless-shell` instead of `chromium`. Measured in the container (3 renders each):
+peak memory 332–371 → 124–205 MB, cache left behind 351 → 248 MB, render time 730 → 470 ms.
+The PDFs were pixel-identical at 60 dpi (macOS, Chrome for Testing 154).
 
 Wall time vs the pre-change working tree (macOS, 10 cores): Provenance 35 s →
 7 s, Telegram 2.1 s → 0.7 s, Mattermost 2.4 s → 0.3 s.

@@ -1,16 +1,16 @@
 //! Drop Chromium's files from the page cache after a PDF render.
 //!
-//! Starting Chrome reads ~350 MB of binary and shared libraries. The kernel
+//! Starting Chrome reads ~250 MB of binary and shared libraries. The kernel
 //! charges that cache to the container's cgroup and keeps it until memory runs
 //! short, which, under a large limit, is never. Railway's usage-billed memory
-//! counts it, so one PDF render would otherwise add ~350 MB for the life of the
+//! counts it, so one PDF render would otherwise add ~250 MB for the life of the
 //! container. `POSIX_FADV_DONTNEED` needs no privileges and skips pages that
 //! are still mapped, so libraries this server uses stay cached. The next render
 //! reads the files from disk again.
 
 use std::path::Path;
 
-/// Debian's `chromium` package and the libraries and fonts it loads.
+/// Debian's `chromium-headless-shell` package and the libraries and fonts it loads.
 const DIRS: &[&str] = &[
     "/usr/lib/chromium",
     "/usr/lib/x86_64-linux-gnu",
