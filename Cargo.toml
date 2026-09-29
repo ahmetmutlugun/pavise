@@ -102,9 +102,10 @@ headless_chrome = "1"
 ureq = { version = "2.12", features = ["json"] }
 tempfile = "3"
 
-# posix_fadvise: the server drops Chromium's page cache after a PDF render.
+# posix_fadvise (safe wrapper; the crate forbids unsafe): the server drops
+# Chromium's page cache after a PDF render.
 [target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2"
+rustix = { version = "1", features = ["fs"] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

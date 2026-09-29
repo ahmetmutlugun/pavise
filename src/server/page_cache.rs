@@ -58,10 +58,9 @@ fn walk(dir: &Path, depth: usize, f: &mut impl FnMut(&Path)) {
 
 #[cfg(target_os = "linux")]
 fn evict(path: &Path) {
-    use std::os::fd::AsRawFd;
     if let Ok(file) = std::fs::File::open(path) {
-        // SAFETY: a valid fd for the call's duration; offset/len 0 = whole file.
-        unsafe { libc::posix_fadvise(file.as_raw_fd(), 0, 0, libc::POSIX_FADV_DONTNEED) };
+        // Offset 0 with no length covers the whole file.
+        let _ = rustix::fs::fadvise(&file, 0, None, rustix::fs::Advice::DontNeed);
     }
 }
 

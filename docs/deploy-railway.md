@@ -1,6 +1,8 @@
 # Deploying on Railway
 
 `railway.json` builds the root `Dockerfile` and health-checks `/healthz`.
+`deploy.limitOverride` caps the container at 1 vCPU and 1 GiB. At that size, set
+`PAVISE_MAX_SCANS=1`: a single large IPA peaks at ~850 MB (below).
 Railway injects `PORT`; the server reads it. The Dockerfile `HEALTHCHECK` is
 ignored there (docker-compose still uses it). Logs go to stderr only;
 `PAVISE_LOG_DIR` is set by `docker-compose.yml`, not the image.
