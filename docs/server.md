@@ -20,6 +20,7 @@ handlers and middleware live in `src/server/` (`build_router`), so
 | `PAVISE_CACHE_TTL_HOURS` | 24 | Hash-cache TTL (results: 1 h) |
 | `PAVISE_RATE_LIMIT` | 20 | Requests / IP / minute |
 | `PAVISE_TRUSTED_PROXY` | unset | Proxy IPs/CIDRs whose forwarding headers are believed |
+| `PAVISE_EDGE_SECRET` | unset | Required `X-Pavise-Edge` value before `CF-Connecting-IP` is believed |
 | `PAVISE_UPLOAD_DIR`, `PAVISE_DIST_DIR`, `PAVISE_LOG_DIR` | | Paths |
 
 Memory budget per scan: main binary + ~1.4 × `PAVISE_MAX_IN_FLIGHT_BYTES` (the
@@ -34,6 +35,11 @@ legacy `1`/`true` means loopback + private ranges). From XFF the **rightmost**
 hop is used; the leftmost is client-supplied. Unset = headers ignored, so rate
 limiting keys on the peer address. Behind a same-host proxy, set it or every
 visitor shares the proxy's rate-limit bucket.
+
+A trusted shared edge (Railway) also forwards headers from clients that bypass
+Cloudflare, so a forged `CF-Connecting-IP` would dodge the limiter. With
+`PAVISE_EDGE_SECRET` set, that header is believed only on requests whose
+`X-Pavise-Edge` matches (constant-time); others use the rightmost XFF hop.
 
 ## Invariants (tested)
 

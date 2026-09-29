@@ -1,7 +1,8 @@
 # Deploying on Railway
 
 `railway.json` builds the root `Dockerfile` and health-checks `/healthz`.
-`deploy.limitOverride` caps the container at 1 vCPU and 1 GiB. At that size, set
+The service runs at 1 vCPU / 1 GiB, set in Railway's service settings
+(`deploy.limitOverride` in `railway.json` was not applied). At that size, set
 `PAVISE_MAX_SCANS=1`: a single large IPA peaks at ~850 MB (below).
 Railway injects `PORT`; the server reads it. The Dockerfile `HEALTHCHECK` is
 ignored there (docker-compose still uses it). Logs go to stderr only;
@@ -22,7 +23,8 @@ commits. On a 4 GB build host, pass `CARGO_BUILD_JOBS=2` to avoid OOM.
 | `PAVISE_MAX_IN_FLIGHT_BYTES` | 268435456 | 256 MiB; trades a little wall time for memory |
 | `PAVISE_MAX_PDF` | 1 | one headless-shell render peaks at 125–205 MB |
 | `PAVISE_CACHE_MAX_ENTRIES` | 64 | reports are 0.1–0.7 MB each |
-| `PAVISE_TRUSTED_PROXY` | Railway's proxy range | otherwise every visitor shares one rate-limit bucket |
+| `PAVISE_TRUSTED_PROXY` | `100.64.0.0/10` | Railway's edge (peer seen: `100.64.0.9`); otherwise all visitors share one bucket |
+| `PAVISE_EDGE_SECRET` | random, ≥ 32 chars | must match the Cloudflare rule below |
 | `RAYON_NUM_THREADS` | vCPU count | only if the container sees host cores |
 
 The image sets `MALLOC_ARENA_MAX=2`, `MALLOC_MMAP_THRESHOLD_=131072`,
@@ -37,6 +39,13 @@ After each render, the server evicts it with `posix_fadvise(DONTNEED)`
 `find /usr/lib/chromium -type f -exec dd if={} iflag=nocache count=0 \;`.
 The image runs `tini` as PID 1; without it every render left zombie Chrome
 helpers behind.
+
+Cloudflare fronts the custom domain (the `*.up.railway.app` domain is off). Add
+a Transform Rule (Rules → Transform Rules → Modify Request Header, all
+requests): set `X-Pavise-Edge` to the `PAVISE_EDGE_SECRET` value. Without it,
+a client that reaches Railway's edge directly could forge `CF-Connecting-IP`.
+To find the proxy peer, run
+`tail -n +2 /proc/net/tcp` in the container (local port `0BB8`, state `01`).
 
 ## Measurements (2026-09-25, Linux container, 8 CPUs)
 

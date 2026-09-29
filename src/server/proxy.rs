@@ -3,6 +3,11 @@
 //! `CF-Connecting-IP` / `X-Forwarded-For` are plain request headers: any client
 //! can send them. They are only believed when the TCP peer is a configured
 //! proxy, otherwise one client could rotate fake IPs past the rate limiter.
+//!
+//! A trusted peer is not proof the request passed through Cloudflare: a shared
+//! edge (Railway) forwards whatever headers a client that bypasses Cloudflare
+//! sends. With an [`EdgeSecret`] set, `CF-Connecting-IP` is believed only when
+//! the request carries the secret, which a Cloudflare Transform Rule adds.
 
 use std::net::{IpAddr, SocketAddr};
 
@@ -24,6 +29,39 @@ const PRIVATE_RANGES: &[&str] = &[
     "::1/128",
     "fc00::/7",
 ];
+
+/// Header a Cloudflare Transform Rule sets to the `PAVISE_EDGE_SECRET` value.
+pub const EDGE_SECRET_HEADER: &str = "X-Pavise-Edge";
+
+/// Shared secret proving a request came through Cloudflare. `Debug` is
+/// redacted so the value never reaches logs.
+#[derive(Clone, PartialEq, Eq)]
+pub struct EdgeSecret(String);
+
+impl EdgeSecret {
+    /// `None` for an empty or whitespace-only value.
+    pub fn new(s: &str) -> Option<Self> {
+        let s = s.trim();
+        (!s.is_empty()).then(|| EdgeSecret(s.to_owned()))
+    }
+
+    /// Constant-time comparison, so response timing can't reveal the secret.
+    fn matches(&self, candidate: &[u8]) -> bool {
+        let secret = self.0.as_bytes();
+        secret.len() == candidate.len()
+            && secret
+                .iter()
+                .zip(candidate)
+                .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+                == 0
+    }
+}
+
+impl std::fmt::Debug for EdgeSecret {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("EdgeSecret(<redacted>)")
+    }
+}
 
 impl Cidr {
     pub fn parse(s: &str) -> Result<Self, String> {
@@ -79,16 +117,30 @@ impl Cidr {
 }
 
 /// The client IP: the TCP peer, unless the peer is a trusted proxy, in which
-/// case `CF-Connecting-IP` (set by Cloudflare) or the rightmost
-/// `X-Forwarded-For` hop (appended by the proxy; leftmost is client-supplied).
-pub fn real_ip(peer: SocketAddr, headers: &HeaderMap, trusted: &[Cidr]) -> IpAddr {
+/// case `CF-Connecting-IP` (set by Cloudflare; with `edge_secret` set, only
+/// when the request carries it) or the rightmost `X-Forwarded-For` hop
+/// (appended by the proxy; leftmost is client-supplied).
+pub fn real_ip(
+    peer: SocketAddr,
+    headers: &HeaderMap,
+    trusted: &[Cidr],
+    edge_secret: Option<&EdgeSecret>,
+) -> IpAddr {
     let peer_ip = peer.ip();
     if !trusted.iter().any(|c| c.contains(peer_ip)) {
         return peer_ip;
     }
     let header = |name: &str| headers.get(name).and_then(|v| v.to_str().ok());
-    if let Some(ip) = header("CF-Connecting-IP").and_then(|s| s.trim().parse().ok()) {
-        return ip;
+    let via_cloudflare = match edge_secret {
+        None => true,
+        Some(secret) => headers
+            .get(EDGE_SECRET_HEADER)
+            .is_some_and(|v| secret.matches(v.as_bytes())),
+    };
+    if via_cloudflare {
+        if let Some(ip) = header("CF-Connecting-IP").and_then(|s| s.trim().parse().ok()) {
+            return ip;
+        }
     }
     header("X-Forwarded-For")
         .and_then(|s| s.rsplit(',').next())
@@ -149,11 +201,11 @@ mod tests {
             ("X-Forwarded-For", "5.6.7.8"),
         ]);
         assert_eq!(
-            real_ip(peer("203.0.113.9"), &h, &trusted),
+            real_ip(peer("203.0.113.9"), &h, &trusted, None),
             "203.0.113.9".parse::<IpAddr>().unwrap()
         );
         assert_eq!(
-            real_ip(peer("127.0.0.1"), &h, &[]),
+            real_ip(peer("127.0.0.1"), &h, &[], None),
             "127.0.0.1".parse::<IpAddr>().unwrap()
         );
     }
@@ -163,14 +215,56 @@ mod tests {
         let trusted = Cidr::parse_list("127.0.0.1").unwrap();
         let cf = headers(&[("CF-Connecting-IP", "1.2.3.4")]);
         assert_eq!(
-            real_ip(peer("127.0.0.1"), &cf, &trusted),
+            real_ip(peer("127.0.0.1"), &cf, &trusted, None),
             "1.2.3.4".parse::<IpAddr>().unwrap()
         );
         // Client-forged leftmost entry is ignored; the proxy-appended hop wins.
         let xff = headers(&[("X-Forwarded-For", "9.9.9.9, 5.6.7.8")]);
         assert_eq!(
-            real_ip(peer("127.0.0.1"), &xff, &trusted),
+            real_ip(peer("127.0.0.1"), &xff, &trusted, None),
             "5.6.7.8".parse::<IpAddr>().unwrap()
         );
+    }
+
+    #[test]
+    fn edge_secret_gates_cloudflare_header() {
+        let trusted = Cidr::parse_list("100.64.0.0/10").unwrap();
+        let secret = EdgeSecret::new("s3cret").unwrap();
+        let ip = |h: &HeaderMap| real_ip(peer("100.64.0.9"), h, &trusted, Some(&secret));
+        // Through Cloudflare: the Transform Rule's header matches.
+        let good = headers(&[
+            (EDGE_SECRET_HEADER, "s3cret"),
+            ("CF-Connecting-IP", "1.2.3.4"),
+            ("X-Forwarded-For", "162.158.0.1"),
+        ]);
+        assert_eq!(ip(&good), "1.2.3.4".parse::<IpAddr>().unwrap());
+        // Bypassing Cloudflare: a forged CF-Connecting-IP without (or with a
+        // wrong) secret falls back to the hop the edge proxy appended.
+        for forged in [
+            headers(&[
+                ("CF-Connecting-IP", "1.2.3.4"),
+                ("X-Forwarded-For", "203.0.113.7"),
+            ]),
+            headers(&[
+                (EDGE_SECRET_HEADER, "guess"),
+                ("CF-Connecting-IP", "1.2.3.4"),
+                ("X-Forwarded-For", "203.0.113.7"),
+            ]),
+            headers(&[
+                (EDGE_SECRET_HEADER, "s3cre"),
+                ("CF-Connecting-IP", "1.2.3.4"),
+                ("X-Forwarded-For", "203.0.113.7"),
+            ]),
+        ] {
+            assert_eq!(ip(&forged), "203.0.113.7".parse::<IpAddr>().unwrap());
+        }
+    }
+
+    #[test]
+    fn edge_secret_is_redacted_and_rejects_blank() {
+        assert!(EdgeSecret::new("  ").is_none());
+        let s = EdgeSecret::new(" abc ").unwrap();
+        assert!(s.matches(b"abc"));
+        assert_eq!(format!("{s:?}"), "EdgeSecret(<redacted>)");
     }
 }

@@ -182,7 +182,12 @@ fn wants_json(headers: &HeaderMap) -> bool {
 // ── Rate limiting ─────────────────────────────────────────────────────────────
 
 fn client_ip(state: &AppState, addr: SocketAddr, headers: &HeaderMap) -> IpAddr {
-    real_ip(addr, headers, &state.config.trusted_proxies)
+    real_ip(
+        addr,
+        headers,
+        &state.config.trusted_proxies,
+        state.config.edge_secret.as_ref(),
+    )
 }
 
 /// Returns a `429 Too Many Requests` response if the caller has exceeded the

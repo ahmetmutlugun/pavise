@@ -1,6 +1,6 @@
 use std::{path::PathBuf, time::Duration};
 
-use super::proxy::Cidr;
+use super::proxy::{Cidr, EdgeSecret};
 
 /// Resolved server configuration parsed from environment variables.
 ///
@@ -46,6 +46,8 @@ pub struct Config {
     /// Env: `PAVISE_TRUSTED_PROXY` — comma-separated IPs/CIDRs; `1`/`true`
     /// means loopback + private ranges. Unset: headers are ignored.
     pub trusted_proxies: Vec<Cidr>,
+    /// `PAVISE_EDGE_SECRET`: required on a request before `CF-Connecting-IP` is believed.
+    pub edge_secret: Option<EdgeSecret>,
 }
 
 impl Config {
@@ -94,6 +96,9 @@ impl Config {
             }),
             Err(_) => Vec::new(),
         };
+        let edge_secret = std::env::var("PAVISE_EDGE_SECRET")
+            .ok()
+            .and_then(|v| EdgeSecret::new(&v));
 
         let upload_dir = std::env::var("PAVISE_UPLOAD_DIR")
             .map(PathBuf::from)
@@ -125,6 +130,7 @@ impl Config {
             max_upload_sessions,
             body_timeout: Duration::from_secs(body_timeout_secs),
             trusted_proxies,
+            edge_secret,
         };
 
         tracing::info!(
@@ -136,6 +142,7 @@ impl Config {
             max_extracted_mb = cfg.max_extracted_bytes / (1024 * 1024),
             max_in_flight_mb = cfg.max_in_flight_bytes / (1024 * 1024),
             trusted_proxies = cfg.trusted_proxies.len(),
+            edge_secret = cfg.edge_secret.is_some(),
             dist_dir = %cfg.dist_dir.display(),
             upload_dir = %cfg.upload_dir.display(),
             "Pavise server configuration resolved"
@@ -163,6 +170,7 @@ impl Config {
             max_upload_sessions: 4,
             body_timeout: Duration::from_secs(30),
             trusted_proxies: Vec::new(),
+            edge_secret: None,
         }
     }
 }

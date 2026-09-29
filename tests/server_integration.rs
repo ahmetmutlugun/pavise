@@ -27,8 +27,12 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use pavise::server::{
-    build_router, config::Config, evict_expired, proxy::Cidr, state::AppState, RESULT_TTL,
-    UPLOAD_TTL,
+    build_router,
+    config::Config,
+    evict_expired,
+    proxy::{Cidr, EdgeSecret, EDGE_SECRET_HEADER},
+    state::AppState,
+    RESULT_TTL, UPLOAD_TTL,
 };
 use tower::ServiceExt; // for `.oneshot()`
 
@@ -370,6 +374,45 @@ async fn test_forwarded_headers_honoured_from_trusted_peer() {
         send(&app, req("1.1.1.1")).await.0,
         StatusCode::TOO_MANY_REQUESTS
     );
+}
+
+#[tokio::test]
+async fn test_forged_cloudflare_header_needs_edge_secret() {
+    let config = Config {
+        rate_limit_max: 1,
+        trusted_proxies: Cidr::parse_list("127.0.0.1").unwrap(),
+        edge_secret: EdgeSecret::new("s3cret"),
+        ..Config::for_testing()
+    };
+    let app = make_app(config);
+    let req = |client: &str, secret: Option<&str>| {
+        let mut b = Request::builder()
+            .method("POST")
+            .uri("/api/upload")
+            .header("CF-Connecting-IP", client)
+            .extension(test_addr());
+        if let Some(s) = secret {
+            b = b.header(EDGE_SECRET_HEADER, s);
+        }
+        b.body(Body::empty()).unwrap()
+    };
+    // Through Cloudflare: visitors are limited separately.
+    assert_eq!(
+        send(&app, req("1.1.1.1", Some("s3cret"))).await.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        send(&app, req("2.2.2.2", Some("s3cret"))).await.0,
+        StatusCode::OK
+    );
+    // Bypassing Cloudflare: rotating forged IPs all land in the peer's bucket.
+    assert_eq!(send(&app, req("3.3.3.3", None)).await.0, StatusCode::OK);
+    for forged in ["4.4.4.4", "5.5.5.5"] {
+        assert_eq!(
+            send(&app, req(forged, Some("guess"))).await.0,
+            StatusCode::TOO_MANY_REQUESTS
+        );
+    }
 }
 
 #[tokio::test]
