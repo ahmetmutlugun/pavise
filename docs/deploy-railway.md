@@ -1,9 +1,13 @@
 # Deploying on Railway
 
-`railway.json` builds the root `Dockerfile` and health-checks `/healthz`.
-The service runs at 1 vCPU / 1 GiB, set in Railway's service settings
-(`deploy.limitOverride` in `railway.json` was not applied). At that size, set
-`PAVISE_MAX_SCANS=1`: a single large IPA peaks at ~850 MB (below).
+Service settings live in `.railway/railway.ts` (Railway IaC; migrated from
+`railway.json` on 2026-09-29): Dockerfile build, `/healthz` check, restart
+retries, domain, 1 vCPU / 1 GB. Railway does **not** read it on deploy; changes
+take effect only via `railway config plan` then `railway config apply` (SDK:
+`npm install` in `.railway/`). Dashboard edits (e.g. raising memory) drift
+from the file: edit the file too, or `railway config pull`, or the next apply
+reverts them. Variables are `preserve()`, so values never enter the repo.
+At 1 GB set `PAVISE_MAX_SCANS=1`: a single large IPA peaks at ~850 MB (below).
 Railway injects `PORT`; the server reads it. The Dockerfile `HEALTHCHECK` is
 ignored there (docker-compose still uses it). Logs go to stderr only;
 `PAVISE_LOG_DIR` is set by `docker-compose.yml`, not the image.
@@ -12,7 +16,7 @@ Builds: BuildKit cache mounts keep Cargo's registry, `target/` and the npm
 cache between builds (ids embed the Railway service id; update the Dockerfile
 if the service is recreated). Locally, rebuilds after a source edit or a
 dependency change take ~20 s instead of ~100 s; cold builds ~65 s.
-`watchPatterns` in `railway.json` skips deploys for docs/benchmarks-only
+`watchPatterns` (in `.railway/railway.ts`) skip deploys for docs/benchmarks-only
 commits. On a 4 GB build host, pass `CARGO_BUILD_JOBS=2` to avoid OOM.
 
 ## Suggested variables

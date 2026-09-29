@@ -10,3 +10,6 @@ test-ipas/
 /fuzz/target/
 /fuzz/corpus/
 /fuzz/artifacts/
+
+# Railway IaC SDK (npm install in .railway/)
+.railway/node_modules/
