@@ -525,7 +525,13 @@ fn test_entry_larger_than_declared_size_rejected() {
     let entry = archive.find("blob.bin").expect("entry listed");
     assert_eq!(entry.size, 16);
     let err = archive.read(entry).expect_err("lying entry must fail");
-    assert!(format!("{err:#}").contains("declared size"), "{err:#}");
+    // Either our cap ("past its declared size") or zip's own check (since
+    // zip 9: "larger than its declared uncompressed size") rejects it.
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("declared size") || msg.contains("declared uncompressed size"),
+        "{msg}"
+    );
 }
 
 #[test]

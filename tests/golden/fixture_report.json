@@ -74,10 +74,10 @@
     }
   ],
   "file_hashes": {
-    "md5": "bbd56df28c870c28d2210651f12cc689",
-    "sha1": "f5d860648942ff334d5ee5e6aa87942c1733d565",
-    "sha256": "3d57469e730bfca3a104fe9570296bbb284e8d3a5d104efe52819649e2fb0543",
-    "size_bytes": 1715
+    "md5": "219f2ee7d1f1a9529744254a6374bf77",
+    "sha1": "099aed6088588ac467116b84f3fb81aa21868a62",
+    "sha256": "6e46b52d2bd859cfc72d446730059c44767ea1f5e201f9f0e294bfe59a2901fa",
+    "size_bytes": 1709
   },
   "findings": [
     {

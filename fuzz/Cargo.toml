@@ -12,6 +12,7 @@ libfuzzer-sys = "0.4"
 tempfile = "3"
 
 [dependencies.pavise]
+package = "pavise-cli"
 path = ".."
 
 # Keep the fuzz crate out of the main workspace.
