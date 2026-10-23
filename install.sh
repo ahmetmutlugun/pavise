@@ -10,6 +10,7 @@ OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 
 case "${OS}-${ARCH}" in
   linux-x86_64)    TARGET="x86_64-unknown-linux-gnu" ;;
+  linux-aarch64)   TARGET="aarch64-unknown-linux-gnu" ;;
   darwin-arm64)    TARGET="aarch64-apple-darwin" ;;
   darwin-x86_64)   TARGET="x86_64-apple-darwin" ;;
   *)
@@ -31,7 +32,18 @@ echo "Downloading pavise ${TAG} for ${TARGET}..."
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-curl -fsSL "$URL" | tar xz -C "$TMPDIR"
+curl -fsSL "$URL" -o "$TMPDIR/pavise.tar.gz"
+EXPECTED=$(curl -fsSL "${URL}.sha256" | cut -d' ' -f1)
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL=$(sha256sum "$TMPDIR/pavise.tar.gz" | cut -d' ' -f1)
+else
+  ACTUAL=$(shasum -a 256 "$TMPDIR/pavise.tar.gz" | cut -d' ' -f1)
+fi
+if [ -z "$EXPECTED" ] || [ "$EXPECTED" != "$ACTUAL" ]; then
+  echo "Error: checksum mismatch for ${URL}" >&2
+  exit 1
+fi
+tar xzf "$TMPDIR/pavise.tar.gz" -C "$TMPDIR"
 install -m 755 "$TMPDIR"/pavise-*/pavise "${INSTALL_DIR}/pavise" 2>/dev/null \
   || install -m 755 "$TMPDIR"/pavise "${INSTALL_DIR}/pavise"
 

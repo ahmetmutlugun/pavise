@@ -17,6 +17,8 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
           - target: aarch64-apple-darwin
             os: macos-latest
           - target: x86_64-apple-darwin
@@ -38,7 +40,7 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build release binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --locked --target ${{ matrix.target }} --bin pavise
 
       - name: Package
         shell: bash
@@ -49,11 +51,12 @@ jobs:
           cp "target/${{ matrix.target }}/release/pavise" "$staging/"
           cp LICENSE* README* "$staging/" 2>/dev/null || true
           tar czf "${staging}.tar.gz" "$staging"
+          shasum -a 256 "${staging}.tar.gz" > "${staging}.tar.gz.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
           name: pavise-${{ matrix.target }}
-          path: "*.tar.gz"
+          path: "*.tar.gz*"
 
   release:
     needs: build
@@ -65,5 +68,5 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: "*.tar.gz"
+          files: "*.tar.gz*"
           generate_release_notes: true

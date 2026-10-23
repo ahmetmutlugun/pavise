@@ -26,6 +26,9 @@ jobs:
             fuzz/target
           key: fuzz-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
       - run: cargo install cargo-fuzz --locked
+      # fuzz/ is its own workspace without a committed lockfile; resolve with the
+      # main lockfile so fuzzing tests the dependency versions pavise ships.
+      - run: cp Cargo.lock fuzz/Cargo.lock
       - name: Run ${{ matrix.target }} for 5 minutes
         run: cargo fuzz run ${{ matrix.target }} -- -max_total_time=300 -rss_limit_mb=4096
       - name: Upload crash artifacts

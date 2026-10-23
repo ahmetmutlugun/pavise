@@ -1,16 +1,16 @@
 [package]
-name = "pavise"
+name = "pavise-cli"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Fast static security analyzer for iOS IPA files"
 license = "MPL-2.0"
 repository = "https://github.com/ahmetmutlugun/pavise"
-homepage = "https://github.com/ahmetmutlugun/pavise"
+homepage = "https://pavise.app"
 readme = "README.md"
 keywords = ["ios", "ipa", "security", "static-analysis", "mobile"]
 categories = ["command-line-utilities", "development-tools"]
-exclude = ["tests/", "test-ipas/", "fuzz/", "*.ipa", ".github/", "examples/"]
+include = ["src/", "rules/", "data/", "templates/", "assets/", "build.rs", "LICENSE", "README.md"]
 
 [[bin]]
 name = "pavise"
@@ -44,9 +44,6 @@ goblin = { version = "0.8", default-features = false, features = ["std", "mach32
 
 # Plist parsing
 plist = "1"
-
-# XML parsing
-quick-xml = { version = "0.36", features = ["serialize"] }
 
 # CLI
 clap = { version = "4", features = ["derive"] }

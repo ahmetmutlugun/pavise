@@ -9,16 +9,16 @@ inputs:
     description: "Path to the IPA file to scan"
     required: true
   format:
-    description: "Output format: json, sarif, or html"
+    description: "Report format: sarif, json, html, or pdf (pdf needs Chrome on the runner)"
     default: "sarif"
   min-severity:
-    description: "Minimum severity to report: info, low, medium, high, critical"
+    description: "Lowest severity included in the report: high, warning, info, or secure"
     default: "info"
   fail-on:
-    description: "Fail if findings at this severity or above exist: info, low, medium, high, critical"
+    description: "Fail when a finding or secret at this severity or above exists: high, warning, info, or none"
     default: "high"
   version:
-    description: "Pavise version to use (e.g. v0.1.0). Defaults to latest."
+    description: "Pavise release tag (e.g. v0.1.0), or latest"
     default: "latest"
 
 outputs:
@@ -29,7 +29,7 @@ outputs:
     description: "Security grade (A-F)"
     value: ${{ steps.scan.outputs.grade }}
   findings-count:
-    description: "Total number of findings"
+    description: "Number of findings and secrets in the report"
     value: ${{ steps.scan.outputs.findings_count }}
   report-path:
     description: "Path to the generated report"
@@ -38,61 +38,96 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Download Pavise
+    - name: Install Pavise
       shell: bash
+      env:
+        REPO: ahmetmutlugun/pavise
+        VERSION: ${{ inputs.version }}
       run: |
-        if [ "${{ inputs.version }}" = "latest" ]; then
-          TAG=$(gh api repos/${{ github.repository_owner }}/pavise/releases/latest --jq .tag_name 2>/dev/null || echo "latest")
+        set -euo pipefail
+        if [ "$VERSION" = "latest" ]; then
+          # The /releases/latest redirect names the tag; no API token needed.
+          TAG=$(curl -fsSI "https://github.com/${REPO}/releases/latest" \
+            | tr -d '\r' | sed -n 's#^[Ll]ocation: .*/tag/##p')
         else
-          TAG="${{ inputs.version }}"
+          TAG="$VERSION"
         fi
+        [ -n "$TAG" ] || { echo "::error::Could not resolve the latest Pavise release"; exit 1; }
 
-        ARCH=$(uname -m)
-        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-        case "${OS}-${ARCH}" in
-          linux-x86_64)  TARGET="x86_64-unknown-linux-gnu" ;;
-          darwin-arm64)  TARGET="aarch64-apple-darwin" ;;
-          darwin-x86_64) TARGET="x86_64-apple-darwin" ;;
-          *) echo "Unsupported platform: ${OS}-${ARCH}"; exit 1 ;;
+        case "$(uname -s)-$(uname -m)" in
+          Linux-x86_64)   TARGET="x86_64-unknown-linux-gnu" ;;
+          Linux-aarch64)  TARGET="aarch64-unknown-linux-gnu" ;;
+          Darwin-arm64)   TARGET="aarch64-apple-darwin" ;;
+          Darwin-x86_64)  TARGET="x86_64-apple-darwin" ;;
+          *) echo "::error::Unsupported runner: $(uname -s)-$(uname -m)"; exit 1 ;;
         esac
 
-        URL="https://github.com/${{ github.repository_owner }}/pavise/releases/download/${TAG}/pavise-${TAG}-${TARGET}.tar.gz"
-        curl -fsSL "$URL" | tar xz
-        mv pavise-*/pavise /usr/local/bin/pavise || mv pavise /usr/local/bin/pavise
-        chmod +x /usr/local/bin/pavise
+        DIR="${RUNNER_TEMP}/pavise"
+        mkdir -p "$DIR"
+        curl -fsSL "https://github.com/${REPO}/releases/download/${TAG}/pavise-${TAG}-${TARGET}.tar.gz" \
+          | tar xz -C "$DIR" --strip-components=1
+        echo "$DIR" >> "$GITHUB_PATH"
+        "$DIR/pavise" --version
 
     - name: Run scan
       id: scan
       shell: bash
+      env:
+        IPA: ${{ inputs.ipa-path }}
+        FORMAT: ${{ inputs.format }}
+        MIN_SEVERITY: ${{ inputs.min-severity }}
       run: |
-        REPORT_PATH="pavise-report.${{ inputs.format }}"
+        set -uo pipefail
+        REPORT="pavise-report.${FORMAT}"
+        JSON="${RUNNER_TEMP}/pavise-report.json"
 
-        pavise "${{ inputs.ipa-path }}" \
-          --format "${{ inputs.format }}" \
-          --min-severity "${{ inputs.min-severity }}" \
-          --output "$REPORT_PATH" \
-          --json-summary /tmp/pavise-summary.json \
-          || true
+        # Exit 1 means high findings (handled by fail-on below); 2 is a scan error.
+        scan() {
+          pavise "$IPA" "$@"
+          code=$?
+          if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
+            echo "::error::Pavise could not scan ${IPA} (exit ${code})"
+            exit "$code"
+          fi
+        }
+        # The unfiltered JSON drives outputs and fail-on; the requested report
+        # is a second run (scans take about a second).
+        scan --format json --output "$JSON" --quiet
+        scan --format "$FORMAT" --min-severity "$MIN_SEVERITY" --output "$REPORT" --quiet
 
-        if [ -f /tmp/pavise-summary.json ]; then
-          echo "score=$(jq -r '.score' /tmp/pavise-summary.json)" >> "$GITHUB_OUTPUT"
-          echo "grade=$(jq -r '.grade' /tmp/pavise-summary.json)" >> "$GITHUB_OUTPUT"
-          echo "findings_count=$(jq -r '.findings_count' /tmp/pavise-summary.json)" >> "$GITHUB_OUTPUT"
-        fi
-        echo "report_path=${REPORT_PATH}" >> "$GITHUB_OUTPUT"
+        {
+          echo "score=$(jq -r '.security_score' "$JSON")"
+          echo "grade=$(jq -r '.grade' "$JSON")"
+          echo "findings_count=$(jq '(.findings | length) + (.secrets | length)' "$JSON")"
+          echo "report_path=${REPORT}"
+        } >> "$GITHUB_OUTPUT"
+
+        {
+          echo "### Pavise: $(jq -r '.app_info.name // "app"' "$JSON") — grade $(jq -r '.grade' "$JSON") ($(jq -r '.security_score' "$JSON")/100)"
+          echo
+          echo "| Severity | Findings | Secrets |"
+          echo "|---|---|---|"
+          for s in high warning info; do
+            echo "| $s | $(jq --arg s "$s" '[.findings[] | select(.severity == $s)] | length' "$JSON") | $(jq --arg s "$s" '[.secrets[] | select(.severity == $s)] | length' "$JSON") |"
+          done
+        } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Enforce fail-on threshold
       shell: bash
+      env:
+        FAIL_ON: ${{ inputs.fail-on }}
       run: |
-        SEVERITY_ORDER="info low medium high critical"
-        FAIL_ON="${{ inputs.fail-on }}"
-
-        if [ -f /tmp/pavise-summary.json ]; then
-          MAX_SEV=$(jq -r '.max_severity // "none"' /tmp/pavise-summary.json)
-          fail_idx=$(echo "$SEVERITY_ORDER" | tr ' ' '\n' | grep -n "^${FAIL_ON}$" | cut -d: -f1)
-          max_idx=$(echo "$SEVERITY_ORDER" | tr ' ' '\n' | grep -n "^${MAX_SEV}$" | cut -d: -f1)
-          if [ -n "$max_idx" ] && [ -n "$fail_idx" ] && [ "$max_idx" -ge "$fail_idx" ]; then
-            echo "::error::Pavise found findings at severity '${MAX_SEV}' which meets or exceeds fail-on threshold '${FAIL_ON}'"
-            exit 1
-          fi
+        set -euo pipefail
+        JSON="${RUNNER_TEMP}/pavise-report.json"
+        case "$FAIL_ON" in
+          none) exit 0 ;;
+          high) LEVELS='["high"]' ;;
+          warning) LEVELS='["high","warning"]' ;;
+          info) LEVELS='["high","warning","info"]' ;;
+          *) echo "::error::fail-on must be high, warning, info, or none (got '${FAIL_ON}')"; exit 1 ;;
+        esac
+        n=$(jq --argjson l "$LEVELS" '[(.findings[], .secrets[]) | select(.severity as $s | $l | index($s))] | length' "$JSON")
+        if [ "$n" -gt 0 ]; then
+          echo "::error::Pavise found ${n} finding(s) at or above '${FAIL_ON}'"
+          exit 1
         fi
