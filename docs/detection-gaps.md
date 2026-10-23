@@ -13,7 +13,9 @@ headers or source. `CCCrypt(kCCEncrypt, kCCAlgorithmDES, kCCOptionECBMode, …)`
 OpenSSL/BoringSSL ciphers are already covered by import name (QS-API-016 DES/3DES,
 QS-API-017 ECB).
 
-**Fix: arm64 call-site argument analysis** (a new `src/binary/callsites.rs`):
+**Fix: arm64 call-site argument analysis** (extend `src/binary/callsites.rs`, which since
+2026-10-05 already does steps 1–2 for caller attribution: `stub_sections`, `stub_targets`
+and the `BL`/`B` scan):
 1. Map `__stubs` entries to symbols using the indirect symbol table. Stub *i* is
    `indirect_symbols[section.reserved1 + i]` (LC_DYSYMTAB), with 12-byte stubs, or 16 bytes
    for arm64e `__auth_stubs`. This works for both chained fixups and DYLD_INFO, so it avoids

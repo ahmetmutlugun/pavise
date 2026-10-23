@@ -15,7 +15,7 @@ pub fn to_string(report: &ScanReport) -> Result<String> {
 
     let mut ctx = TeraContext::new();
     ctx.insert("report", report);
-    ctx.insert("version", env!("CARGO_PKG_VERSION"));
+    ctx.insert("version", crate::types::ScannerInfo::version_string());
 
     // Pre-compute severity counts so the template doesn't need filtering logic
     let high_count = count_severity(&report.findings, &Severity::High)

@@ -117,6 +117,7 @@ mod tests {
         grade: &str,
     ) -> ScanReport {
         ScanReport {
+            scanner: Default::default(),
             app_info: AppInfo::default(),
             file_hashes: FileHashes {
                 md5: String::new(),

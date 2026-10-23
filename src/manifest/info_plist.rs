@@ -31,6 +31,9 @@ struct IosPermissions {
 pub struct PlistAnalysisResult {
     pub app_info: AppInfo,
     pub findings: Vec<Finding>,
+    /// Hosts named in `NSAppTransportSecurity.NSExceptionDomains`: endpoints
+    /// the app declares, though written without a URL scheme.
+    pub ats_exception_domains: Vec<String>,
 }
 
 pub fn analyze(data: &[u8], rules_dir: Option<&std::path::Path>) -> Result<PlistAnalysisResult> {
@@ -153,7 +156,19 @@ pub fn analyze(data: &[u8], rules_dir: Option<&std::path::Path>) -> Result<Plist
         permissions,
     };
 
-    Ok(PlistAnalysisResult { app_info, findings })
+    let ats_exception_domains = dict
+        .get("NSAppTransportSecurity")
+        .and_then(|v| v.as_dictionary())
+        .and_then(|ats| ats.get("NSExceptionDomains"))
+        .and_then(|v| v.as_dictionary())
+        .map(|d| d.keys().map(|k| k.to_lowercase()).collect())
+        .unwrap_or_default();
+
+    Ok(PlistAnalysisResult {
+        app_info,
+        findings,
+        ats_exception_domains,
+    })
 }
 
 fn get_str<'a>(dict: &'a plist::Dictionary, key: &str) -> Option<&'a str> {
@@ -932,6 +947,19 @@ mod tests {
 </dict></plist>"#;
         let findings = ats_findings_from_plist(xml);
         assert!(ids(&findings).contains(&"QS-ATS-006"));
+    }
+
+    #[test]
+    fn test_ats_exception_domains_listed() {
+        let xml = r#"<plist version="1.0"><dict>
+    <key>CFBundleIdentifier</key><string>com.t</string>
+    <key>NSAppTransportSecurity</key><dict>
+    <key>NSExceptionDomains</key><dict>
+        <key>Api.Example.com</key><dict/>
+    </dict></dict>
+</dict></plist>"#;
+        let r = analyze(xml.as_bytes(), None).unwrap();
+        assert_eq!(r.ats_exception_domains, vec!["api.example.com"]);
     }
 
     #[test]

@@ -41,6 +41,10 @@ has ended. The code is in `src/resources/eol.rs` and the data in `data/eol/`.
 | react-native | `.jsbundle` | `major:0,minor:71,patch:4,prerelease` |
 | jquery, jquery-ui, bootstrap, vue, angularjs, ionic (v1), font-awesome | JS/CSS/HTML | license banners |
 
+Not EOL-tracked: `sca::sdk_versions` reads the Firebase iOS SDK release (`FIRFirebaseVersion()`
+literal, the `__cstring` entry after FIRTimestamp's format) as a `Firebase iOS SDK` component.
+Product plists such as FirebaseFirestoreInternal can lag it (12.4.0 vs 12.6.0).
+
 A bundled framework whose plist version is a placeholder takes the detected version.
 Other hits become their own component (`… (statically linked)` for Mach-O).
 

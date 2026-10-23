@@ -10,6 +10,21 @@ fn email_re() -> &'static Regex {
     })
 }
 
+static IANA_TLDS: OnceLock<HashSet<String>> = OnceLock::new();
+
+/// IANA root-zone TLDs (`data/tlds.txt`), lowercase. Protobuf and ObjC type
+/// names (`x@.envoy.config.cluster.v3`) end in labels that are not TLDs.
+fn iana_tlds() -> &'static HashSet<String> {
+    IANA_TLDS.get_or_init(|| {
+        include_str!("../../data/tlds.txt")
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .map(str::to_ascii_lowercase)
+            .collect()
+    })
+}
+
 /// Common noise TLDs that are actually file extensions or paths, not real TLDs.
 const FAKE_TLDS: &[&str] = &[
     "pb", "bin", "dat", "c", "h", "m", "mm", "cpp", "swift", "py", "js", "ts", "json", "xml",
@@ -79,9 +94,18 @@ fn is_valid_email(email: &str) -> bool {
         return false;
     }
 
-    // Real domains never contain consecutive dots; "host...thing" is binary noise
-    // (e.g. mangled Swift symbols) that slipped past the regex.
-    if domain.contains("..") {
+    // Every domain label must be a DNS label: non-empty (rejects a leading dot,
+    // as in protobuf names "2@.envoy.config…", and "host...thing" from mangled
+    // Swift symbols) and not starting or ending with '-'.
+    if !domain
+        .split('.')
+        .all(|l| !l.is_empty() && !l.starts_with('-') && !l.ends_with('-'))
+    {
+        return false;
+    }
+
+    // A dot at either end of the local part is invalid (RFC 5321).
+    if local.starts_with('.') || local.ends_with('.') {
         return false;
     }
 
@@ -97,8 +121,9 @@ fn is_valid_email(email: &str) -> bool {
             return false;
         }
 
-        // Reject known fake TLDs
-        if FAKE_TLDS.contains(&tld.to_lowercase().as_str()) {
+        // Reject known fake TLDs, and anything that is not a delegated TLD
+        let tld = tld.to_ascii_lowercase();
+        if FAKE_TLDS.contains(&tld.as_str()) || !iana_tlds().contains(&tld) {
             return false;
         }
     } else {
@@ -176,6 +201,20 @@ mod tests {
     fn test_rejects_consecutive_dots_domain() {
         let emails = extract_emails("foo@linkxshare...ushort", "App/MainBinary");
         assert!(emails.is_empty());
+    }
+
+    #[test]
+    fn test_rejects_protobuf_type_names() {
+        let text = "2@.envoy.config.cluster.v3.cluster.lbsubsetconfig.lbsubsetselectorr \
+                    x@envoy.config.cluster.v3.cluster \
+                    a@-bad.example.com b@bad-.example.com .c@example.com";
+        assert!(extract_emails(text, "App/MainBinary").is_empty());
+    }
+
+    #[test]
+    fn test_accepts_new_gtlds() {
+        let emails = extract_emails("hi@team.dev ops@brand.health", "App/MainBinary");
+        assert_eq!(emails.len(), 2, "{:?}", emails);
     }
 
     #[test]

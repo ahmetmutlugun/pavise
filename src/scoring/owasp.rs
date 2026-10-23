@@ -205,7 +205,8 @@ mod tests {
 
     #[test]
     fn get_task_allow_is_not_an_a() {
-        // Dev build: get-task-allow deducts; the development profile itself
+        // get-task-allow outside a development build (scan_ipa lowers it to
+        // Info for development profiles) deducts; the profile itself
         // (QS-PROV-001) only names the distribution channel.
         let findings = vec![
             make_finding("QS-ENT-001", Severity::High, "entitlements"),

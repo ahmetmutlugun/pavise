@@ -220,6 +220,27 @@ pub fn plist_key_values(data: &[u8]) -> Option<String> {
     Some(out)
 }
 
+/// Every string value of a plist (XML or binary), one per line. Raw binary
+/// plist bytes glue a string to the next object's bytes
+/// (`https://x.firebaseio.com[6453…`), so URL extraction reads these instead.
+pub fn plist_strings(data: &[u8]) -> Option<String> {
+    fn walk(value: &plist::Value, out: &mut String) {
+        match value {
+            plist::Value::Dictionary(d) => d.values().for_each(|v| walk(v, out)),
+            plist::Value::Array(items) => items.iter().for_each(|v| walk(v, out)),
+            plist::Value::String(s) => {
+                out.push_str(s);
+                out.push('\n');
+            }
+            _ => {}
+        }
+    }
+    let value = plist::Value::from_reader(std::io::Cursor::new(data)).ok()?;
+    let mut out = String::new();
+    walk(&value, &mut out);
+    Some(out)
+}
+
 /// Truncate `s` to at most `max_bytes` bytes, respecting UTF-8 char boundaries.
 fn truncate_str(s: &str, max_bytes: usize) -> &str {
     if s.len() <= max_bytes {

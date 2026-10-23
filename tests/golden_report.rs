@@ -39,6 +39,10 @@ fn fixture() -> tempfile::NamedTempFile {
 /// Zero timings and sort collections whose order is not meaningful.
 fn normalize(v: &mut Value) {
     v["scan_duration_ms"] = Value::from(0);
+    // The build's git commit changes with every commit.
+    if let Some(scanner) = v["scanner"].as_object_mut() {
+        scanner.remove("commit");
+    }
     if let Some(log) = v["scan_log"].as_array_mut() {
         for entry in log {
             entry["elapsed_ms"] = Value::from(0);

@@ -6,11 +6,13 @@ Fast iOS IPA static security analyzer
 
 ## Project Structure
 
-- **src/main.rs**: CLI (clap); scans IPAs only (`.apk` is rejected with exit 2)
+- **src/main.rs**: CLI (clap); scans IPAs only (`.apk` is rejected with exit 2); `--version` and the
+  report's `scanner` field carry the git commit from `build.rs` (`PAVISE_GIT_COMMIT` env without `.git`)
 - **src/lib.rs**: Orchestrator; `scan_ipa()` entry point
 - **src/unpacker/**: ZIP extraction, binary location, hashing
 - **src/manifest/**: Info.plist, entitlements, privacy manifest, provisioning profile parsing
-- **src/binary/**: Mach-O parsing (goblin 0.8), symbols, `__ustring`/ObjC class names
+- **src/binary/**: Mach-O parsing (goblin 0.8), symbols, `__ustring`/ObjC class names, arm64 call-site
+  attribution of risky imports to app code vs dependencies (`callsites.rs`)
 - **src/patterns/**: Regex scanning (secrets, trackers, URLs, emails)
 - **src/resources/**: Firebase config, cert classification, SCA
 - **src/scoring/**: severity × class scoring (`owasp.rs`); single rule-ID → OWASP 2024 / MASVS v2 table (`mapping.rs`)
@@ -23,7 +25,7 @@ Fast iOS IPA static security analyzer
 
 - [MobSF comparison](docs/mobsf-comparison.md): performance + accuracy vs MobSF on DVIA/Navic/VLC (2026-05-22)
 - [EOL library detection](docs/eol-data.md): banner-based library versions, endoflife.date snapshots in `data/eol/`, weekly refresh (2026-09-25)
-- [Finding attribution](docs/finding-attribution.md): library-vs-app API severity, URL/domain noise, OpenSSL EOL, sideload context (2026-09-25)
+- [Finding attribution](docs/finding-attribution.md): library-vs-app API severity, call-site attribution, URL/domain/email noise, dev-build and Firebase-key context (2026-10-05)
 
 ## Plans
 

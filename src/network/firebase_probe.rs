@@ -21,8 +21,8 @@ pub fn probe(info: &FirebaseInfo) -> Vec<Finding> {
     let mut findings = Vec::new();
 
     if let Some(url) = info.database_url.as_deref().and_then(rtdb_probe_url) {
-        if get_status(&agent, &url) == Some(200) {
-            findings.push(open_finding(
+        match get_status(&agent, &url) {
+            Some(200) => findings.push(open_finding(
                 "QS-FB-001",
                 "Firebase Realtime Database Publicly Readable",
                 "The app's Firebase Realtime Database answers unauthenticated reads. Its \
@@ -31,20 +31,34 @@ pub fn probe(info: &FirebaseInfo) -> Vec<Finding> {
                 &url,
                 "Restrict the database rules (e.g. `\".read\": \"auth != null\"` plus per-user \
                 paths) and audit what was exposed.",
-            ));
+            )),
+            Some(code @ (401 | 403)) => findings.push(closed_finding(
+                "QS-FB-001",
+                "Firebase Realtime Database Rejects Unauthenticated Reads",
+                &url,
+                code,
+            )),
+            _ => {}
         }
     }
 
     if let Some(url) = info.storage_bucket.as_deref().and_then(storage_probe_url) {
-        if get_status(&agent, &url) == Some(200) {
-            findings.push(open_finding(
+        match get_status(&agent, &url) {
+            Some(200) => findings.push(open_finding(
                 "QS-FB-002",
                 "Firebase Storage Bucket Publicly Listable",
                 "The app's Firebase Storage bucket lists its objects to unauthenticated \
                 clients. Its security rules allow public reads, exposing every uploaded file.",
                 &url,
                 "Require `request.auth != null` (and ownership checks) in the Storage rules.",
-            ));
+            )),
+            Some(code @ (401 | 403)) => findings.push(closed_finding(
+                "QS-FB-002",
+                "Firebase Storage Bucket Rejects Unauthenticated Listing",
+                &url,
+                code,
+            )),
+            _ => {}
         }
     }
     findings
@@ -110,6 +124,25 @@ fn open_finding(id: &str, title: &str, description: &str, url: &str, fix: &str) 
         owasp_masvs: None,
         evidence: vec![format!("GET {} -> HTTP 200 without credentials", url)],
         remediation: Some(fix.to_string()),
+    }
+}
+
+/// A probe the backend refused: evidence that its rules were checked.
+fn closed_finding(id: &str, title: &str, url: &str, code: u16) -> Finding {
+    Finding {
+        id: id.to_string(),
+        title: title.to_string(),
+        description: "An unauthenticated read-only request was refused, so the security \
+            rules do not allow public access at the root. Rules can still be too broad for \
+            signed-in users; review them in the Firebase console."
+            .to_string(),
+        severity: Severity::Secure,
+        category: "network".to_string(),
+        cwe: Some("CWE-284".to_string()),
+        owasp_mobile: Some("M8".to_string()),
+        owasp_masvs: None,
+        evidence: vec![format!("GET {} -> HTTP {} without credentials", url, code)],
+        remediation: None,
     }
 }
 

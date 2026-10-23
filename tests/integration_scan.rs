@@ -351,3 +351,49 @@ fn test_inline_key_survives_same_key_bundled_as_pem() {
     assert!(inline[0].ends_with("config.js"), "{inline:?}");
     assert!(report.findings.iter().any(|f| f.id == "QS-CERT-001"));
 }
+
+/// Serialize a string dictionary as a binary plist.
+fn binary_plist(pairs: &[(&str, &str)]) -> Vec<u8> {
+    let dict: plist::Dictionary = pairs
+        .iter()
+        .map(|(k, v)| (k.to_string(), plist::Value::String(v.to_string())))
+        .collect();
+    let mut out = Vec::new();
+    plist::to_writer_binary(&mut out, &plist::Value::Dictionary(dict)).unwrap();
+    out
+}
+
+#[test]
+fn test_binary_plist_urls_and_firebase_host_collected() {
+    // Raw binary-plist bytes glue a URL to the next object; the parsed values
+    // must still yield the host, and DATABASE_URL is a declared endpoint.
+    let google = binary_plist(&[
+        ("DATABASE_URL", "https://demo-12345.firebaseio.com"),
+        ("GCM_SENDER_ID", "64530857057"),
+        ("PROJECT_ID", "demo-12345"),
+    ]);
+    let strings = binary_plist(&[
+        ("help.link", "https://www.help-example.ch"),
+        ("help.title", "More"),
+        ("send.link", "https://send.vault-demo.io/#"),
+    ]);
+    let ipa = common::IpaBuilder::new("TestApp")
+        .add_bundle_file("GoogleService-Info.plist", google)
+        .add_bundle_file("en.lproj/Localizable.strings", strings)
+        .build();
+    let report = scan_ipa(ipa.path(), &default_opts()).unwrap();
+    let domains: Vec<&str> = report.domains.iter().map(|d| d.domain.as_str()).collect();
+    for host in [
+        "demo-12345.firebaseio.com",
+        "www.help-example.ch",
+        "send.vault-demo.io",
+    ] {
+        assert!(domains.contains(&host), "{host} missing from {domains:?}");
+    }
+    assert!(
+        !domains
+            .iter()
+            .any(|d| d.starts_with("www.help-example.ch") && *d != "www.help-example.ch"),
+        "glued host in {domains:?}"
+    );
+}

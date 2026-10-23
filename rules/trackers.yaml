@@ -1,3 +1,6 @@
+# Tracking SDKs only: analytics, ads, attribution, crash reporting, marketing.
+# Plain libraries (gRPC, Alamofire) are not trackers; SCA lists them as components.
+
 - name: "Google Firebase"
   categories:
     - Analytics
@@ -52,19 +55,6 @@
     - FirebaseCrashlytics
   objc_classes:
     - FIRCrashlytics
-
-- name: "gRPC (Google)"
-  categories:
-    - Networking
-  website: "https://grpc.io"
-  domains: []
-  framework_names:
-    - grpc
-    - grpcpp
-    - absl
-    - openssl_grpc
-  framework_prefixes:
-    - grpc
 
 - name: "Google Analytics"
   categories:

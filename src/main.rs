@@ -17,6 +17,7 @@ use pavise::{
 #[derive(Parser, Debug)]
 #[command(
     name = "pavise",
+    version = pavise::types::ScannerInfo::version_string(),
     about = "Fast mobile app static security analysis",
     long_about = "Pavise performs static security analysis on iOS IPA files.\nTargets sub-second scan times with comprehensive security coverage."
 )]
@@ -401,7 +402,7 @@ fn print_summary(report: &ScanReport, min_severity: &SeverityArg, verbose: bool)
     );
     if let Some(build) = sideload_build(report) {
         eprintln!(
-            "  {} {} build: signing, provisioning and encryption findings describe how it was distributed, not its code.",
+            "  {} {} build: signing, provisioning and encryption findings describe how it was distributed, not its code. Profile, encryption and development get-task-allow findings are not scored.",
             "Build:".dimmed(),
             build
         );

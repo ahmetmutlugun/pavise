@@ -339,6 +339,10 @@
       "step": "Scan complete"
     }
   ],
+  "scanner": {
+    "name": "pavise",
+    "version": "0.1.0"
+  },
   "secrets": [
     {
       "cwe": "CWE-798",

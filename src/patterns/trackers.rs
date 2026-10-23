@@ -88,21 +88,6 @@ impl TrackerDetector {
         hits
     }
 
-    /// SDK names detected from class signatures in the main binary, i.e.
-    /// linked statically rather than shipped as a framework.
-    pub fn statically_linked(
-        &self,
-        class_names: &[String],
-        framework_names: &[String],
-    ) -> Vec<String> {
-        let shipped = self.detect(&[], framework_names, &[]);
-        self.match_classes(class_names)
-            .into_iter()
-            .map(|(idx, _)| self.rules[idx].name.clone())
-            .filter(|name| !shipped.iter().any(|t| &t.name == name))
-            .collect()
-    }
-
     /// Detect trackers from domains, framework names and the main binary's
     /// ObjC class names.
     pub fn detect(

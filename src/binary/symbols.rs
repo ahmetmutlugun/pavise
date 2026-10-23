@@ -119,6 +119,62 @@ impl SymbolScanner {
     }
 }
 
+/// Name the modules that call each import in `findings` (from [`scan`] on
+/// the app's own executable `data`; see [`callsites`]). When every call site
+/// of every matched import is in a dependency (a pod, SwiftPM target or static
+/// library linked into the binary), severity drops one level, as for a
+/// bundled framework. Does nothing without a debug map.
+///
+/// [`scan`]: SymbolScanner::scan
+/// [`callsites`]: crate::binary::callsites
+pub fn attribute_callers(findings: &mut [Finding], data: &[u8]) {
+    let symbol_of = |e: &str| e.rsplit(": ").next().unwrap_or(e).to_string();
+    let wanted: Vec<String> = findings
+        .iter()
+        .flat_map(|f| f.evidence.iter().map(|e| symbol_of(e)))
+        .collect();
+    let wanted: Vec<&str> = wanted.iter().map(String::as_str).collect();
+    let Some(callers) = crate::binary::callsites::callers(data, &wanted) else {
+        return;
+    };
+    let app = callers.app_module.as_deref();
+    for f in findings {
+        let mut dependencies: Vec<&str> = Vec::new();
+        let mut only_dependencies = app.is_some();
+        for e in &mut f.evidence {
+            let Some(modules) = callers.by_symbol.get(&symbol_of(e)) else {
+                // No direct call found (function pointer, inlined thunk…).
+                only_dependencies = false;
+                continue;
+            };
+            let list: Vec<String> = modules
+                .iter()
+                .map(|(m, n)| {
+                    if Some(m.as_str()) == app {
+                        only_dependencies = false;
+                        format!("{} (app code) ×{}", m, n)
+                    } else {
+                        dependencies.push(m);
+                        format!("{} ×{}", m, n)
+                    }
+                })
+                .collect();
+            e.push_str(&format!(" — called from {}", list.join(", ")));
+        }
+        if only_dependencies && !dependencies.is_empty() {
+            dependencies.sort_unstable();
+            dependencies.dedup();
+            f.severity = demote(f.severity.clone());
+            f.description.push_str(&format!(
+                " Every call site is in statically linked dependency code ({}), not the \
+                app's own code, so severity is lowered. Update or replace the dependency \
+                rather than changing app code.",
+                dependencies.join(", ")
+            ));
+        }
+    }
+}
+
 /// Who wrote the binary whose imports are scanned.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Origin {
@@ -162,5 +218,33 @@ mod tests {
         let app = scanner.scan(&imports, "Payload/UTM.app/UTM", Origin::App);
         assert_eq!(app[0].severity, Severity::High);
         assert_eq!(app[0].evidence, ["UTM: _DES_set_key"]);
+    }
+
+    #[test]
+    fn dependency_only_calls_lower_severity() {
+        let f = |evidence: &[&str]| Finding {
+            id: "QS-API-001".into(),
+            title: String::new(),
+            description: "Binary App imports.".into(),
+            severity: Severity::Warning,
+            category: "binary".into(),
+            cwe: None,
+            owasp_mobile: None,
+            owasp_masvs: None,
+            evidence: evidence.iter().map(|e| e.to_string()).collect(),
+            remediation: None,
+        };
+        let data = crate::binary::callsites::tests_support::macho_with_calls();
+        // _rand is only called from Dep; _strcpy also from the app's code.
+        let mut findings = vec![f(&["App: _rand"]), f(&["App: _rand", "App: _strcpy"])];
+        attribute_callers(&mut findings, &data);
+        assert_eq!(findings[0].severity, Severity::Info);
+        assert_eq!(findings[0].evidence, ["App: _rand — called from Dep ×1"]);
+        assert!(findings[0].description.contains("(Dep)"));
+        assert_eq!(findings[1].severity, Severity::Warning);
+        assert_eq!(
+            findings[1].evidence[1],
+            "App: _strcpy — called from App (app code) ×1, Dep ×1"
+        );
     }
 }

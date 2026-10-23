@@ -66,15 +66,35 @@ pub fn extract_components(
     Ok(components)
 }
 
-/// Component for an SDK detected by class signature inside the main binary.
-pub fn static_component(name: String, main_binary_path: &str) -> FrameworkComponent {
-    FrameworkComponent {
-        name,
-        bundle_id: None,
-        version: None,
-        path: format!("{} (statically linked)", main_binary_path),
-        source_url: None,
+/// SDK versions compiled into a Mach-O that have no end-of-life data (so they
+/// are not `eol` detectors) but name the release an app depends on.
+///
+/// Firebase: FirebaseCore's `FIRFirebaseVersion()` returns a bare literal
+/// (`12.6.0`). FIRVersion.o links right after FIRTimestamp.o, so the literal is
+/// the `__cstring` entry after FIRTimestamp's description format. A product's
+/// own framework plist (e.g. FirebaseFirestoreInternal 12.4.0) can lag the SDK
+/// release, so both are listed.
+pub fn sdk_versions(text: &str, path: &str) -> Vec<LibraryVersion> {
+    const FIR_ANCHOR: &str = "<FIRTimestamp: seconds=%lld nanoseconds=%d>\n";
+    let Some(i) = text.find(FIR_ANCHOR) else {
+        return Vec::new();
+    };
+    let next = text[i + FIR_ANCHOR.len()..].lines().next().unwrap_or("");
+    let parts: Vec<&str> = next.split('.').collect();
+    let is_version = parts.len() == 3
+        && parts
+            .iter()
+            .all(|p| (1..=3).contains(&p.len()) && p.bytes().all(|b| b.is_ascii_digit()));
+    if !is_version {
+        return Vec::new();
     }
+    vec![LibraryVersion {
+        path: path.to_string(),
+        product: "firebase-ios-sdk",
+        library: "Firebase iOS SDK",
+        version: next.to_string(),
+        native: true,
+    }]
 }
 
 /// Extract dependency components from CocoaPods `Podfile.lock` and SPM
@@ -319,6 +339,19 @@ mod tests {
         assert_eq!(comps[0].name, "crypto.1.1 (OpenSSL)");
         assert_eq!(comps[0].version.as_deref(), Some("1.1.1k"));
         assert_eq!(comps[1].path, "Payload/U.app/U (statically linked)");
+    }
+
+    #[test]
+    fn firebase_sdk_version_follows_fir_timestamp() {
+        let text = "x\n<FIRTimestamp: seconds=%lld nanoseconds=%d>\n11.14.0\nFBLPromise+All.m\n";
+        let found = sdk_versions(text, "Payload/B.app/B");
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].version, "11.14.0");
+        assert_eq!(found[0].library, "Firebase iOS SDK");
+
+        // Anything else after the anchor is not a version.
+        let text = "<FIRTimestamp: seconds=%lld nanoseconds=%d>\nFBLPromise+All.m\n11.14.0\n";
+        assert!(sdk_versions(text, "Payload/B.app/B").is_empty());
     }
 
     #[test]

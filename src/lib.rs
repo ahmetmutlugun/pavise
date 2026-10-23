@@ -20,7 +20,7 @@ use std::time::Instant;
 use tracing::{debug, info, span, Level};
 
 use crate::binary::macho;
-use crate::binary::symbols::{Origin, SymbolScanner};
+use crate::binary::symbols::{self, Origin, SymbolScanner};
 use crate::manifest::{entitlements, info_plist, provisioning};
 use crate::patterns::{
     ciphers,
@@ -219,6 +219,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     };
 
     let app_info = plist_result.app_info;
+    let ats_exception_domains = plist_result.ats_exception_domains;
     let mut all_findings: Vec<Finding> = plist_result.findings;
     let ats_finding_count = all_findings
         .iter()
@@ -254,8 +255,9 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
             if let (Some(bin_file), Some(bin_data)) = (main_binary, main_data.as_deref()) {
                 match macho::analyze(bin_data, &bin_file.path) {
                     Ok(result) => {
-                        let sym_findings =
+                        let mut sym_findings =
                             symbol_scanner.scan(&result.api_imports(), bin_path, Origin::App);
+                        symbols::attribute_callers(&mut sym_findings, bin_data);
                         let mut findings = result.findings;
                         findings.extend(sym_findings);
                         (Some(result.binary_info), findings, result.imports)
@@ -557,6 +559,52 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         .transpose()?
         .and_then(|data| firebase::parse_google_service_info(&data));
 
+    // Hosts the app's config declares without a URL scheme, which the
+    // scheme-scoped string scan never collects: ATS exception domains and the
+    // Firebase Realtime Database host.
+    {
+        let info_plist = format!(
+            "{}/Info.plist",
+            unpacked.bundle_prefix.as_deref().unwrap_or("Payload")
+        );
+        let mut declared: Vec<DomainInfo> = ats_exception_domains
+            .iter()
+            .map(|d| DomainInfo {
+                domain: d.clone(),
+                context: info_plist.clone(),
+            })
+            .collect();
+        if let Some(fb) = &firebase_info {
+            let fb_path = unpacked
+                .archive
+                .find("GoogleService-Info.plist")
+                .map(|f| f.path.clone())
+                .unwrap_or_default();
+            let db_host = fb
+                .database_url
+                .as_deref()
+                .and_then(|u| u.split("://").nth(1))
+                .and_then(|r| r.split(['/', '?', '#', ':']).next());
+            // The Storage bucket is a bucket name, not a host the app calls.
+            if let Some(host) = db_host {
+                declared.push(DomainInfo {
+                    domain: host.to_lowercase(),
+                    context: fb_path.clone(),
+                });
+            }
+        }
+        for d in declared {
+            let valid = d.domain.contains('.')
+                && d.domain
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-.".contains(&b));
+            if valid && !all_domains.iter().any(|e| e.domain == d.domain) {
+                all_domains.push(d);
+            }
+        }
+        all_domains.sort_by(|a, b| a.domain.cmp(&b.domain));
+    }
+
     // 3d-ii. Scan parsed plists as `Key = "Value"` lines. The raw string scan
     // above can't match key/value rules: XML puts key and value in separate
     // elements and binary plists store them as unrelated byte runs.
@@ -841,15 +889,10 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     let lockfile_count = lockfile_components.len();
     framework_components.extend(lockfile_components);
 
-    // 3f-ii. SDKs linked statically into the main binary have no framework
-    // bundle; list them from their ObjC class signatures (version unknown).
-    let static_sdks = tracker_detector.statically_linked(&main_classes, &framework_names);
-    let main_path = unpacked.main_binary_path.as_deref().unwrap_or_default();
-    framework_components.extend(
-        static_sdks
-            .into_iter()
-            .map(|name| resources::sca::static_component(name, main_path)),
-    );
+    // SDKs linked statically into the main binary (no framework bundle) are
+    // reported under `trackers` from their ObjC class signatures. They stay out
+    // of the component list: it holds only entries with a name and version
+    // source, and an SDK detected by class name has neither.
 
     // 3f-iii. Versions from library banners (bundled frameworks' plists often
     // carry a template `1.0`) and embedded Python, then end-of-life lines.
@@ -987,6 +1030,26 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         ));
     }
 
+    // Development-signed build: Xcode always grants get-task-allow with a
+    // development profile, so the entitlement describes how the IPA was
+    // exported, not a release misconfiguration. Report it as context (unscored,
+    // no exit code 1). Ad-hoc/enterprise/App Store builds keep it High.
+    if provisioning_info
+        .as_ref()
+        .is_some_and(|p| p.profile_type == "development")
+    {
+        for f in all_findings.iter_mut().filter(|f| f.id == "QS-ENT-001") {
+            f.severity = Severity::Info;
+            f.title = "get-task-allow Enabled (development build)".to_string();
+            f.description = format!(
+                "{} This IPA is signed with a development profile, which always grants \
+                get-task-allow, so the finding reflects how it was exported. Scan the \
+                App Store or ad-hoc build to check the release configuration.",
+                f.description
+            );
+        }
+    }
+
     // ------------------------------------------------------------------ //
     // 4. Network domain intelligence (optional — requires --network flag)
     // ------------------------------------------------------------------ //
@@ -1049,8 +1112,15 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         if let Some(ref fb) = firebase_info {
             let fb_findings = network::firebase_probe::probe(fb);
             log.record(format!(
-                "Firebase probes: {} publicly readable backends",
-                fb_findings.len()
+                "Firebase probes: {} publicly readable, {} refused unauthenticated access",
+                fb_findings
+                    .iter()
+                    .filter(|f| f.severity == Severity::High)
+                    .count(),
+                fb_findings
+                    .iter()
+                    .filter(|f| f.severity == Severity::Secure)
+                    .count()
             ));
             all_findings.extend(fb_findings);
         }
@@ -1130,6 +1200,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     );
 
     Ok(ScanReport {
+        scanner: types::ScannerInfo::current(),
         app_info,
         file_hashes: unpacked.hashes,
         main_binary: main_binary_result,
@@ -1186,6 +1257,10 @@ fn scan_strings(
     if let Some(scope) = eol::scope_of(&f.path, is_macho(data)) {
         out.libraries = eol::detect(&text, &f.path, scope);
     }
+    if is_macho(data) {
+        out.libraries
+            .extend(resources::sca::sdk_versions(&text, &f.path));
+    }
     let mut secrets = pattern_engine.scan(&text, &f.path);
 
     // Entropy-based detection only on text-like files.
@@ -1224,6 +1299,11 @@ fn scan_strings(
             domains: Vec::new(),
             findings: Vec::new(),
         }
+    } else if data.starts_with(b"bplist") {
+        // Binary plists (incl. compiled `.strings`): read the parsed values,
+        // since raw runs glue a URL to the next object's bytes.
+        let values = patterns::engine::plist_strings(data);
+        urls::extract(values.as_deref().unwrap_or(&text), &f.path)
     } else {
         urls::extract(&text, &f.path)
     };
@@ -1293,7 +1373,8 @@ fn analyze_extension(
             return None;
         }
     };
-    let api_findings = scanner.scan(&result.api_imports(), path, Origin::App);
+    let mut api_findings = scanner.scan(&result.api_imports(), path, Origin::App);
+    symbols::attribute_callers(&mut api_findings, data);
     let mut findings = result.findings;
     findings.extend(api_findings);
     if let Some(ent) = entitlements::extract_from_binary(data) {

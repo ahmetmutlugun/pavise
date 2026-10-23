@@ -32,6 +32,7 @@ fn make_report(
 ) -> ScanReport {
     let owasp_summary = make_owasp_summary(&findings);
     ScanReport {
+        scanner: Default::default(),
         app_info: AppInfo::default(),
         file_hashes: FileHashes {
             md5: "d41d8cd98f00b204e9800998ecf8427e".to_string(),

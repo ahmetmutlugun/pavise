@@ -176,9 +176,47 @@ pub struct FirebaseInfo {
     pub storage_bucket: Option<String>,
 }
 
+/// The pavise build that produced a report, so a report kept as evidence
+/// names the exact scanner.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScannerInfo {
+    pub name: String,
+    pub version: String,
+    /// Short git commit of the build; absent when built outside a checkout.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit: Option<String>,
+}
+
+impl ScannerInfo {
+    pub fn current() -> Self {
+        let commit = env!("PAVISE_GIT_COMMIT");
+        ScannerInfo {
+            // The crates.io package is `pavise-cli`; the tool is `pavise`.
+            name: "pavise".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            commit: (!commit.is_empty()).then(|| commit.to_string()),
+        }
+    }
+
+    /// `0.1.0 (caeee79)`, or `0.1.0` without a commit.
+    pub fn version_string() -> &'static str {
+        static VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        VERSION.get_or_init(|| {
+            let info = Self::current();
+            match info.commit {
+                Some(c) => format!("{} ({})", info.version, c),
+                None => info.version,
+            }
+        })
+    }
+}
+
 /// Complete results of an IPA security scan.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanReport {
+    /// Scanner build; empty in reports written before this field existed.
+    #[serde(default)]
+    pub scanner: ScannerInfo,
     pub app_info: AppInfo,
     pub file_hashes: FileHashes,
     pub main_binary: Option<BinaryInfo>,

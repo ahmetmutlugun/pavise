@@ -228,7 +228,7 @@ pub fn build(r: &ScanReport, limits: &Limits) -> View {
         .collect();
 
     View {
-        version: env!("CARGO_PKG_VERSION"),
+        version: crate::types::ScannerInfo::version_string(),
         generated: utc_date(SystemTime::now()),
         app: app_view(r),
         grade: clip(&r.grade, 2),
@@ -678,7 +678,7 @@ fn facts(r: &ScanReport) -> Vec<Fact> {
         value: format!(
             "{} ms · Pavise {}",
             r.scan_duration_ms,
-            env!("CARGO_PKG_VERSION")
+            crate::types::ScannerInfo::version_string()
         ),
         mono: false,
     });

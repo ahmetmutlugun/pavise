@@ -16,8 +16,8 @@ const BANDS: &[(&str, &[&str], &str)] = &[
     ("SwissCovid__", &["A", "B"], "audited government app"),
     (
         "zydeco__minivmac4ios",
-        &["C", "D"],
-        "dev build with get-task-allow",
+        &["B", "C"],
+        "dev build: get-task-allow is unscored context",
     ),
     (
         "Provenance-Emu__",

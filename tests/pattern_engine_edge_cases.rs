@@ -359,14 +359,6 @@ fn test_tracker_detection_by_objc_class() {
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].name, "Google Firebase");
     assert!(results[0].detection_evidence.contains("FIRApp"));
-    // Statically linked only when no framework already accounts for it.
-    assert_eq!(
-        detector.statically_linked(&classes, &[]),
-        vec!["Google Firebase"]
-    );
-    assert!(detector
-        .statically_linked(&classes, &["FirebaseCore".to_string()])
-        .is_empty());
 }
 
 // ------------------------------------------------------------------ //

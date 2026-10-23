@@ -137,8 +137,9 @@ fn is_reference_url(host: &str, path: &str, url: &str) -> bool {
         || file.ends_with("/ns")
         || file.starts_with("/ns/")
         || file.contains("/xmlns")
-        // `http://json-schema.org/schema#`-style namespace identifiers
-        || url.ends_with('#')
+        // `http://json-schema.org/schema#`-style namespace identifiers;
+        // `https://send.bitwarden.com/#` is a page (empty path).
+        || (url.ends_with('#') && !file.trim_end_matches('/').is_empty())
         // `/licenses/LICENSE-2.0`, `/COPYING.txt`; `/license/verify` is an API.
         || path.starts_with("/licenses/")
         || ["license", "copying"].iter().any(|n| {
@@ -158,7 +159,9 @@ fn is_noise_url(url: &str) -> bool {
         .strip_prefix("http://")
         .or_else(|| url.strip_prefix("https://"))
         .unwrap_or("");
-    let split = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    // `[`/`]` end the host as in `extract_domain_from_url`: a byte glued
+    // after it (`x.firebaseio.com[6453…`) must not invalidate the host.
+    let split = rest.find(['/', '?', '#', '[', ']']).unwrap_or(rest.len());
     let (authority, path) = rest.split_at(split);
     let host = authority
         .rsplit('@')
@@ -307,6 +310,22 @@ fn extract_domain_from_url(url: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trailing_hash_is_namespace_only_with_a_path() {
+        assert!(is_noise_url("http://json-schema.org/schema#"));
+        assert!(!is_noise_url("https://send.bitwarden.com/#"));
+    }
+
+    #[test]
+    fn bracket_glued_after_host_keeps_url() {
+        let r = extract(
+            "https://demo.firebaseio.com[6453_",
+            "GoogleService-Info.plist",
+        );
+        assert_eq!(r.domains.len(), 1);
+        assert_eq!(r.domains[0].domain, "demo.firebaseio.com");
+    }
 
     #[test]
     fn test_https_not_flagged() {
