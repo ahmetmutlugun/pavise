@@ -121,7 +121,7 @@ fn unpack_entries(file: std::fs::File, max_total: u64) -> Result<Entries> {
         let entry = zip
             .by_index_raw(index)
             .context("Failed to read ZIP entry")?;
-        let name = entry_name(&entry);
+        let name = entry_name(entry.name_raw(), entry.name());
         let (size, compressed) = (entry.size(), entry.compressed_size());
         drop(entry);
         names.push(name.clone());
@@ -225,11 +225,12 @@ fn hash_file(mut file: std::fs::File) -> std::io::Result<FileHashes> {
 /// Entry name, preferring the raw bytes when they are valid UTF-8. Entries
 /// without the ZIP UTF-8 flag are decoded as CP437 by `name()`, which mangles
 /// non-ASCII bundle names (e.g. Hebrew) so the executable named in Info.plist
-/// is never found.
-fn entry_name(entry: &zip::read::ZipFile<'_>) -> String {
-    match std::str::from_utf8(entry.name_raw()) {
+/// is never found. Takes both names rather than the `ZipFile`, whose generics
+/// changed within zip 2.x (2.6 added a reader parameter).
+fn entry_name(raw: &[u8], decoded: &str) -> String {
+    match std::str::from_utf8(raw) {
         Ok(s) => s.to_string(),
-        Err(_) => entry.name().to_string(),
+        Err(_) => decoded.to_string(),
     }
 }
 
