@@ -2,7 +2,7 @@
 name = "pavise-cli"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.88"
 description = "Fast static security analyzer for iOS IPA files"
 license = "MPL-2.0"
 repository = "https://github.com/ahmetmutlugun/pavise"

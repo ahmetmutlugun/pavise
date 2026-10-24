@@ -31,6 +31,7 @@ Fast iOS IPA static security analyzer
 
 - [Backend remediation plan](docs/remediation-plan.md): scoring, false positives, server hardening, gaps (2026-09-24)
 - [Deferred detection gaps](docs/detection-gaps.md): CCCrypt call-site analysis (CRYPTO-001…006), hash-based pinning (API-023) (2026-09-25)
+- [Releasing](docs/releasing.md): tag → binaries + checksums, Homebrew tap, crates.io `pavise-cli`, Action asset names (2026-10-23)
 - [Railway deploy](docs/deploy-railway.md): config, env sizing, CPU/memory measurements (2026-09-25)
 
 ## Private Test Suite
