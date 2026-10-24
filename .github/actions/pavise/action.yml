@@ -82,9 +82,11 @@ runs:
         JSON="${RUNNER_TEMP}/pavise-report.json"
 
         # Exit 1 means high findings (handled by fail-on below); 2 is a scan error.
+        # GitHub runs composite bash steps with -e, so capture the exit code
+        # instead of letting exit 1 (high findings) end the step.
         scan() {
-          pavise "$IPA" "$@"
-          code=$?
+          code=0
+          pavise "$IPA" "$@" || code=$?
           if [ "$code" -ne 0 ] && [ "$code" -ne 1 ]; then
             echo "::error::Pavise could not scan ${IPA} (exit ${code})"
             exit "$code"
