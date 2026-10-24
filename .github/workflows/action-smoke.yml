@@ -1,0 +1,62 @@
+name: Action smoke test
+
+# Runs the published GitHub Action against a real open-source IPA on each
+# runner type, so a broken download, flag or threshold fails here first.
+on:
+  push:
+    branches: [main]
+    paths: [".github/actions/**", ".github/workflows/action-smoke.yml", "install.sh"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Sora 1.2.0 (open source, ~3 MB) has high-severity findings.
+      - name: Fetch test IPA
+        run: curl -fsSL -o Sora.ipa https://github.com/cranci1/Sora/releases/download/1.2.0/Sora.ipa
+
+      - name: Scan without a threshold
+        id: report
+        uses: ./.github/actions/pavise
+        with:
+          ipa-path: Sora.ipa
+          format: sarif
+          fail-on: none
+
+      - name: Check outputs
+        env:
+          SCORE: ${{ steps.report.outputs.score }}
+          GRADE: ${{ steps.report.outputs.grade }}
+          COUNT: ${{ steps.report.outputs.findings-count }}
+          REPORT: ${{ steps.report.outputs.report-path }}
+        run: |
+          echo "score=$SCORE grade=$GRADE findings=$COUNT report=$REPORT"
+          [ "$SCORE" -ge 0 ] && [ "$SCORE" -le 100 ]
+          [[ "$GRADE" =~ ^[A-F]$ ]]
+          [ "$COUNT" -gt 0 ]
+          jq -e '.version == "2.1.0" and (.runs[0].results | length) > 0' "$REPORT"
+
+      - name: Scan with fail-on high
+        id: gate
+        continue-on-error: true
+        uses: ./.github/actions/pavise
+        with:
+          ipa-path: Sora.ipa
+          fail-on: high
+
+      - name: The gate must fail on high findings
+        run: '[ "${{ steps.gate.outcome }}" = "failure" ]'
+
+      - name: install.sh
+        run: |
+          PAVISE_INSTALL_DIR="$RUNNER_TEMP/bin" sh -c 'mkdir -p "$PAVISE_INSTALL_DIR" && sh install.sh'
+          "$RUNNER_TEMP/bin/pavise" --version
