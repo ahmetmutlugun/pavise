@@ -19,8 +19,11 @@ case "${OS}-${ARCH}" in
     ;;
 esac
 
-# Get latest tag
-TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | cut -d'"' -f4)
+# Latest tag from the /releases/latest redirect (the REST API allows only 60
+# unauthenticated requests per hour per IP, which shared CI runners and office
+# NATs exhaust). PAVISE_VERSION=v0.1.1 pins a release.
+TAG="${PAVISE_VERSION:-$(curl -fsSI "https://github.com/${REPO}/releases/latest" \
+  | tr -d '\r' | sed -n 's#^[Ll]ocation: .*/tag/##p')}"
 if [ -z "$TAG" ]; then
   echo "Error: could not determine latest release" >&2
   exit 1
