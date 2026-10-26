@@ -340,8 +340,7 @@
     }
   ],
   "scanner": {
-    "name": "pavise",
-    "version": "0.1.0"
+    "name": "pavise"
   },
   "secrets": [
     {

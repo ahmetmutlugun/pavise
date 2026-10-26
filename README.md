@@ -13,8 +13,8 @@ Fast static security analysis for iOS IPA files. Sub-second scans with comprehen
 ## Quick Start
 
 ```bash
-# Install (Rust 1.75+; builds in about a minute)
-cargo install --locked --git https://github.com/ahmetmutlugun/pavise --bin pavise
+# Install (macOS and Linux, arm64 and x86_64)
+brew install ahmetmutlugun/tap/pavise
 
 # Scan
 pavise app.ipa
@@ -23,7 +23,15 @@ pavise app.ipa
 pavise app.ipa --format html -o report.html
 ```
 
-Or build from a checkout: `cargo build --release`, then run `target/release/pavise`.
+Without Homebrew, the install script downloads the prebuilt binary for your platform and verifies
+its checksum (installs to `/usr/local/bin`; set `PAVISE_INSTALL_DIR` to change it):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ahmetmutlugun/pavise/main/install.sh | sh
+```
+
+Binaries for each release are on the [releases page](https://github.com/ahmetmutlugun/pavise/releases).
+To build from source (Rust 1.88+): `cargo install --locked --git https://github.com/ahmetmutlugun/pavise --bin pavise`.
 PDF output (`--format pdf`) needs Chrome or Chromium installed.
 
 Or use Docker (linux/amd64 and linux/arm64; the image also serves the web UI by default):
@@ -60,14 +68,18 @@ pavise app.ipa --quiet                           # Score line only
 ## CI/CD
 
 ```yaml
-- uses: ahmetmutlugun/pavise/.github/actions/pavise@main
+- uses: ahmetmutlugun/pavise/.github/actions/pavise@v0.1.1
   with:
     ipa-path: build/App.ipa
-    format: sarif
-    fail-on: high
+    format: sarif          # sarif | json | html | pdf
+    fail-on: high          # high | warning | info | none
 ```
 
-Exit codes: `0` clean, `1` high-severity findings, `2` scan error.
+The step writes a grade and severity table to the job summary and exposes `score`, `grade`,
+`findings-count` and `report-path` outputs. Upload the SARIF with `github/codeql-action/upload-sarif`
+to see findings in GitHub Code Scanning. Runs on Linux and macOS runners (x86_64 and arm64).
+
+CLI exit codes: `0` clean, `1` high-severity findings, `2` scan error.
 
 ## Custom Rules
 
