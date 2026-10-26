@@ -23,6 +23,8 @@ TIMINGS="$RUNS/_timings.tsv"
 LOG="$RUNS/_run.log"
 
 PAVISE_BIN="${PAVISE_BIN:-$ROOT/../target/release/pavise}"
+# Extra pavise flags; PAVISE_ARGS="--verbose" times the offline static scan only.
+PAVISE_ARGS="${PAVISE_ARGS:---network --verbose}"
 MOBSF_URL="${MOBSF_URL:-http://localhost:8000}"
 MOBSF_API="${MOBSF_API:?set MOBSF_API to the REST API key}"
 
@@ -66,7 +68,8 @@ run_pavise() {
   t0=$(perl -MTime::HiRes=time -e 'printf "%.3f\n", time')
   # Pavise uses exit 1 to signal "completed, high findings present", and exit 2
   # for actual errors. Accept 0 or 1 as success; only 2+ is a real failure.
-  "$PAVISE_BIN" --network --verbose -f json -o "$out" "$ipa" 2> "$err"
+  # shellcheck disable=SC2086 # PAVISE_ARGS is a flag list
+  "$PAVISE_BIN" $PAVISE_ARGS -f json -o "$out" "$ipa" 2> "$err"
   local rc=$?
   t1=$(perl -MTime::HiRes=time -e 'printf "%.3f\n", time')
   if [ "$rc" -le 1 ] && [ -f "$out" ]; then
