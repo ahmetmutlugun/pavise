@@ -186,7 +186,7 @@ mod tests {
     fn binary_der_is_public_cert() {
         // DER SEQUENCE header (0x30 0x82 len len ...).
         let mut der = vec![0x30, 0x82, 0x01, 0x00];
-        der.extend(std::iter::repeat(0xAB).take(64));
+        der.extend(std::iter::repeat_n(0xAB, 64));
         assert_eq!(
             classify("anchor.der", &der),
             Some(CertKind::PublicCertificate)
@@ -207,7 +207,7 @@ mod tests {
     #[test]
     fn bare_der_key_file_is_private() {
         let mut key = vec![0x30, 0x82, 0x04, 0xA4];
-        key.extend(std::iter::repeat(0x42).take(64));
+        key.extend(std::iter::repeat_n(0x42, 64));
         assert_eq!(classify("priv.key", &key), Some(CertKind::PrivateKey));
         assert_eq!(
             classify("AuthKey_ABC123.p8", &key),
@@ -220,14 +220,14 @@ mod tests {
     #[test]
     fn keynote_key_file_is_not_a_private_key() {
         let mut keynote = b"PK\x03\x04".to_vec();
-        keynote.extend(std::iter::repeat(0x42).take(64));
+        keynote.extend(std::iter::repeat_n(0x42, 64));
         assert_eq!(classify("Presentation.key", &keynote), None);
     }
 
     #[test]
     fn java_keystore_by_magic() {
         let mut jks = vec![0xFE, 0xED, 0xFE, 0xED, 0, 0, 0, 2];
-        jks.extend(std::iter::repeat(0).take(32));
+        jks.extend(std::iter::repeat_n(0, 32));
         assert_eq!(
             classify("release.jks", &jks),
             Some(CertKind::EncryptedKeystore)

@@ -962,8 +962,10 @@ fn text_section(data: &[u8], name: &str) -> Vec<u8> {
 pub fn ustrings(data: &[u8]) -> Vec<String> {
     let sec = text_section(data, "__ustring");
     let units: Vec<u16> = sec
-        .chunks_exact(2)
-        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| u16::from_le_bytes(*c))
         .collect();
     units
         .split(|&u| u == 0)

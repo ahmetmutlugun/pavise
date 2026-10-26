@@ -74,8 +74,8 @@ fn callers_in(macho: &MachO, data: &[u8], wanted: &[&str]) -> Option<Callers> {
     if stubs.is_empty() {
         return Some(out);
     }
-    for (i, word) in bytes.chunks_exact(4).enumerate() {
-        let ins = u32::from_le_bytes([word[0], word[1], word[2], word[3]]);
+    for (i, word) in bytes.as_chunks::<4>().0.iter().enumerate() {
+        let ins = u32::from_le_bytes(*word);
         // BL (0x94…) and B (0x14…, tail calls) with a signed 26-bit word offset.
         if ins & 0x7c00_0000 != 0x1400_0000 {
             continue;

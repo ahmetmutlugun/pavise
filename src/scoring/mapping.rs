@@ -133,7 +133,7 @@ mod tests {
         for id in ids {
             let (cat, masvs) = owasp_for(id).unwrap_or_else(|| panic!("{} unmapped", id));
             assert!(cat.starts_with('M'));
-            assert!(masvs.map_or(true, |m| m.starts_with("MASVS-")), "{}", id);
+            assert!(masvs.is_none_or(|m| m.starts_with("MASVS-")), "{}", id);
         }
         // Every rule in the embedded YAML rule sets is mapped too.
         for (name, content) in crate::rules::RULE_FILES {

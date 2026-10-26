@@ -254,7 +254,7 @@ pub fn detect(text: &str, path: &str, scope: Scope) -> Vec<LibraryVersion> {
     let mut out = Vec::new();
     for (d, re) in DETECTORS.iter().zip(compiled()) {
         if d.scope != scope
-            || !d.file_hint.map_or(true, |h| lower.contains(h))
+            || !d.file_hint.is_none_or(|h| lower.contains(h))
             || !text.contains(d.needle)
         {
             continue;
