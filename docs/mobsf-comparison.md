@@ -6,7 +6,25 @@ Date: 2026-05-22. Apple Silicon. MobSF `opensecurity/mobile-security-framework-m
 > info `QS-CERT-002`; emails, tracker categories and cert enumeration are done). Several "pavise wins" rows
 > (ARC, expired profile HIGH, no-pinning) are questioned in [remediation-plan.md](remediation-plan.md).
 
-## Performance
+## Corpus timing (2026-10-26) — current numbers
+
+32 open-source IPAs from `benchmarks/corpus` (Mattermost excluded: MobSF rejects its archive).
+Apple M5 (10 cores). pavise 0.1.3 (offline, `PAVISE_ARGS=--verbose`). MobSF 4.6.1 in Docker
+with `MOBSF_DOMAIN_MALWARE_SCAN=0`. Its online domain check otherwise waits on network
+lookups, for 20+ minutes on OnionBrowser. One cold run per app; MobSF's time covers
+upload, scan and JSON report over REST. Raw data: `benchmarks/runs/_timings.tsv` (local).
+
+| | pavise | MobSF |
+|---|---|---|
+| Median per app | **0.47 s** | 12.1 s |
+| Total (32 apps, 2.6 GB) | **36 s** | 836 s |
+| Largest (Provenance, 1 GB) | **14.2 s** | 196 s |
+| Under 1 second | 23 of 32 | 0 |
+
+Speedup per app: median **26×**, range 7–81×. For the launch, cite "median 26× faster on
+32 open-source apps", not the 3-app numbers below.
+
+## Performance (2026-05-22, 3 apps)
 
 | IPA | Size | Pavise (mean) | MobSF cold | MobSF warm | Speedup (cold) |
 |---|---|---|---|---|---|
