@@ -740,6 +740,7 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
     // file's copy of an inline key, which the filter above then drops.
     all_secrets = deduplicate(all_secrets);
     all_secrets = patterns::secrets::drop_superseded(all_secrets);
+    patterns::secrets::mark_known_test_keys(&mut all_secrets);
 
     // 3d-iv. Bundled database file detection
     const DB_EXTENSIONS: &[&str] = &[".sqlite", ".sqlite3", ".db", ".realm"];

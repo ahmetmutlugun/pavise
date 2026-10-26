@@ -1,0 +1,8 @@
+# Private keys published as library test fixtures. Anyone can read them, so they protect
+# nothing; a match means the library's test certificates were compiled into the build.
+# Format: first 40 base64 characters of the key body <TAB> source.
+# mbedTLS 2.28 library/certs.c and 3.6 tests/src/test_certs.h (MBEDTLS_CERTS_C in 2.x).
+MHcCAQEEIPEqEyB2AnCoPL/9U/YDHvdqXYbIogTy	mbedTLS test server key (TEST_SRV_KEY_EC_PEM)
+MHcCAQEEIPb3hmTxZ3/mZI3vyk7p3U3wBf+WIop6	mbedTLS test client key (TEST_CLI_KEY_EC_PEM)
+MIIEpAIBAAKCAQEAwU2j3efNHdEE10lyuJmsDnjk	mbedTLS test server key (TEST_SRV_KEY_RSA_PEM)
+MIIEpAIBAAKCAQEAyHTEzLn5tXnpRdkUYLB9u5Py	mbedTLS test client key (TEST_CLI_KEY_RSA_PEM)

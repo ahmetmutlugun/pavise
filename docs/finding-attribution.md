@@ -79,6 +79,8 @@ Xcode gives extensions `@executable_path/../../Frameworks`, so that path is safe
   It describes how the build was distributed.
 - With a development profile, QS-ENT-001 (get-task-allow) drops to Info. Xcode always grants it
   there. Ad-hoc, enterprise and App Store builds keep it High.
+- QS-SEC-004 keys listed in `data/known_test_keys.txt` (mbedTLS's four unencrypted test keys,
+  found in Provenance's RetroArch and the Haxe FunkiniOS build) are Info as "Library Test Private Key".
 - QS-SEC-001 (Google/Firebase API key) is Info. The keys are public by design. The risk is
   key restrictions and backend rules. `--network` probes RTDB/Storage (QS-FB-001/002). A
   refused probe is reported as Secure evidence.

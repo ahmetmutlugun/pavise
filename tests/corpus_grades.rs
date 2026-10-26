@@ -19,15 +19,17 @@ const BANDS: &[(&str, &[&str], &str)] = &[
         &["B", "C"],
         "dev build: get-task-allow is unscored context",
     ),
+    // Their embedded private keys are mbedTLS's public test keys (Info since
+    // 2026-10-26); the remaining high findings keep them at D or F.
     (
         "Provenance-Emu__",
-        &["F"],
-        "bundles private keys, get-task-allow, ATS off",
+        &["D", "F"],
+        "get-task-allow, ATS off, mbedTLS test keys",
     ),
     (
         "hadobedo__FunkiniOS",
-        &["F"],
-        "private keys in binary, get-task-allow, no canary",
+        &["D", "F"],
+        "get-task-allow, no canary, mbedTLS test keys",
     ),
 ];
 

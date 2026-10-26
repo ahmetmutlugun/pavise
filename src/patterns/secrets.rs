@@ -1,8 +1,9 @@
 //! Secret detection is handled by PatternEngine in engine.rs.
 //! This module provides helpers for deduplicating and filtering secret matches.
 
-use crate::types::SecretMatch;
-use std::collections::HashSet;
+use crate::types::{SecretMatch, Severity};
+use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 
 /// Deduplicate secret matches by (rule_id, matched_value) pair.
 pub fn deduplicate(matches: Vec<SecretMatch>) -> Vec<SecretMatch> {
@@ -11,6 +12,46 @@ pub fn deduplicate(matches: Vec<SecretMatch>) -> Vec<SecretMatch> {
         .into_iter()
         .filter(|m| seen.insert((m.rule_id.clone(), m.matched_value.clone())))
         .collect()
+}
+
+/// Published library test keys (`data/known_test_keys.txt`): first 40 base64
+/// characters of the key body → where the key comes from.
+fn known_test_keys() -> &'static HashMap<&'static str, &'static str> {
+    static KEYS: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+    KEYS.get_or_init(|| {
+        include_str!("../../data/known_test_keys.txt")
+            .lines()
+            .filter(|l| !l.starts_with('#'))
+            .filter_map(|l| l.split_once('\t'))
+            .collect()
+    })
+}
+
+/// Lower private-key matches (QS-SEC-004) whose key is a published library
+/// test key, such as mbedTLS's built-in test certificates, to Info. The key
+/// protects nothing, but it shows test code compiled into the release build.
+pub fn mark_known_test_keys(matches: &mut [SecretMatch]) {
+    for m in matches.iter_mut().filter(|m| m.rule_id == "QS-SEC-004") {
+        let Some((_, body)) = m.matched_value.split_once("PRIVATE KEY-----") else {
+            continue;
+        };
+        let prefix: String = body
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric() || *c == '+' || *c == '/')
+            .take(40)
+            .collect();
+        let Some(source) = known_test_keys().get(prefix.as_str()) else {
+            continue;
+        };
+        m.severity = Severity::Info;
+        m.title = "Library Test Private Key (public)".to_string();
+        m.remediation = Some(format!(
+            "This is the {}, published in the library's source code, so it protects \
+            nothing. It means the library's test certificates are compiled in: disable them \
+            in release builds (mbedTLS 2.x: MBEDTLS_CERTS_C).",
+            source
+        ));
+    }
 }
 
 /// Rules that match a shape rather than a provider; a specific rule matching the
@@ -104,6 +145,33 @@ pub fn is_noise_file(path: &str) -> bool {
 mod tests {
     use super::*;
     use crate::types::{SecretMatch, Severity};
+
+    #[test]
+    fn mbedtls_test_key_is_info_unknown_key_stays_high() {
+        let key = |body: &str| SecretMatch {
+            rule_id: "QS-SEC-004".into(),
+            title: "Private Key Material".into(),
+            severity: Severity::High,
+            matched_value: format!("-----BEGIN EC PRIVATE KEY-----\n{}", body),
+            file_path: Some("Payload/A.app/A".into()),
+            cwe: None,
+            owasp_mobile: None,
+            owasp_masvs: None,
+            remediation: None,
+        };
+        let mut m = vec![
+            key("MHcCAQEEIPEqEyB2AnCoPL/9U/YDHvdqXYbIogTywwyp6/UfDw6noAoGCCqGSM49\nAwEH..."),
+            key("MHcCAQEEIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAoAoGCCqGSM49\nAwEH..."),
+        ];
+        mark_known_test_keys(&mut m);
+        assert_eq!(m[0].severity, Severity::Info);
+        assert!(m[0]
+            .remediation
+            .as_deref()
+            .unwrap()
+            .contains("TEST_SRV_KEY_EC_PEM"));
+        assert_eq!(m[1].severity, Severity::High);
+    }
 
     fn make_secret(rule_id: &str, value: &str) -> SecretMatch {
         SecretMatch {
