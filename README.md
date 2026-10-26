@@ -1,9 +1,6 @@
 # Pavise
 
-<!-- Crates.io badge disabled: the `pavise` crate name belongs to someone else (a 0.0.1
-     placeholder). Re-enable with the new crate name once it is published.
-[![Crates.io](https://img.shields.io/crates/v/pavise)](https://crates.io/crates/pavise)
--->
+[![Crates.io](https://img.shields.io/crates/v/pavise-cli)](https://crates.io/crates/pavise-cli)
 [![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue)](LICENSE)
 [![CI](https://github.com/ahmetmutlugun/pavise/actions/workflows/ci.yml/badge.svg)](https://github.com/ahmetmutlugun/pavise/actions/workflows/ci.yml)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-blue)](https://ghcr.io/ahmetmutlugun/pavise)
@@ -31,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/ahmetmutlugun/pavise/main/install.s
 ```
 
 Binaries for each release are on the [releases page](https://github.com/ahmetmutlugun/pavise/releases).
-To build from source (Rust 1.88+): `cargo install --locked --git https://github.com/ahmetmutlugun/pavise --bin pavise`.
+To build from source (Rust 1.88+): `cargo install --locked pavise-cli` (the crate is `pavise-cli`; the command is `pavise`).
 PDF output (`--format pdf`) needs Chrome or Chromium installed.
 
 Or use Docker (linux/amd64 and linux/arm64; the image also serves the web UI by default):
