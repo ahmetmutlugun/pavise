@@ -10,7 +10,7 @@ homepage = "https://pavise.app"
 readme = "README.md"
 keywords = ["ios", "ipa", "security", "static-analysis", "mobile"]
 categories = ["command-line-utilities", "development-tools"]
-include = ["src/", "rules/", "data/", "templates/", "assets/", "build.rs", "LICENSE", "README.md"]
+include = ["/src/", "/rules/", "/data/", "/templates/", "/assets/", "/build.rs", "/LICENSE", "/README.md"]
 
 [[bin]]
 name = "pavise"
