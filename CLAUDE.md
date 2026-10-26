@@ -25,6 +25,7 @@ Fast iOS IPA static security analyzer
 
 - [MobSF comparison](docs/mobsf-comparison.md): performance + accuracy vs MobSF on DVIA/Navic/VLC (2026-05-22)
 - [EOL library detection](docs/eol-data.md): banner-based library versions, endoflife.date snapshots in `data/eol/`, weekly refresh (2026-09-25)
+- [App Store privacy checks](docs/app-store-privacy.md): privacy manifest rules QS-PRIV-001…003 (ITMS-91053/91061), Apple SDK list, coverage gaps (2026-10-26)
 - [Finding attribution](docs/finding-attribution.md): library-vs-app API severity, call-site attribution, URL/domain/email noise, dev-build and Firebase-key context (2026-10-05)
 
 ## Plans

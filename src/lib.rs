@@ -291,6 +291,13 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
         privacy_manifest.as_deref(),
         &main_imports,
     ));
+    let archive_paths: Vec<&str> = unpacked
+        .archive
+        .files
+        .iter()
+        .map(|f| f.path.as_str())
+        .collect();
+    all_findings.extend(manifest::privacy::sdk_manifests(&archive_paths));
     log.record(format!(
         "Main binary analysis: {} ({}) — {} findings",
         main_binary_result

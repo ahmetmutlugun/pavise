@@ -98,6 +98,81 @@ pub fn analyze(manifest: Option<&[u8]>, imports: &[String]) -> Vec<Finding> {
     }]
 }
 
+/// Apple's list of commonly used SDKs that must ship their own privacy
+/// manifest (`data/privacy_sdks.txt`), lowercase.
+fn listed_sdks() -> &'static BTreeSet<String> {
+    static SDKS: std::sync::OnceLock<BTreeSet<String>> = std::sync::OnceLock::new();
+    SDKS.get_or_init(|| {
+        include_str!("../../data/privacy_sdks.txt")
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#'))
+            .map(str::to_ascii_lowercase)
+            .collect()
+    })
+}
+
+/// Listed SDKs bundled as frameworks without a privacy manifest inside the
+/// framework (ITMS-91061). `paths` are all archive entry paths; frameworks of
+/// extensions and Watch apps count too. Statically linked SDKs are not checked:
+/// their manifest lives in a resource bundle and their presence can't be
+/// established from the archive layout alone.
+pub fn sdk_manifests(paths: &[&str]) -> Option<Finding> {
+    // ".../Frameworks/Name.framework/" prefix -> framework name
+    let mut frameworks: BTreeSet<(&str, &str)> = BTreeSet::new();
+    for path in paths {
+        let Some(i) = path.find("/Frameworks/") else {
+            continue;
+        };
+        let rest = &path[i + "/Frameworks/".len()..];
+        let Some(end) = rest.find(".framework/") else {
+            continue;
+        };
+        let name = &rest[..end];
+        if !name.contains('/') && listed_sdks().contains(&name.to_ascii_lowercase()) {
+            let prefix_len = i + "/Frameworks/".len() + end + ".framework/".len();
+            frameworks.insert((&path[..prefix_len], name));
+        }
+    }
+    let missing: Vec<String> = frameworks
+        .iter()
+        .filter(|(prefix, _)| {
+            !paths
+                .iter()
+                .any(|p| p.starts_with(prefix) && p.ends_with("/PrivacyInfo.xcprivacy"))
+        })
+        .map(|(prefix, name)| format!("{}: no PrivacyInfo.xcprivacy in {}", name, prefix))
+        .collect();
+    if missing.is_empty() {
+        return None;
+    }
+    Some(Finding {
+        id: "QS-PRIV-003".to_string(),
+        title: "Listed Third-Party SDK Without Privacy Manifest".to_string(),
+        description: format!(
+            "{} bundled SDK framework{} on Apple's list of commonly used third-party SDKs \
+            ship{} no privacy manifest. App Store Connect rejects new apps, and updates that \
+            add a listed SDK, unless the SDK includes its own manifest (ITMS-91061). Versions \
+            released before 2024 usually predate the requirement.",
+            missing.len(),
+            if missing.len() == 1 { "" } else { "s" },
+            if missing.len() == 1 { "s" } else { "" }
+        ),
+        severity: Severity::Warning,
+        category: "privacy".to_string(),
+        cwe: Some("CWE-359".to_string()),
+        owasp_mobile: Some("M6".to_string()),
+        owasp_masvs: Some("MASVS-PRIVACY-1".to_string()),
+        evidence: missing,
+        remediation: Some(
+            "Update each SDK to a release that bundles PrivacyInfo.xcprivacy (see \
+            developer.apple.com/support/third-party-SDK-requirements). An app's own manifest \
+            does not cover a listed SDK."
+                .to_string(),
+        ),
+    })
+}
+
 fn missing_manifest(used: &[(&str, Vec<&str>)]) -> Finding {
     let mut evidence = vec!["PrivacyInfo.xcprivacy: absent from main bundle".to_string()];
     evidence.extend(
@@ -166,6 +241,43 @@ fn declared_categories(data: &[u8]) -> BTreeSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn listed_sdk_framework_without_manifest_flagged() {
+        let paths = [
+            "Payload/A.app/Frameworks/Alamofire.framework/Alamofire",
+            "Payload/A.app/Frameworks/Alamofire.framework/Info.plist",
+            // Manifest nested in a resource bundle inside the framework counts.
+            "Payload/A.app/Frameworks/SDWebImage.framework/SDWebImage",
+            "Payload/A.app/Frameworks/SDWebImage.framework/SDWebImage.bundle/PrivacyInfo.xcprivacy",
+            // Not on Apple's list, and a name that merely contains a listed one.
+            "Payload/A.app/Frameworks/MyKit.framework/MyKit",
+            "Payload/A.app/Frameworks/AlamofireImage.framework/AlamofireImage",
+            // Case-insensitive name; extension frameworks are checked too.
+            "Payload/A.app/PlugIns/W.appex/Frameworks/hermes.framework/hermes",
+        ];
+        let f = sdk_manifests(&paths).expect("finding");
+        assert_eq!(f.id, "QS-PRIV-003");
+        assert_eq!(f.severity, Severity::Warning);
+        assert_eq!(
+            f.evidence,
+            [
+                "Alamofire: no PrivacyInfo.xcprivacy in Payload/A.app/Frameworks/Alamofire.framework/",
+                "hermes: no PrivacyInfo.xcprivacy in Payload/A.app/PlugIns/W.appex/Frameworks/hermes.framework/",
+            ]
+        );
+    }
+
+    #[test]
+    fn listed_sdks_with_manifests_pass() {
+        let paths = [
+            "Payload/A.app/Frameworks/Flutter.framework/Flutter",
+            "Payload/A.app/Frameworks/Flutter.framework/PrivacyInfo.xcprivacy",
+        ];
+        assert!(sdk_manifests(&paths).is_none());
+        assert!(listed_sdks().contains("openssl_grpc"));
+        assert!(listed_sdks().contains("boringssl"));
+    }
 
     fn imports(names: &[&str]) -> Vec<String> {
         names.iter().map(|s| s.to_string()).collect()

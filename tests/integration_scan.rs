@@ -397,3 +397,31 @@ fn test_binary_plist_urls_and_firebase_host_collected() {
         "glued host in {domains:?}"
     );
 }
+
+#[test]
+fn test_listed_sdk_without_privacy_manifest() {
+    // ITMS-91061: Alamofire is on Apple's list and ships no manifest; Flutter
+    // carries its own, and MyKit isn't listed.
+    let ipa = common::IpaBuilder::new("TestApp")
+        .add_bundle_file("Frameworks/Alamofire.framework/Alamofire", b"x".to_vec())
+        .add_bundle_file("Frameworks/Flutter.framework/Flutter", b"x".to_vec())
+        .add_bundle_file(
+            "Frameworks/Flutter.framework/PrivacyInfo.xcprivacy",
+            b"<plist version=\"1.0\"><dict/></plist>".to_vec(),
+        )
+        .add_bundle_file("Frameworks/MyKit.framework/MyKit", b"x".to_vec())
+        .build();
+    let report = scan_ipa(ipa.path(), &default_opts()).unwrap();
+    let f: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| f.id == "QS-PRIV-003")
+        .collect();
+    assert_eq!(f.len(), 1, "{:?}", report.findings);
+    assert_eq!(f[0].evidence.len(), 1);
+    assert!(
+        f[0].evidence[0].starts_with("Alamofire: "),
+        "{:?}",
+        f[0].evidence
+    );
+}

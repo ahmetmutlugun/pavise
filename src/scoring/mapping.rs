@@ -124,6 +124,7 @@ mod tests {
             "QS-PLIST-002",
             "QS-PRIV-001",
             "QS-PRIV-002",
+            "QS-PRIV-003",
             "QS-PROV-001",
             "QS-SANDBOX-001",
             "QS-SCA-001",
