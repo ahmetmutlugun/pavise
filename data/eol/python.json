@@ -3,6 +3,13 @@
   "label": "Python",
   "releases": [
     {
+      "name": "3.15",
+      "isEol": false,
+      "eolFrom": "2031-10-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
       "name": "3.14",
       "isEol": false,
       "eolFrom": "2030-10-31",
@@ -32,8 +39,8 @@
     },
     {
       "name": "3.10",
-      "isEol": false,
-      "eolFrom": "2026-10-31",
+      "isEol": true,
+      "eolFrom": "2026-10-01",
       "isEoes": null,
       "eoesFrom": null
     },
