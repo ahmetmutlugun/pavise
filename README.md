@@ -68,7 +68,7 @@ pavise app.ipa --quiet                           # Score line only
 ## CI/CD
 
 ```yaml
-- uses: ahmetmutlugun/pavise/.github/actions/pavise@v0.1.1
+- uses: ahmetmutlugun/pavise/.github/actions/pavise@v0.1.2
   with:
     ipa-path: build/App.ipa
     format: sarif          # sarif | json | html | pdf

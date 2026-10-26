@@ -11,7 +11,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # A tag that doesn't match Cargo.toml would publish binaries and a crate
+  # with different versions; stop before building anything.
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          tag="${GITHUB_REF#refs/tags/v}"
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Tag v${tag} does not match Cargo.toml version ${version}"
+            exit 1
+          fi
+
   build:
+    needs: check-version
     strategy:
       matrix:
         include:
@@ -70,3 +85,61 @@ jobs:
         with:
           files: "*.tar.gz*"
           generate_release_notes: true
+
+  # crates.io package `pavise-cli` (`pavise` there is a third-party placeholder).
+  publish-crate:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Publish unless this version is already on crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          version="${GITHUB_REF#refs/tags/v}"
+          status=$(curl -s -o /dev/null -w '%{http_code}' -A "pavise-release (github.com/ahmetmutlugun/pavise)" \
+            "https://crates.io/api/v1/crates/pavise-cli/${version}")
+          if [ "$status" = "200" ]; then
+            echo "pavise-cli ${version} is already published"
+            exit 0
+          fi
+          cargo publish --locked
+
+  # Needs HOMEBREW_TAP_TOKEN: a fine-grained token with Contents read/write on
+  # ahmetmutlugun/homebrew-tap (GITHUB_TOKEN can't push to another repository).
+  update-homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update Formula/pavise.rb
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is not set; update the tap with scripts/brew-formula.sh"
+            exit 0
+          fi
+          tag="${GITHUB_REF#refs/tags/}"
+          git clone -q "https://x-access-token:${TAP_TOKEN}@github.com/ahmetmutlugun/homebrew-tap.git" tap
+          scripts/brew-formula.sh "$tag" > tap/Formula/pavise.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/pavise.rb
+          git diff --cached --quiet && { echo "Formula already at ${tag}"; exit 0; }
+          git commit -q -m "pavise ${tag#v}"
+          git push -q origin HEAD
+
+  # Releases made with GITHUB_TOKEN don't trigger `release` workflows, but
+  # workflow_dispatch is allowed: smoke-test the Action pinned to this tag.
+  smoke-test:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh workflow run action-smoke.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}
