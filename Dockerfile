@@ -28,10 +28,16 @@ WORKDIR /app
 # decides freshness by mtime.
 # On small (4 GB) build hosts, set CARGO_BUILD_JOBS=2 to avoid OOM.
 COPY . .
+# The build's git commit for `pavise --version` and reports (build.rs; there is
+# no .git here). Railway passes RAILWAY_GIT_COMMIT_SHA to declared ARGs; other
+# builds pass PAVISE_GIT_COMMIT (the GHCR workflow uses github.sha).
+ARG RAILWAY_GIT_COMMIT_SHA=""
+ARG PAVISE_GIT_COMMIT=""
 RUN --mount=type=cache,id=s/2bd6af3c-a9aa-4a51-b465-7715a71780b6-/usr/local/cargo/registry,target=/usr/local/cargo/registry \
     --mount=type=cache,id=s/2bd6af3c-a9aa-4a51-b465-7715a71780b6-/usr/local/cargo/git,target=/usr/local/cargo/git \
     --mount=type=cache,id=s/2bd6af3c-a9aa-4a51-b465-7715a71780b6-/app/target,target=/app/target,sharing=locked \
     find src rules templates assets data/eol Cargo.toml -type f -exec touch {} + \
+    && export PAVISE_GIT_COMMIT="$(printf '%.7s' "${PAVISE_GIT_COMMIT:-$RAILWAY_GIT_COMMIT_SHA}")" \
     && cargo build --release --bin pavise-server --bin pavise \
     && cp target/release/pavise-server target/release/pavise /usr/local/bin/
 
