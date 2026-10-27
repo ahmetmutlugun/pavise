@@ -71,6 +71,13 @@ tracing-appender = "0.2"
 # Colored output
 colored = "2"
 
+# Weak-EC-key check on bundled certificates (P-256/P-384 point arithmetic only).
+p256 = { version = "0.14", default-features = false, features = ["arithmetic"] }
+p384 = { version = "0.14", default-features = false, features = ["arithmetic"] }
+# PEM markers, pins and raw key bytes in large binaries (both already in the tree via regex).
+memchr = "2"
+aho-corasick = "1"
+
 # Hex encoding
 hex = "0.4"
 

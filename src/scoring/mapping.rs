@@ -21,7 +21,8 @@ pub fn owasp_for(rule_id: &str) -> Option<(&'static str, Option<&'static str>)> 
         id if id.starts_with("QS-IPC-") => m("M4", "MASVS-PLATFORM-1"),
 
         // M5 Insecure Communication
-        "QS-API-023" | "QS-NET-004" | "QS-CERT-002" => m("M5", "MASVS-NETWORK-2"),
+        "QS-API-023" | "QS-NET-004" | "QS-CERT-002" | "QS-CERT-007" => m("M5", "MASVS-NETWORK-2"),
+        "QS-CERT-003" | "QS-CERT-005" | "QS-CERT-006" => m("M5", "MASVS-NETWORK-1"),
         "QS-API-020" => m("M5", "MASVS-NETWORK-1"),
         id if id.starts_with("QS-ATS-") || id.starts_with("QS-NET-") => m("M5", "MASVS-NETWORK-1"),
 
@@ -63,6 +64,7 @@ pub fn owasp_for(rule_id: &str) -> Option<(&'static str, Option<&'static str>)> 
         // M10 Insufficient Cryptography
         "QS-API-004" | "QS-API-007" | "QS-API-016" | "QS-API-017" => m("M10", "MASVS-CRYPTO-1"),
         id if id.starts_with("QS-CRYPTO-") => m("M10", "MASVS-CRYPTO-1"),
+        "QS-CERT-004" => m("M10", "MASVS-CRYPTO-1"),
 
         _ => None,
     }
@@ -109,6 +111,11 @@ mod tests {
             "QS-BIN-010",
             "QS-CERT-001",
             "QS-CERT-002",
+            "QS-CERT-003",
+            "QS-CERT-004",
+            "QS-CERT-005",
+            "QS-CERT-006",
+            "QS-CERT-007",
             "QS-CRYPTO-001",
             "QS-ENT-001",
             "QS-ENT-011",

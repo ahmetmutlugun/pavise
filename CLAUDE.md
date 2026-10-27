@@ -26,6 +26,7 @@ Fast iOS IPA static security analyzer
 - [MobSF comparison](docs/mobsf-comparison.md): 32-app corpus timing, median 26× faster (2026-10-26); accuracy on DVIA (2026-05-22)
 - [EOL library detection](docs/eol-data.md): banner-based library versions, endoflife.date snapshots in `data/eol/`, weekly refresh (2026-09-25)
 - [App Store privacy checks](docs/app-store-privacy.md): privacy manifest rules QS-PRIV-001…003 (ITMS-91053/91061), Apple SDK list, coverage gaps (2026-10-26)
+- [Trust-store checks](docs/trust-store-checks.md): bundled root stores, pins and weak EC keys QS-CERT-003…007 (eMudhra compromise, distrusted CAs), sourced `data/distrusted_cas.tsv` (2026-10-26)
 - [Finding attribution](docs/finding-attribution.md): library-vs-app API severity, call-site attribution, URL/domain/email noise, dev-build and Firebase-key context (2026-10-05)
 
 ## Plans

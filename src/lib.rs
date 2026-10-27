@@ -398,6 +398,8 @@ pub fn scan_ipa(path: &Path, opts: &ScanOptions) -> Result<ScanReport> {
                 };
             }
             scan_strings(f, &data, &pattern_engine, &mut scan);
+            // Bundled root stores, pins and weak EC keys (QS-CERT-003…007).
+            scan.findings.extend(resources::trust::scan(&f.path, &data));
             Ok(Some(scan))
         })
         .filter_map(Result::transpose)
