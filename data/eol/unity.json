@@ -46,7 +46,7 @@
     },
     {
       "name": "6000.0",
-      "isEol": false,
+      "isEol": true,
       "eolFrom": "2026-10-16",
       "isEoes": false,
       "eoesFrom": "2027-10-16"

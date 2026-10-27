@@ -3,6 +3,13 @@
   "label": "OpenSSL",
   "releases": [
     {
+      "name": "4.1",
+      "isEol": false,
+      "eolFrom": "2027-11-30",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
       "name": "4.0",
       "isEol": false,
       "eolFrom": "2027-05-14",
@@ -25,7 +32,7 @@
     },
     {
       "name": "3.4",
-      "isEol": false,
+      "isEol": true,
       "eolFrom": "2026-10-22",
       "isEoes": null,
       "eoesFrom": null
