@@ -44,8 +44,10 @@ docker run --rm -v "$PWD:/work" ghcr.io/ahmetmutlugun/pavise pavise /work/app.ip
 | Binary protections | NX, PIE, ARC, encryption, RPATH, stack canaries |
 | Manifest analysis | Info.plist, entitlements, provisioning profiles |
 | Secret detection | 29 patterns — AWS, GCP, Azure, GitHub, Stripe, Slack, OpenAI, etc. |
-| Dangerous APIs | 15+ risky iOS APIs (strcpy, NSLog, malloc, etc.) |
-| Tracker detection | 20 advertising/analytics SDKs |
+| Dangerous APIs | 24 risky iOS APIs (strcpy, NSLog, weak hashes, etc.), attributed to app code vs. dependencies |
+| Tracker detection | 19 advertising/analytics SDKs |
+| Trust stores & keys | Bundled root CA stores (PEM, DER, and keys compiled into binaries) that trust compromised or distrusted CAs, e.g. the 2026 eMudhra intermediates; pins on those keys; EC keys with tiny private scalars ([details](docs/trust-store-checks.md)) |
+| Privacy manifests | Missing `PrivacyInfo.xcprivacy`, undeclared required-reason APIs (ITMS-91053), Apple-listed SDKs without their own manifest (ITMS-91061) |
 | Supply chain | Framework inventory; end-of-life detection for OpenSSL, FFmpeg, Qt, Unity, Python, jQuery and more ([endoflife.date](https://endoflife.date) data) |
 | Network intel | DNS resolution and IP geolocation (`--network`) |
 
@@ -65,7 +67,7 @@ pavise app.ipa --quiet                           # Score line only
 ## CI/CD
 
 ```yaml
-- uses: ahmetmutlugun/pavise/.github/actions/pavise@v0.1.3
+- uses: ahmetmutlugun/pavise/.github/actions/pavise@v0.2.0
   with:
     ipa-path: build/App.ipa
     format: sarif          # sarif | json | html | pdf
