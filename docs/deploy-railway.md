@@ -7,9 +7,8 @@ take effect only via `railway config plan` then `railway config apply` (SDK:
 `npm install` in `.railway/`). Dashboard edits (e.g. raising memory) drift
 from the file: edit the file too, or `railway config pull`, or the next apply
 reverts them. Variables are `preserve()`, so values never enter the repo.
-Production (2026-10-29): `PAVISE_MAX_SCANS=4`, uploads 2 GiB, extraction 4 GiB, `RAYON_NUM_THREADS=2`
-(the container sees 48 host cores). Measured: 1 GB IPA + 130 MB IPA at once peaked at 1.41 GB; idle ~175 MB.
-Uploads over 100 MB must be chunked: Cloudflare returns 413 for larger single requests.
+Production (2026-10-29): 4 scans, 2 GiB uploads, 4 GiB extraction, `RAYON_NUM_THREADS=2` (48 host cores
+visible); 1 GB + 130 MB IPAs together peaked at 1.41 GB, idle ~175 MB. Cloudflare 413s requests > 100 MB.
 Railway injects `PORT`; the server reads it. The Dockerfile `HEALTHCHECK` is
 ignored there (docker-compose still uses it). Logs go to stderr only;
 `PAVISE_LOG_DIR` is set by `docker-compose.yml`, not the image.
