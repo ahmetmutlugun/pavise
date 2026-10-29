@@ -7,9 +7,9 @@ export default defineRailway(() => {
     healthcheck: "/healthz",
     healthcheckTimeout: 60,
     replicas: { "us-west2": 1 },
-    deploy: { limitOverride: { containers: { cpu: 1, memoryBytes: 1000000000 } }, restartPolicyMaxRetries: 5 },
+    deploy: { limitOverride: { containers: { cpu: 2, memoryBytes: 4000000000 } }, restartPolicyMaxRetries: 5 },
     domains: [{ domain: "pavise.app", port: 3000 }],
-    env: { PAVISE_CACHE_MAX_ENTRIES: preserve(), PAVISE_EDGE_SECRET: preserve(), PAVISE_MAX_IN_FLIGHT_BYTES: preserve(), PAVISE_MAX_PDF: preserve(), PAVISE_MAX_SCANS: preserve(), PAVISE_TRUSTED_PROXY: preserve(), PORT: preserve() },
+    env: { PAVISE_CACHE_MAX_ENTRIES: preserve(), PAVISE_EDGE_SECRET: preserve(), PAVISE_MAX_EXTRACTED_BYTES: preserve(), PAVISE_MAX_IN_FLIGHT_BYTES: preserve(), PAVISE_MAX_PDF: preserve(), PAVISE_MAX_SCANS: preserve(), PAVISE_MAX_UPLOAD_BYTES: preserve(), PAVISE_TRUSTED_PROXY: preserve(), PORT: preserve(), RAYON_NUM_THREADS: preserve() },
   });
 
   return project("incredible-clarity", {
