@@ -24,7 +24,9 @@ pub struct Config {
     pub upload_dir: PathBuf,
     /// Maximum requests per IP per minute. Env: `PAVISE_RATE_LIMIT` (default: 20).
     pub rate_limit_max: u32,
-    /// How long to keep cached scan results. Env: `PAVISE_CACHE_TTL_HOURS` (default: 24).
+    /// How long the hash cache keeps a report for re-uploads of the same file.
+    /// Env: `PAVISE_CACHE_TTL_HOURS` (default: 1, matching the 1 h result store and the
+    /// scan page's "kept in memory for one hour" promise).
     pub cache_ttl: Duration,
     /// Max entries in each of the result store and hash cache; oldest evicted
     /// first. Env: `PAVISE_CACHE_MAX_ENTRIES` (default: 256).
@@ -73,7 +75,7 @@ impl Config {
         let max_upload_bytes =
             parse_nonzero_u64("PAVISE_MAX_UPLOAD_BYTES", 512 * 1024 * 1024, &mut errors);
         let rate_limit_max = parse_nonzero_u32("PAVISE_RATE_LIMIT", 20, &mut errors);
-        let cache_ttl_hours = parse_nonzero_u64("PAVISE_CACHE_TTL_HOURS", 24, &mut errors);
+        let cache_ttl_hours = parse_nonzero_u64("PAVISE_CACHE_TTL_HOURS", 1, &mut errors);
         let cache_max_entries = parse_nonzero_usize("PAVISE_CACHE_MAX_ENTRIES", 256, &mut errors);
         let max_extracted_bytes = parse_nonzero_u64(
             "PAVISE_MAX_EXTRACTED_BYTES",

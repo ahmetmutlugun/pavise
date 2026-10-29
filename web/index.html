@@ -149,6 +149,11 @@
             <section class="hero bp-grid-cream" id="hero">
                 <div class="wrap hero-inner">
                     <div class="hero-content">
+                        <a
+                            class="hero-sample hero-news"
+                            href="https://github.com/ahmetmutlugun/pavise/blob/main/docs/trust-store-checks.md"
+                            >New: find bundled root CAs that still trust eMudhra's broken keys →</a
+                        >
                         <h1>
                             iOS app security<br />
                             in
@@ -163,7 +168,7 @@
                         <ul class="hero-bullets">
                             <li>Sub-3-second scans</li>
                             <li>No account</li>
-                            <li>Zero retention</li>
+                            <li>Files deleted after scan</li>
                             <li>Open source</li>
                         </ul>
 
@@ -201,8 +206,8 @@
                                         Drop an .ipa file in the scanner
                                     </div>
                                     <div class="dz-line-2">
-                                        Max 15 GB · processed and deleted
-                                        immediately
+                                        Max 512 MB · deleted right after the
+                                        scan
                                     </div>
                                 </div>
                             </div>
@@ -511,8 +516,9 @@
                             <span class="cov-tag">06 · SCA</span>
                             <h3>Supply chain</h3>
                             <p>
-                                Framework SCA with CVE matching against the
-                                GitHub Advisory and OSV vulnerability databases.
+                                Framework inventory, end-of-life library versions,
+                                and bundled root stores that trust compromised or
+                                distrusted CAs. CVE lookups via OSV in the CLI.
                             </p>
                         </div>
                     </div>
@@ -534,54 +540,50 @@
                             >
                             <h2>
                                 PDF reports ready<br />for
-                                <em>compliance reviews.</em>
+                                <em>security reviews.</em>
                             </h2>
                             <p>
                                 Every scan generates a structured PDF with an
-                                executive summary, OWASP Mobile Top&nbsp;10
-                                findings, and CWE references — ready to attach
-                                directly to a SOC&nbsp;2 or ISO&nbsp;27001 audit
-                                package. No reformatting, no manual mapping.
+                                executive summary and findings mapped to the
+                                OWASP Mobile Top&nbsp;10 (2024), MASVS&nbsp;v2
+                                controls and CWE IDs. No reformatting, no manual
+                                mapping.
                             </p>
 
                             <div class="ev-stamps">
                                 <div class="ev-stamp">
                                     <div class="ev-stamp-body">
-                                        <div class="ev-stamp-code">SOC 2</div>
-                                        <div class="ev-stamp-sub">TYPE II</div>
-                                    </div>
-                                    <div class="ev-stamp-note">AICPA TSC</div>
-                                </div>
-                                <div class="ev-stamp">
-                                    <div class="ev-stamp-body">
-                                        <div class="ev-stamp-code">
-                                            ISO 27001
-                                        </div>
-                                        <div class="ev-stamp-sub">ANNEX A</div>
-                                    </div>
-                                    <div class="ev-stamp-note">
-                                        INFO SEC MGMT
-                                    </div>
-                                </div>
-                                <div class="ev-stamp">
-                                    <div class="ev-stamp-body">
                                         <div class="ev-stamp-code">OWASP</div>
+                                        <div class="ev-stamp-sub">MOBILE TOP 10</div>
+                                    </div>
+                                    <div class="ev-stamp-note">2024</div>
+                                </div>
+                                <div class="ev-stamp">
+                                    <div class="ev-stamp-body">
+                                        <div class="ev-stamp-code">CWE</div>
+                                        <div class="ev-stamp-sub">WEAKNESS IDS</div>
+                                    </div>
+                                    <div class="ev-stamp-note">MITRE</div>
+                                </div>
+                                <div class="ev-stamp">
+                                    <div class="ev-stamp-body">
+                                        <div class="ev-stamp-code">MASVS</div>
                                         <div class="ev-stamp-sub">
-                                            MASVS L1/L2
+                                            V2 CONTROLS
                                         </div>
                                     </div>
                                     <div class="ev-stamp-note">MOBILE STD</div>
                                 </div>
                                 <a
-                                    href="/compliance"
+                                    href="https://github.com/ahmetmutlugun/pavise#cicd"
                                     class="ev-stamp ev-stamp-more"
                                 >
                                     <div class="ev-stamp-body">
                                         <div class="ev-stamp-code">
-                                            + More frameworks
+                                            SARIF 2.1.0
                                         </div>
                                         <div class="ev-stamp-sub">
-                                            GDPR · NIST · PCI · HIPAA
+                                            GITHUB CODE SCANNING
                                         </div>
                                     </div>
                                     <div class="ev-stamp-arrow">→</div>
@@ -590,7 +592,7 @@
 
                             <div class="ev-actions">
                                 <a href="/scan" class="btn btn-primary"
-                                    >Download sample
+                                    >Scan an IPA
                                     <span class="arrow">→</span></a
                                 >
                                 <a href="/scan" class="btn btn-dark"
@@ -741,10 +743,9 @@
                                 >
                             </p>
                             <p class="perf-desc">
-                                Average scan time for a typical 50&nbsp;MB IPA.
-                                Binary parsing, pattern matching, OWASP scoring,
-                                and CVE matching all run concurrently across
-                                every available CPU core via Rayon thread pools.
+                                For most IPAs. Binary parsing, pattern matching,
+                                trust-store checks and OWASP scoring run
+                                concurrently across every CPU core via Rayon.
                             </p>
 
                             <div class="switches">
@@ -759,23 +760,24 @@
                                 <div class="row">
                                     <div class="chk">✓</div>
                                     <span
-                                        >15× faster scans. Seconds, not minutes
-                                        — even on multi-gigabyte IPAs.</span
+                                        >26× faster than MobSF (median, 32
+                                        open-source apps). Seconds, not
+                                        minutes.</span
                                     >
                                 </div>
                                 <div class="row">
                                     <div class="chk">✓</div>
                                     <span
-                                        >No account, zero retention. IPAs are
-                                        processed and deleted immediately —
-                                        nothing persists after the scan
-                                        completes.</span
+                                        >No account. IPAs are deleted as soon
+                                        as the scan finishes; the report stays
+                                        in memory for an hour, never on
+                                        disk.</span
                                     >
                                 </div>
                                 <div class="row">
                                     <div class="chk">✓</div>
                                     <span
-                                        >Open source. MIT-licensed, auditable,
+                                        >Open source. MPL-2.0, auditable,
                                         deployable in air-gapped
                                         environments.</span
                                     >
@@ -801,87 +803,34 @@
                                 "
                             ></span>
                             <div class="cmp-head">
-                                <span>scan time · 50&nbsp;MB IPA</span>
+                                <span>median scan · 32 open-source IPAs</span>
                                 <span>lower is better</span>
                             </div>
 
                             <div class="cmp-row">
                                 <div class="name">Pavise</div>
-                                <div class="bar"><i style="width: 6%"></i></div>
-                                <div class="time">2.4 s</div>
+                                <div class="bar"><i style="width: 4%"></i></div>
+                                <div class="time">0.47 s</div>
                             </div>
                             <div class="cmp-row them">
                                 <div class="name">MobSF</div>
                                 <div class="bar">
-                                    <i style="width: 92%"></i>
+                                    <i style="width: 100%"></i>
                                 </div>
-                                <div class="time">~45 s</div>
+                                <div class="time">12.1 s</div>
                             </div>
-                            <div class="cmp-row them" style="opacity: 0.7">
-                                <div
-                                    class="name"
-                                    style="
-                                        font-size: 16px;
-                                        font-weight: 500;
-                                        font-family: var(--font-body);
-                                    "
-                                >
-                                    iMAS
-                                </div>
-                                <div class="bar">
-                                    <i
-                                        style="
-                                            width: 60%;
-                                            background: rgba(
-                                                236,
-                                                230,
-                                                216,
-                                                0.4
-                                            );
-                                        "
-                                    ></i>
-                                </div>
-                                <div class="time">~28 s</div>
-                            </div>
-                            <div class="cmp-row them" style="opacity: 0.7">
-                                <div
-                                    class="name"
-                                    style="
-                                        font-size: 16px;
-                                        font-weight: 500;
-                                        font-family: var(--font-body);
-                                    "
-                                >
-                                    Needle
-                                </div>
-                                <div class="bar">
-                                    <i
-                                        style="
-                                            width: 45%;
-                                            background: rgba(
-                                                236,
-                                                230,
-                                                216,
-                                                0.4
-                                            );
-                                        "
-                                    ></i>
-                                </div>
-                                <div class="time">~21 s</div>
-                            </div>
-
                             <div class="cmp-foot">
                                 <div>
                                     <div class="cmp-foot-label">
-                                        P50 latency
+                                        Largest IPA (1&nbsp;GB)
                                     </div>
-                                    <div class="cmp-foot-num">1.8&thinsp;s</div>
+                                    <div class="cmp-foot-num">14&thinsp;s</div>
                                 </div>
                                 <div>
                                     <div class="cmp-foot-label">
-                                        P99 latency
+                                        MobSF, same IPA
                                     </div>
-                                    <div class="cmp-foot-num">4.2&thinsp;s</div>
+                                    <div class="cmp-foot-num">196&thinsp;s</div>
                                 </div>
                             </div>
                         </div>
@@ -923,13 +872,12 @@
                             <span class="out-ext">.pdf</span>
                             <h3>Audit-ready report</h3>
                             <p>
-                                Executive summary, findings, and OWASP mapping.
-                                Ready to attach to a SOC 2 or ISO 27001 evidence
-                                package.
+                                Executive summary and findings mapped to the
+                                OWASP Mobile Top 10, MASVS v2 and CWE.
                             </p>
                             <div class="out-tools">
-                                <span>SOC 2</span><span>ISO 27001</span
-                                ><span>Compliance</span>
+                                <span>OWASP</span><span>MASVS</span
+                                ><span>CWE</span>
                             </div>
                         </div>
                         <div class="out-card">
@@ -1078,9 +1026,9 @@
                         >
                     </div>
                     <p class="cta-foot">
-                        MIT-LICENSED&nbsp;&nbsp;·&nbsp;&nbsp;NO
-                        ACCOUNT&nbsp;&nbsp;·&nbsp;&nbsp;ZERO
-                        RETENTION&nbsp;&nbsp;·&nbsp;&nbsp;DELETED IMMEDIATELY
+                        MPL-2.0&nbsp;&nbsp;·&nbsp;&nbsp;NO
+                        ACCOUNT&nbsp;&nbsp;·&nbsp;&nbsp;FILES DELETED AFTER
+                        SCAN
                     </p>
                 </div>
             </section>
@@ -1151,18 +1099,15 @@
                     <ul>
                         <li><a href="#sample">OWASP MASVS</a></li>
                         <li><a href="#sample">CWE references</a></li>
-                        <li><a href="#sample">SOC 2 mapping</a></li>
-                        <li><a href="#sample">ISO 27001 mapping</a></li>
+                        <li><a href="#sample">OWASP Mobile Top 10</a></li>
+                        <li><a href="https://github.com/ahmetmutlugun/pavise/blob/main/docs/trust-store-checks.md">Trust-store checks</a></li>
                     </ul>
                 </div>
             </div>
             <div class="wrap foot-bot">
-                <span>© 2026 Pavise · MIT License</span>
-                <span
-                    >Status ·
-                    <span style="color: var(--mint-deep)"
-                        >● Operational</span
-                    ></span
+                <span>© 2026 Pavise · MPL-2.0</span>
+                <a href="https://github.com/ahmetmutlugun/pavise"
+                    >Source on GitHub</a
                 >
             </div>
         </footer>

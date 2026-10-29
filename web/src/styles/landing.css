@@ -277,6 +277,7 @@ section { position: relative; }
     padding-bottom: 2px;
 }
 .hero-sample:hover { color: var(--ink); }
+.hero-news { display: inline-block; margin-bottom: 20px; }
 
 /* Hero visual */
 .hero-visual {

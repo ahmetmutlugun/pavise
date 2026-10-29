@@ -204,7 +204,8 @@
                                         <div><dt>Secrets</dt><dd>29 patterns for hardcoded credentials, including AWS, GCP, Azure, GitHub, Stripe, Slack and OpenAI keys. Bundled private keys are flagged too. Matches are masked in the report.</dd></div>
                                         <div><dt>Manifests</dt><dd>Info.plist, entitlements, the privacy manifest, permission usage strings and the embedded provisioning profile.</dd></div>
                                         <div><dt>Transport</dt><dd>App Transport Security exceptions, cleartext <code>http://</code> endpoints and certificate pinning.</dd></div>
-                                        <div><dt>Trackers</dt><dd>20 advertising and analytics SDKs, identified by their frameworks and domains.</dd></div>
+                                        <div><dt>Trust stores</dt><dd>Root certificates bundled in the app or its libraries (PEM, DER or compiled into a binary) that trust compromised or distrusted CAs, such as the eMudhra intermediates with public keys. Also pins on those keys and EC keys with tiny private keys.</dd></div>
+                                        <div><dt>Trackers</dt><dd>19 advertising and analytics SDKs, identified by their frameworks and domains.</dd></div>
                                         <div><dt>Supply chain</dt><dd>An inventory of embedded frameworks, with end-of-life library versions (OpenSSL, FFmpeg, Qt, Unity and more) and Firebase configuration issues.</dd></div>
                                     </dl>
                                 </section>
@@ -233,7 +234,7 @@
                                 <section class="about-section">
                                     <h2>Run it yourself</h2>
                                     <p>The same engine is available as a CLI, a Docker image and a GitHub Action. It outputs JSON, SARIF 2.1.0 for code scanning, HTML or PDF, and exits non-zero on high-severity findings, so it can gate a CI build.</p>
-                                    <pre class="about-code"><code>cargo install --locked --git https://github.com/ahmetmutlugun/pavise --bin pavise
+                                    <pre class="about-code"><code>brew install ahmetmutlugun/tap/pavise   # or: cargo install pavise-cli
 pavise App.ipa --format sarif -o report.sarif</code></pre>
                                     <p><a class="about-link" href="https://github.com/ahmetmutlugun/pavise" target="_blank" rel="noopener noreferrer">Source, docs and custom rules on GitHub →</a></p>
                                 </section>

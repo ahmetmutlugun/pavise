@@ -130,17 +130,15 @@ onScroll();
   const el = document.getElementById("compliance-strip");
   if (!el) return;
   const items = [
-    ["OWASP MASVS", "L1·L2"],
-    ["CWE", "v4.13"],
-    ["SOC 2", "TYPE II"],
-    ["ISO 27001", "ANNEX A"],
-    ["GDPR", "ART. 32"],
-    ["NIST", "800-218"],
-    ["PCI DSS", "v4.0"],
-    ["HIPAA", "TECH SAFEGUARDS"],
+    ["OWASP MOBILE TOP 10", "2024"],
+    ["OWASP MASVS", "v2"],
+    ["CWE", "IDS"],
+    ["SARIF", "2.1.0"],
+    ["GITHUB", "CODE SCANNING"],
+    ["PDF · HTML · JSON", "REPORTS"],
   ];
   const seq = () => {
-    let out = '<span class="tag">▸ EVIDENCE READY FOR</span>';
+    let out = '<span class="tag">▸ FINDINGS MAP TO</span>';
     for (const [t, v] of items) {
       out += `<span><b>${t}</b>&nbsp;&nbsp;<i>${v}</i></span><span class="sep">/</span>`;
     }

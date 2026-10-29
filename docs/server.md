@@ -17,7 +17,7 @@ handlers and middleware live in `src/server/` (`build_router`), so
 | `PAVISE_MAX_UPLOAD_SESSIONS` | 16 | Open chunked uploads (2 per IP) |
 | `PAVISE_BODY_TIMEOUT_SECS` | 300 | Time to receive one request body |
 | `PAVISE_CACHE_MAX_ENTRIES` | 256 | Cap on result store and hash cache (oldest evicted) |
-| `PAVISE_CACHE_TTL_HOURS` | 24 | Hash-cache TTL (results: 1 h) |
+| `PAVISE_CACHE_TTL_HOURS` | 1 | Hash-cache TTL; keep ≤ 1 so reports live no longer than the 1 h the scan page promises |
 | `PAVISE_RATE_LIMIT` | 20 | Requests / IP / minute |
 | `PAVISE_TRUSTED_PROXY` | unset | Proxy IPs/CIDRs whose forwarding headers are believed |
 | `PAVISE_EDGE_SECRET` | unset | Required `X-Pavise-Edge` value before `CF-Connecting-IP` is believed |
