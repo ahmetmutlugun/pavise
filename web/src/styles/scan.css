@@ -10,24 +10,24 @@
 
 :root {
     /* ── Editorial palette (shared with landing) ── */
-    --cream: #ece6d8;
-    --cream-2: #e0d8c2;
-    --cream-3: #f4f0e5;
+    --cream: #ebebeb;
+    --cream-2: #dcdcdc;
+    --cream-3: #f6f6f6;
     --navy: #1c1b2a;
     --navy-2: #26253a;
     --navy-3: #34334b;
-    --mint: #6fe3a8;
-    --mint-deep: #4ec98a;
-    --amber: #e8a868;
-    --coral: #e87a6a;
+    --mint: #28e99f;
+    --mint-deep: #14c98a;
+    --amber: #ffb23f;
+    --coral: #ff5d4f;
     --ink: #1c1b2a;
     --ink-dim: rgba(28, 27, 42, 0.62);
     --ink-faint: rgba(28, 27, 42, 0.42);
     --ink-line: rgba(28, 27, 42, 0.12);
     --ink-line-2: rgba(28, 27, 42, 0.22);
-    --paper: rgba(236, 230, 216, 0.85);
-    --paper-line: rgba(236, 230, 216, 0.12);
-    --paper-line-2: rgba(236, 230, 216, 0.22);
+    --paper: rgba(244, 244, 246, 0.85);
+    --paper-line: rgba(244, 244, 246, 0.12);
+    --paper-line-2: rgba(244, 244, 246, 0.22);
 
     --font-display: "Bricolage Grotesque", "Inter Tight", system-ui, sans-serif;
     --font-body: "DM Sans", system-ui, sans-serif;
@@ -36,11 +36,11 @@
     --sidebar-w: 264px;
 
     /* ── Severity / grade hues (tuned for cream) ── */
-    --sev-high: #c4503e;
-    --sev-warn: #c4853e;
-    --sev-info: #2a6d88;
-    --sev-secure: #2a8859;
-    --sev-purple: #6f5bb0;
+    --sev-high: #e5443d;
+    --sev-warn: #d98200;
+    --sev-info: #2f74e0;
+    --sev-secure: #0f9d63;
+    --sev-purple: #7c5cff;
 }
 
 [hidden] {
@@ -476,7 +476,7 @@ body {
 [data-state="ready"] > .dot,
 [data-state="done"] > .dot {
     background: var(--mint-deep);
-    box-shadow: 0 0 0 4px rgba(110, 227, 168, 0.18);
+    box-shadow: 0 0 0 4px rgba(40, 233, 159, 0.18);
 }
 [data-state="uploading"] > .dot,
 [data-state="analysing"] > .dot {
@@ -485,7 +485,7 @@ body {
 }
 [data-state="error"] > .dot {
     background: var(--sev-high);
-    box-shadow: 0 0 0 4px rgba(196, 80, 62, 0.16);
+    box-shadow: 0 0 0 4px rgba(229, 68, 61, 0.16);
 }
 [data-state="cancelled"] > .dot {
     background: var(--ink-faint);
@@ -498,10 +498,10 @@ body {
 @keyframes statusPulse {
     0%,
     100% {
-        box-shadow: 0 0 0 0 rgba(110, 227, 168, 0.5);
+        box-shadow: 0 0 0 0 rgba(40, 233, 159, 0.5);
     }
     50% {
-        box-shadow: 0 0 0 5px rgba(110, 227, 168, 0);
+        box-shadow: 0 0 0 5px rgba(40, 233, 159, 0);
     }
 }
 
@@ -546,7 +546,7 @@ body {
     height: 6px;
     background: var(--mint-deep);
     border-radius: 50%;
-    box-shadow: 0 0 0 4px rgba(110, 227, 168, 0.18);
+    box-shadow: 0 0 0 4px rgba(40, 233, 159, 0.18);
 }
 .scan-hero h1.scan-title {
     font-family: var(--font-display);
@@ -590,13 +590,13 @@ body {
 }
 .drop-zone:hover,
 .drop-zone.drag-over {
-    background: rgba(110, 227, 168, 0.08);
+    background: rgba(40, 233, 159, 0.08);
     border-color: var(--mint-deep);
 }
 .drop-zone.has-file {
     border-style: solid;
     border-color: var(--mint-deep);
-    background: rgba(110, 227, 168, 0.06);
+    background: rgba(40, 233, 159, 0.06);
 }
 
 .drop-zone input[type="file"] {
@@ -796,7 +796,7 @@ body {
 .step[data-state="active"] {
     color: var(--navy);
     border-color: var(--mint-deep);
-    background: rgba(110, 227, 168, 0.14);
+    background: rgba(40, 233, 159, 0.14);
 }
 .step[data-state="active"] .step-ic {
     border-color: var(--ink-line-2);
@@ -816,7 +816,7 @@ body {
 .step[data-state="failed"] {
     color: var(--sev-high);
     border-color: var(--sev-high);
-    background: rgba(196, 80, 62, 0.06);
+    background: rgba(229, 68, 61, 0.06);
 }
 .step[data-state="failed"] .step-ic::after {
     content: "✕";
@@ -893,7 +893,7 @@ body {
     padding: 0.75rem 1rem;
     border: 1px solid var(--sev-high);
     border-left-width: 3px;
-    background: rgba(196, 80, 62, 0.07);
+    background: rgba(229, 68, 61, 0.07);
     color: var(--sev-high);
     font-size: 0.86rem;
 }
@@ -1167,14 +1167,14 @@ footer {
     font-size: 0.64rem;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: rgba(236, 230, 216, 0.6);
+    color: rgba(244, 244, 246, 0.6);
 }
 .rs-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
     background: var(--mint);
-    box-shadow: 0 0 0 3px rgba(111, 227, 168, 0.2);
+    box-shadow: 0 0 0 3px rgba(40, 233, 159, 0.2);
 }
 .rs-mast-meta {
     margin-left: auto;
@@ -1219,7 +1219,7 @@ footer {
 }
 .rs-meta {
     font-size: 0.84rem;
-    color: rgba(236, 230, 216, 0.6);
+    color: rgba(244, 244, 246, 0.6);
     margin-top: 0.2rem;
 }
 .rs-score {
@@ -1237,7 +1237,7 @@ footer {
     font-size: 0.6rem;
     letter-spacing: 0.16em;
     text-transform: uppercase;
-    color: rgba(236, 230, 216, 0.6);
+    color: rgba(244, 244, 246, 0.6);
 }
 .rs-grade {
     font-family: var(--font-display);
@@ -1268,7 +1268,7 @@ footer {
     color: var(--amber);
 }
 .grade-d {
-    color: #e0915a;
+    color: #ffa94d;
 }
 .grade-f {
     color: var(--coral);
@@ -1282,7 +1282,7 @@ footer {
 .rs-num span {
     font-weight: 400;
     font-size: 0.72rem;
-    color: rgba(236, 230, 216, 0.6);
+    color: rgba(244, 244, 246, 0.6);
 }
 
 /* ── Stats ── */
@@ -1295,7 +1295,7 @@ footer {
 }
 .rs-stat {
     flex: 1;
-    background: #faf8f2;
+    background: #fbfbfb;
     padding: 0.95rem 0.5rem 0.85rem;
     text-align: center;
 }
@@ -1484,7 +1484,7 @@ footer {
 }
 .rs-empty {
     border: 1px solid var(--ink-line);
-    background: #faf8f2;
+    background: #fbfbfb;
     padding: 1rem 1.1rem;
     display: flex;
     gap: 0.7rem;
@@ -1520,7 +1520,7 @@ footer {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .rs-prot div {
-    background: #faf8f2;
+    background: #fbfbfb;
     padding: 0.55rem 0.7rem;
     display: flex;
     align-items: center;
@@ -1559,7 +1559,7 @@ footer {
     grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .rs-owasp div {
-    background: #faf8f2;
+    background: #fbfbfb;
     padding: 0.5rem 0.6rem 0.6rem;
     border-top: 3px solid var(--ink-line);
     display: grid;
@@ -1660,7 +1660,7 @@ footer {
 
 .rs-list {
     border: 1px solid var(--ink-line);
-    background: #faf8f2;
+    background: #fbfbfb;
 }
 .rs-list[data-filter="fix"] > [data-sev="info"],
 .rs-list[data-filter="info"] > [data-sev="fix"] {
@@ -1680,7 +1680,7 @@ footer {
     border-left-color: var(--sev-warn);
 }
 .rs-card.info {
-    border-left-color: rgba(42, 109, 136, 0.35);
+    border-left-color: rgba(47, 116, 224, 0.35);
 }
 .rs-card summary {
     list-style: none;
@@ -1829,7 +1829,7 @@ footer {
 }
 .rs-fix {
     padding: 0.5rem 0.7rem;
-    background: rgba(111, 227, 168, 0.16);
+    background: rgba(40, 233, 159, 0.16);
 }
 .rs-fix .rs-ev-lbl {
     color: var(--sev-secure);
@@ -1850,7 +1850,7 @@ footer {
 }
 .rs-chip {
     border: 1px solid var(--ink-line-2);
-    background: #faf8f2;
+    background: #fbfbfb;
     padding: 0.3rem 0.65rem;
     font-size: 0.8rem;
     max-width: 100%;
@@ -1868,7 +1868,7 @@ footer {
     display: grid;
     grid-template-columns: 170px minmax(0, 1fr);
     border: 1px solid var(--ink-line);
-    background: #faf8f2;
+    background: #fbfbfb;
 }
 .rs-facts dt,
 .rs-facts dd {
@@ -2015,7 +2015,7 @@ footer {
     display: flex;
     align-items: center;
     gap: 0.7rem;
-    background: rgba(196, 80, 62, 0.08);
+    background: rgba(229, 68, 61, 0.08);
     border: 1px solid var(--sev-high);
     border-left: 3px solid var(--sev-high);
     padding: 0.9rem 1.25rem;
@@ -2066,24 +2066,24 @@ footer {
 
 /* ── History grade colors ── */
 .hg-a {
-    background: rgba(110, 227, 168, 0.4);
+    background: rgba(40, 233, 159, 0.4);
     border-color: var(--mint-deep);
 }
 .hg-b {
-    background: rgba(110, 227, 168, 0.2);
+    background: rgba(40, 233, 159, 0.2);
     border-color: var(--mint-deep);
 }
 .hg-c {
-    background: rgba(232, 168, 104, 0.35);
-    border-color: #c4853e;
+    background: rgba(255, 178, 63, 0.35);
+    border-color: #d98200;
 }
 .hg-d {
-    background: rgba(232, 122, 106, 0.3);
-    border-color: #c4503e;
+    background: rgba(255, 93, 79, 0.3);
+    border-color: #e5443d;
 }
 .hg-f {
-    background: rgba(232, 122, 106, 0.5);
-    border-color: #c4503e;
+    background: rgba(255, 93, 79, 0.5);
+    border-color: #e5443d;
     color: #6e2a1e;
 }
 

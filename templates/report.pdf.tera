@@ -7,18 +7,18 @@
 {{ fonts_css | safe }}
 /* Pavise design system — mirrors web/src/styles/scan.css, tuned for A4 print. */
 :root{
-  --cream:#ece6d8;--cream-2:#e0d8c2;--cream-3:#f4f0e5;--card:#faf8f2;
+  --cream:#ebebeb;--cream-2:#dcdcdc;--cream-3:#f6f6f6;--card:#fbfbfb;
   --navy:#1c1b2a;--navy-2:#26253a;
-  --mint:#6fe3a8;--mint-deep:#4ec98a;--amber:#e8a868;--coral:#e87a6a;
+  --mint:#28e99f;--mint-deep:#14c98a;--amber:#ffb23f;--coral:#ff5d4f;
   --ink:#1c1b2a;--ink-dim:rgba(28,27,42,.64);--ink-faint:rgba(28,27,42,.44);
   --ink-line:rgba(28,27,42,.12);--ink-line-2:rgba(28,27,42,.22);
-  --paper:rgba(236,230,216,.88);--paper-dim:rgba(236,230,216,.6);--paper-line:rgba(236,230,216,.16);
-  --sev-high:#c4503e;--sev-warn:#c4853e;--sev-info:#2a6d88;--sev-secure:#2a8859;
+  --paper:rgba(244,244,246,.88);--paper-dim:rgba(244,244,246,.6);--paper-line:rgba(244,244,246,.16);
+  --sev-high:#e5443d;--sev-warn:#d98200;--sev-info:#2f74e0;--sev-secure:#0f9d63;
   --display:"Bricolage Grotesque","Inter Tight",system-ui,sans-serif;
   --body:"DM Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
 }
-@page{size:A4;margin:11mm 0 13mm;background:#f4f0e5;
+@page{size:A4;margin:11mm 0 13mm;background:#f6f6f6;
   @bottom-left{content:{{ footer_css | safe }};padding-left:14mm;vertical-align:top;padding-top:3mm;
     font-family:"JetBrains Mono",ui-monospace,monospace;font-size:6pt;letter-spacing:.12em;text-transform:uppercase;color:rgba(28,27,42,.5)}
   @bottom-right{content:"Page " counter(page) " of " counter(pages);padding-right:14mm;vertical-align:top;padding-top:3mm;
@@ -44,7 +44,7 @@ body{font-family:var(--body);font-size:9pt;line-height:1.5;color:var(--ink);padd
 .mast-id{flex:1;min-width:0}
 .eyebrow{font-family:var(--mono);font-size:6.5pt;letter-spacing:.16em;text-transform:uppercase;color:var(--paper-dim);
   display:flex;align-items:center;gap:7px}
-.eyebrow .dot{width:5px;height:5px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 3px rgba(111,227,168,.2)}
+.eyebrow .dot{width:5px;height:5px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 3px rgba(40,233,159,.2)}
 h1{font-family:var(--display);font-weight:700;font-size:23pt;line-height:1.02;letter-spacing:-.025em;margin:8px 0 7px;color:var(--cream)}
 h1.long{font-size:17pt;line-height:1.08}
 .clamp2{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
@@ -55,7 +55,7 @@ h1.long{font-size:17pt;line-height:1.08}
   display:flex;flex-direction:column;justify-content:center}
 .score .lbl{font-family:var(--mono);font-size:6.3pt;letter-spacing:.16em;text-transform:uppercase;color:var(--paper-dim)}
 .grade{font-family:var(--display);font-weight:800;font-size:50pt;line-height:.95;letter-spacing:-.04em;margin:3px 0 2px}
-.grade-a{color:var(--mint)}.grade-b{color:var(--mint-deep)}.grade-c{color:var(--amber)}.grade-d{color:#e0915a}.grade-f{color:var(--coral)}
+.grade-a{color:var(--mint)}.grade-b{color:var(--mint-deep)}.grade-c{color:var(--amber)}.grade-d{color:#ffa94d}.grade-f{color:var(--coral)}
 .score .num{font-family:var(--mono);font-size:10pt;font-weight:600;color:var(--paper)}
 .score .num span{font-weight:400;font-size:7.5pt;color:var(--paper-dim)}
 
@@ -145,8 +145,8 @@ h2{font-family:var(--display);font-weight:700;font-size:16pt;letter-spacing:-.02
 .ev ul{list-style:none;flex:1;min-width:0;border-left:1px solid var(--ink-line-2);padding-left:7px}
 .ev li{font-family:var(--mono);font-size:6.9pt;line-height:1.5;color:var(--ink-dim);word-break:break-all}
 .ev li.extra{color:var(--ink-faint)}
-.fix{margin:6px 0 0 58px;padding:4px 8px;background:rgba(111,227,168,.14);display:flex;gap:8px;align-items:baseline}
-.fix .fix-lbl{color:#2a8859}
+.fix{margin:6px 0 0 58px;padding:4px 8px;background:rgba(40,233,159,.14);display:flex;gap:8px;align-items:baseline}
+.fix .fix-lbl{color:#0f9d63}
 .fix p{font-size:8pt;color:var(--ink);flex:1;min-width:0}
 
 table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--ink-line);table-layout:fixed}
@@ -175,7 +175,7 @@ td.i{width:92px;text-align:right}
 <!-- ═══ Page 1 — summary ═══ -->
 <header class="mast">
   <div class="mast-bar">
-    <svg viewBox="0 0 100 128" aria-hidden="true"><path d="M16 8Q16 4 20 4L80 4Q84 4 84 8L84 76Q84 104 50 124Q16 104 16 76Z" fill="#ece6d8"/><line x1="50" y1="16" x2="50" y2="112" stroke="#1c1b2a" stroke-width="5"/><circle cx="50" cy="56" r="10" fill="#4ec98a"/></svg>
+    <svg viewBox="0 0 100 128" aria-hidden="true"><path d="M16 8Q16 4 20 4L80 4Q84 4 84 8L84 76Q84 104 50 124Q16 104 16 76Z" fill="#ebebeb"/><line x1="50" y1="16" x2="50" y2="112" stroke="#1c1b2a" stroke-width="5"/><circle cx="50" cy="56" r="10" fill="#14c98a"/></svg>
     <span class="brand">Pavise</span><span class="brk">[</span>iOS security report<span class="brk">]</span>
     <span class="date">{{ r.generated }} UTC</span>
   </div>

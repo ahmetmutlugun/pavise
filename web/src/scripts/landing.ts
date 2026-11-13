@@ -14,9 +14,9 @@ onScroll();
 (function renderHalftoneShield() {
   const svg = document.getElementById("halftone-shield");
   if (!svg) return;
-  const accent = "#6fe3a8";
+  const accent = "#28e99f";
   const color = "#1c1b2a";
-  const cream = "#ece6d8";
+  const cream = "#ebebeb";
   // Same silhouette as the logo (viewBox 0 0 100 128), scaled 3.4× about x=50.
   const shieldPath =
     "M 180 29.6 L 309.2 63.6 L 292.2 356 Q 288.8 383.2 265 396.8 L 180 437.6 L 95 396.8 Q 71.2 383.2 67.8 356 L 50.8 63.6 Z";
@@ -89,40 +89,159 @@ onScroll();
     `;
 })();
 
-// ── CTA decorative wave lines ──
-(function renderCtaLines() {
-  const svg = document.getElementById("cta-lines");
-  if (!svg) return;
-  const W = 1440;
-  const H = 600;
-  const paths: string[] = [];
-  const N = 32;
-  for (let i = 0; i < N; i++) {
-    const offset = i * 7;
-    const baseY = 200 + offset;
-    const amp1 = 70 - (i % 5) * 8;
-    const amp2 = 35 + (i % 4) * 6;
-    const phase = (i * 0.7) % (Math.PI * 2);
-    const segs = 8;
-    const pts: string[] = [];
-    for (let s = 0; s <= segs; s++) {
-      const x = (W / segs) * s;
-      const y =
-        baseY +
-        Math.sin((s / segs) * Math.PI * 2 + phase) * amp1 +
-        Math.cos((s / segs) * Math.PI * 5 + phase * 1.3) * amp2;
-      pts.push(`${s === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`);
-    }
-    const opacity = (0.08 + (i % 4) * 0.05).toFixed(3);
-    const stroke =
-      i % 6 === 0 ? "#6fe3a8" : i % 6 === 3 ? "#ece6d8" : "#6fe3a8";
-    const width = i % 6 === 0 ? 1.4 : 0.8;
-    paths.push(
-      `<path d="${pts.join(" ")}" fill="none" stroke="${stroke}" stroke-width="${width}" opacity="${opacity}" stroke-linecap="round"/>`,
-    );
+// ── CTA binary scan ──
+// A dim hexdump of a Mach-O fills the band. A mint beam sweeps left→right,
+// lighting the bytes it passes; some bytes are "caught" — boxed in a severity
+// colour with the finding that tripped them — then fade. The centre is masked
+// so the headline stays readable. Static frame under reduced motion; paused
+// while offscreen.
+(function renderCtaScan() {
+  const canvas = document.getElementById("cta-scan") as HTMLCanvasElement | null;
+  const ctx = canvas?.getContext("2d");
+  if (!canvas || !ctx) return;
+
+  const MINT = "40,233,159";
+  const FINDINGS: [string, string][] = [
+    ["SECRET · AKIA…", "255,93,79"],
+    ["ATS · ARBITRARY LOADS", "255,178,63"],
+    ["WEAK HASH · MD5", "255,178,63"],
+    ["TRACKER · SDK", "255,138,253"],
+    ["CERT · DISTRUSTED CA", "255,93,79"],
+    ["FIREBASE · OPEN DB", "255,93,79"],
+    ["DEBUG LOG · NSLog", "113,173,255"],
+    ["PIE ✓", MINT],
+    ["STACK CANARY ✓", MINT],
+  ];
+  const CW = 30, CH = 26, PERIOD = 7000, FADE = 2600;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const mono = getComputedStyle(document.documentElement).getPropertyValue("--font-mono") || "monospace";
+  const hex = () => ((Math.random() * 256) | 0).toString(16).padStart(2, "0").toUpperCase();
+
+  let W = 0, H = 0, cols = 0, rows = 0;
+  let bytes: string[] = [];
+  let hits: { c: number; r: number; label: string; rgb: string; at: number }[] = [];
+  let mask: number[] = [];
+  let lastCol = -1;
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Mobile URL-bar show/hide fires resize without changing the band; keep state.
+    if (canvas!.clientWidth === W && canvas!.clientHeight === H && canvas!.width === W * dpr) return false;
+    W = canvas!.clientWidth; H = canvas!.clientHeight;
+    canvas!.width = W * dpr; canvas!.height = H * dpr;
+    ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cols = Math.ceil(W / CW) + 1; rows = Math.ceil(H / CH) + 1;
+    bytes = Array.from({ length: cols * rows }, hex);
+    // Elliptical mask: ~0.15 behind the headline, 1 at the edges.
+    mask = [];
+    for (let r = 0; r < rows; r++)
+      for (let c = 0; c < cols; c++) {
+        const dx = (c * CW - W / 2) / (Math.min(W, 1100) / 2);
+        const dy = (r * CH - H / 2) / (H / 2.1);
+        const d = Math.hypot(dx, dy);
+        mask.push(Math.min(1, Math.max(0.15, (d - 0.55) * 1.6)));
+      }
+    hits = [];
+    return true;
   }
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-  svg.innerHTML = paths.join("");
+
+  function spawnHits(col: number, now: number) {
+    for (let r = 0; r < rows; r++) {
+      const i = r * cols + col;
+      if (hits.length >= 6 || mask[i] < 0.6 || Math.random() > 0.06) continue;
+      if (col + 9 > cols) continue; // leave room for the label
+      if (hits.some((h) => Math.abs(h.r - r) < 3 && Math.abs(h.c - col) < 9)) continue;
+      const [label, rgb] = FINDINGS[(Math.random() * FINDINGS.length) | 0];
+      hits.push({ c: col, r, label, rgb, at: now });
+    }
+  }
+
+  function draw(now: number) {
+    const t = reduceMotion ? 0.62 : (now % PERIOD) / PERIOD;
+    const beamX = t * (W + 240) - 120;
+    const col = Math.floor(beamX / CW);
+    if (!reduceMotion && col !== lastCol && col >= 0 && col < cols) {
+      spawnHits(col, now);
+      lastCol = col;
+      // Bytes behind the beam re-randomise slowly, so the dump feels live.
+      for (let k = 0; k < 6; k++) {
+        const i = (Math.random() * bytes.length) | 0;
+        const r = (i / cols) | 0, c = i % cols;
+        if (!hits.some((h) => h.r === r && (h.c === c || h.c + 1 === c))) bytes[i] = hex();
+      }
+    }
+    hits = hits.filter((h) => reduceMotion || now - h.at < FADE);
+
+    ctx!.clearRect(0, 0, W, H);
+    ctx!.font = `500 11px ${mono}`;
+    ctx!.textBaseline = "middle";
+    for (let r = 0; r < rows; r++) {
+      const y = r * CH + CH / 2;
+      for (let c = 0; c < cols; c++) {
+        const i = r * cols + c;
+        const x = c * CW + 4;
+        const behind = beamX - x; // >0 once the beam has passed
+        const glow = behind > 0 && behind < 260 ? 1 - behind / 260 : 0;
+        const a = (0.07 + glow * 0.5) * mask[i];
+        ctx!.fillStyle = glow > 0.02 ? `rgba(${MINT},${a})` : `rgba(244,244,246,${a})`;
+        ctx!.fillText(bytes[i], x, y);
+      }
+    }
+
+    // Beam: soft trailing gradient + crisp leading line.
+    const g = ctx!.createLinearGradient(beamX - 220, 0, beamX, 0);
+    g.addColorStop(0, `rgba(${MINT},0)`);
+    g.addColorStop(1, `rgba(${MINT},0.07)`);
+    ctx!.fillStyle = g;
+    ctx!.fillRect(beamX - 220, 0, 220, H);
+    ctx!.fillStyle = `rgba(${MINT},0.55)`;
+    ctx!.fillRect(beamX, 0, 1.5, H);
+
+    // Caught bytes: box + label, fading out.
+    ctx!.font = `600 10px ${mono}`;
+    for (const h of hits) {
+      const life = reduceMotion ? 0.2 : (now - h.at) / FADE;
+      const a = life < 0.08 ? life / 0.08 : 1 - Math.max(0, life - 0.55) / 0.45;
+      const x = h.c * CW, y = h.r * CH;
+      ctx!.strokeStyle = `rgba(${h.rgb},${a})`;
+      ctx!.lineWidth = 1.2;
+      ctx!.strokeRect(x + 0.5, y + 3.5, CW * 2 - 2, CH - 7);
+      ctx!.fillStyle = `rgba(${h.rgb},${a})`;
+      ctx!.font = `600 11px ${mono}`;
+      ctx!.fillText(bytes[h.r * cols + h.c], x + 4, y + CH / 2);
+      ctx!.fillText(bytes[h.r * cols + h.c + 1] ?? "", x + CW + 4, y + CH / 2);
+      ctx!.font = `600 10px ${mono}`;
+      const tw = ctx!.measureText(h.label).width;
+      ctx!.fillStyle = `rgba(28,27,42,${a * 0.9})`;
+      ctx!.fillRect(x + CW * 2 + 4, y + 5, tw + 12, CH - 10);
+      ctx!.fillStyle = `rgba(${h.rgb},${a})`;
+      ctx!.fillText(h.label, x + CW * 2 + 10, y + CH / 2);
+    }
+  }
+
+  resize();
+  if (reduceMotion) {
+    // A few representative catches on the static frame.
+    for (let k = 0; k < 40 && hits.length < 6; k++) spawnHits((Math.random() * cols) | 0, 0);
+    draw(0);
+    window.addEventListener("resize", () => {
+      if (!resize()) return;
+      for (let k = 0; k < 40 && hits.length < 6; k++) spawnHits((Math.random() * cols) | 0, 0);
+      draw(0);
+    });
+    return;
+  }
+
+  let raf = 0, visible = false;
+  const loop = (now: number) => { draw(now); raf = requestAnimationFrame(loop); };
+  new IntersectionObserver(([e]) => {
+    visible = e.isIntersecting;
+    cancelAnimationFrame(raf);
+    if (visible) raf = requestAnimationFrame(loop);
+  }).observe(canvas);
+  window.addEventListener("resize", () => {
+    if (resize() && !visible) draw(performance.now());
+  });
 })();
 
 // ── Compliance marquee ──
@@ -154,7 +273,7 @@ onScroll();
 //     const handle = initDitheringShader({
 //         canvas,
 //         colorBack: '#1c1b2a',
-//         colorFront: '#6fe3a8',
+//         colorFront: '#28e99f',
 //         shape: 'wave',
 //         type: '8x8',
 //         params: { speed: 0.55, pxSize: 3, waveAmp: 1.0, bandWidth: 1.4 },

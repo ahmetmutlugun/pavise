@@ -18,22 +18,25 @@
         <style>
             *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
             :root {
-                --bg: #fafaf9; --surface: #ffffff; --border: #e7e5e0;
-                --text: #1a1816; --text-body: #44403c; --text-dim: #78716c;
-                --accent: #3b82f6; --purple: #7c3aed;
+                --bg: #ebebeb; --surface: #f6f6f6; --border: rgba(28, 27, 42, 0.22);
+                --text: #1c1b2a; --text-dim: rgba(28, 27, 42, 0.62);
+                --mint: #28e99f; --mint-deep: #14c98a; --navy: #1c1b2a;
                 --sans: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
                 --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
             }
             [data-theme="dark"] {
-                --bg: #0d1117; --surface: #161b22; --border: #30363d;
-                --text: #e6edf3; --text-body: #c9d1d9; --text-dim: #8b949e;
-                --accent: #58a6ff; --purple: #8b5cf6;
+                --bg: #1c1b2a; --surface: #26253a; --border: rgba(244, 244, 246, 0.22);
+                --text: #f4f4f6; --text-dim: rgba(244, 244, 246, 0.62);
             }
             html, body { height: 100%; }
             body {
                 background: var(--bg); color: var(--text); font-family: var(--sans);
                 display: flex; flex-direction: column; align-items: center;
                 justify-content: center; min-height: 100vh; padding: 2rem; text-align: center;
+                background-image:
+                    linear-gradient(to right, rgba(28, 27, 42, 0.04) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(28, 27, 42, 0.04) 1px, transparent 1px);
+                background-size: 56px 56px;
             }
             .brand {
                 display: flex; align-items: center; gap: 0.5rem;
@@ -42,26 +45,26 @@
             }
             .code {
                 font-family: var(--mono); font-size: 6rem; font-weight: 500;
-                line-height: 1; letter-spacing: -0.04em;
-                background: linear-gradient(135deg, #3b82f6, #7c3aed);
-                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                background-clip: text;
+                line-height: 1; letter-spacing: -0.04em; color: var(--text);
             }
+            .code span { color: var(--mint); }
             h1 { font-size: 1.5rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.5rem; }
             p { color: var(--text-dim); font-size: 1rem; max-width: 36ch; margin: 0 auto 2rem; }
-            .links { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+            .links { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
             .btn {
-                display: inline-block; padding: 0.6rem 1.25rem; border-radius: 8px;
-                font-family: var(--sans); font-size: 0.9rem; font-weight: 500;
-                text-decoration: none; transition: opacity 0.15s;
+                --c: 10px;
+                display: inline-block; padding: 12px 20px;
+                font-family: var(--sans); font-size: 14px; font-weight: 500;
+                text-decoration: none; transition: background 120ms ease, transform 120ms ease;
             }
-            .btn:hover { opacity: 0.8; }
+            .btn:hover { transform: translateY(-1px); }
             .btn-primary {
-                background: linear-gradient(135deg, #3b82f6, #7c3aed);
-                color: #fff;
+                background: var(--mint); color: var(--navy); font-weight: 600;
+                clip-path: polygon(0 0, calc(100% - var(--c)) 0, 100% var(--c), 100% 100%, var(--c) 100%, 0 calc(100% - var(--c)));
             }
+            .btn-primary:hover { background: var(--mint-deep); }
             .btn-secondary {
-                background: transparent; color: var(--text-dim);
+                background: transparent; color: var(--text);
                 border: 1px solid var(--border);
             }
         </style>
@@ -71,12 +74,12 @@
             <svg width="18" height="23" viewBox="0 0 100 128" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <path d="M 50 4 L 88 14 L 83 100 Q 82 108 75 112 L 50 124 L 25 112 Q 18 108 17 100 L 12 14 Z" fill="#1c1b2a" />
                 <path d="M 50 4 L 88 14 L 83 100 Q 82 108 75 112 L 50 124 Z" fill="#3d3b56" />
-                <path d="M 50 4 L 50 124" stroke="#6fe3a8" stroke-width="4" />
-                <path d="M 50 34 L 59 44 L 50 54 L 41 44 Z" fill="#6fe3a8" />
+                <path d="M 50 4 L 50 124" stroke="#28e99f" stroke-width="4" />
+                <path d="M 50 34 L 59 44 L 50 54 L 41 44 Z" fill="#28e99f" />
             </svg>
             Pavise
         </a>
-        <div class="code">404</div>
+        <div class="code">4<span>0</span>4</div>
         <h1>Page not found</h1>
         <p>The page you're looking for doesn't exist or has been moved.</p>
         <div class="links">

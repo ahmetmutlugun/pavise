@@ -204,13 +204,13 @@ details[open] summary::before{content:"▼ "}
 
 /* ── Print / PDF theme ──────────────────────────────────────────────────────
    Rendered by headless Chrome for PDF output. The screen report stays dark;
-   here we redefine the design tokens to a light "editorial" palette (cream
+   here we redefine the design tokens to a light "editorial" palette (neutral
    surfaces, navy headings, mint for secure states) so the document is clean
    on paper, and add page-break rules so cards never split across pages. */
 @media print{
   :root{
-    --bg:#ffffff;--surface:#faf7f0;--surface2:#f1ece0;
-    --border:#e0dac9;--border-inner:#ece7da;
+    --bg:#ffffff;--surface:#f7f7f8;--surface2:#efeff1;
+    --border:#dcdce0;--border-inner:#e9e9ec;
     --text-heading:#1b2a4a;--text-body:#33405a;--text-dim:#6b7484;
     --accent:#1e3a5f;
     --high:#b4341f;--high-bg:#fbeee9;--high-border:#eccabb;--high-subtle:#fdf5f1;
