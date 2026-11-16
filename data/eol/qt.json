@@ -3,9 +3,16 @@
   "label": "Qt",
   "releases": [
     {
+      "name": "6.12",
+      "isEol": false,
+      "eolFrom": "2027-04-01",
+      "isEoes": false,
+      "eoesFrom": "2031-10-01"
+    },
+    {
       "name": "6.11",
       "isEol": true,
-      "eolFrom": "2026-09-22",
+      "eolFrom": "2026-09-30",
       "isEoes": false,
       "eoesFrom": "2027-03-23"
     },
@@ -13,7 +20,7 @@
       "name": "6.10",
       "isEol": true,
       "eolFrom": "2026-04-07",
-      "isEoes": false,
+      "isEoes": true,
       "eoesFrom": "2026-10-07"
     },
     {
@@ -47,7 +54,7 @@
     {
       "name": "6.5",
       "isEol": true,
-      "eolFrom": "2023-10-09",
+      "eolFrom": "2023-12-13",
       "isEoes": true,
       "eoesFrom": "2026-03-31"
     },

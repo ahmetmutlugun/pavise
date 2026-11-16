@@ -3,6 +3,13 @@
   "label": "Microsoft .NET",
   "releases": [
     {
+      "name": "11",
+      "isEol": false,
+      "eolFrom": "2028-11-14",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
       "name": "10",
       "isEol": false,
       "eolFrom": "2028-11-14",
@@ -11,14 +18,14 @@
     },
     {
       "name": "9",
-      "isEol": false,
+      "isEol": true,
       "eolFrom": "2026-11-10",
       "isEoes": null,
       "eoesFrom": null
     },
     {
       "name": "8",
-      "isEol": false,
+      "isEol": true,
       "eolFrom": "2026-11-10",
       "isEoes": null,
       "eoesFrom": null
