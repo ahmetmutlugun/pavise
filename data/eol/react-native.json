@@ -3,6 +3,13 @@
   "label": "React Native",
   "releases": [
     {
+      "name": "0.88",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
       "name": "0.87",
       "isEol": false,
       "eolFrom": null,
@@ -18,8 +25,8 @@
     },
     {
       "name": "0.85",
-      "isEol": false,
-      "eolFrom": null,
+      "isEol": true,
+      "eolFrom": "2026-10-12",
       "isEoes": null,
       "eoesFrom": null
     },

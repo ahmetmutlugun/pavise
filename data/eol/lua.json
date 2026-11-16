@@ -11,8 +11,8 @@
     },
     {
       "name": "5.4",
-      "isEol": false,
-      "eolFrom": null,
+      "isEol": true,
+      "eolFrom": "2026-08-25",
       "isEoes": null,
       "eoesFrom": null
     },
