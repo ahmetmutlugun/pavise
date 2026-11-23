@@ -3,6 +3,13 @@
   "label": "FFmpeg",
   "releases": [
     {
+      "name": "9.1",
+      "isEol": false,
+      "eolFrom": null,
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
       "name": "9.0",
       "isEol": false,
       "eolFrom": null,

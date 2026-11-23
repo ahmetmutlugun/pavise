@@ -3,6 +3,13 @@
   "label": "Python",
   "releases": [
     {
+      "name": "3.15",
+      "isEol": false,
+      "eolFrom": "2031-10-31",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
       "name": "3.14",
       "isEol": false,
       "eolFrom": "2030-10-31",
@@ -32,8 +39,8 @@
     },
     {
       "name": "3.10",
-      "isEol": false,
-      "eolFrom": "2026-10-31",
+      "isEol": true,
+      "eolFrom": "2026-10-01",
       "isEoes": null,
       "eoesFrom": null
     },
@@ -118,6 +125,41 @@
       "name": "2.6",
       "isEol": true,
       "eolFrom": "2013-10-29",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.5",
+      "isEol": true,
+      "eolFrom": "2011-05-26",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.4",
+      "isEol": true,
+      "eolFrom": "2008-12-19",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.3",
+      "isEol": true,
+      "eolFrom": "2008-03-11",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.2",
+      "isEol": true,
+      "eolFrom": "2003-05-30",
+      "isEoes": null,
+      "eoesFrom": null
+    },
+    {
+      "name": "2.1",
+      "isEol": true,
+      "eolFrom": "2002-04-09",
       "isEoes": null,
       "eoesFrom": null
     }
